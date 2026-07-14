@@ -1,0 +1,186 @@
+// lib/screens/game_screen.dart
+
+import 'package:flutter/material.dart';
+
+class GameScreen extends StatefulWidget {
+  final String playerName;
+  final String secretWord;
+  final bool isImpostor;
+
+  const GameScreen({
+    super.key,
+    required this.playerName,
+    required this.secretWord,
+    required this.isImpostor,
+  });
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  // Kartın ilk başta gizli kalması, oyuncu tıklayınca açılması için (opsiyonel ama oyun zevkini artırır kanka)
+  bool _isWordVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1E1E38), Color(0xFF13132B), Color(0xFF0B0B1A)],
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ÜST KISIM: Oyuncu İsmi ve Küçük Bilgi
+                Text(
+                  'Hoş geldin, ${widget.playerName}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  widget.isImpostor
+                      ? 'DİKKAT KİMSEYE BELLİ ETME!'
+                      : 'Kelimeyi arkadaşlarına anlatmaya hazır ol!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: widget.isImpostor
+                        ? Colors.redAccent
+                        : const Color(0xFF8E8EAF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // ORTA KISIM: GİZLİ KELİME KARTI
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _isWordVisible = !_isWordVisible;
+                    });
+                  },
+                  child: Container(
+                    height: 250,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF181832).withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _isWordVisible
+                            ? (widget.isImpostor
+                                  ? Colors.redAccent
+                                  : const Color(0xFF00D2FF))
+                            : const Color(0xFF2E2E5C),
+                        width: 2,
+                      ),
+                      boxShadow: _isWordVisible
+                          ? [
+                              BoxShadow(
+                                color: widget.isImpostor
+                                    ? Colors.redAccent.withOpacity(0.3)
+                                    : const Color(0xFF00D2FF).withOpacity(0.3),
+                                blurRadius: 15,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : [],
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (!_isWordVisible) ...[
+                          const Icon(
+                            Icons.lock_rounded,
+                            color: Color(0xFF8E8EAF),
+                            size: 50,
+                          ),
+                          const SizedBox(height: 15),
+                          const Text(
+                            'KELİMENİ GÖRMEK İÇİN TIKLA',
+                            style: TextStyle(
+                              color: Color(0xFF8E8EAF),
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            widget.isImpostor ? 'ROLÜN' : 'GİZLİ KELİMEN',
+                            style: TextStyle(
+                              color: widget.isImpostor
+                                  ? Colors.redAccent
+                                  : const Color(0xFF8E8EAF),
+                              fontSize: 13,
+                              letterSpacing: 1.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            widget.isImpostor ? 'IMPOSTER' : widget.secretWord,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: widget.isImpostor
+                                  ? Colors.redAccent
+                                  : const Color(0xFF00D2FF),
+                              fontSize: 34,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: widget.isImpostor ? 3 : 1,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // EN ALT KISIM: Oyundan Çıkış veya Geri Dönüş Butonu
+                ElevatedButton(
+                  onPressed: () {
+                    // Oyunu bitirip ana ekrana veya lobiye dönmek için
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E2E5C),
+                    side: const BorderSide(color: Color(0xFF00D2FF), width: 1),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'LOBİYE GERİ DÖN',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
