@@ -1,0 +1,13 @@
+{
+  "pencere_basligi": "Oyun Dünyam - Başlatıcı",
+  "pencere_boyutu": [800, 550],
+  "oyunlar": [
+    {
+      "id": "impostor_game",
+      "isim": "Impostor Game",
+      "aciklama": "Arkadaşlarınla birlikte gizli kelimeyi bulmaya çalış, aranızdaki imposter(lar)ı ayıkla!",
+      "calistirilacak_dosya": "oyunlar/impostor_game/lib/main.dart",
+      "ikon_yolu": "oyunlar/impostor_game/oyun_ikonu.png"
+    }
+  ]
+}
