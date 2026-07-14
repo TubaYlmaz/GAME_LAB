@@ -1,0 +1,19 @@
+# En dıştaki backend klasörünün kütüphanelerini engelle
+backend/node_modules/
+/backend/node_modules/
+
+# Tüm alt klasörlerdeki node_modules kütüphanelerini engelle
+**/node_modules/
+node_modules/
+
+# Flutter/Dart gereksiz derleme dosyalarını engelle
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.web_manifest
+*.web_plugins
+
+# İşletim sistemi kalıntıları
+.DS_Store
+Thumbs.db
