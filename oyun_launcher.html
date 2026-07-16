@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eğitim Merkezi - Oyun Dünyası</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
         /* =========================================================================
            🎨 GÖZ YORMAYAN PREMIUM NEON KOYU TEMA (CSS)
@@ -38,7 +39,8 @@
             font-size: 2.5rem;
             font-weight: 700;
             letter-spacing: 2px;
-            color: #00D2FF; /* Neon turkuaz rengi */
+            color: #00D2FF;
+            /* Neon turkuaz rengi */
             text-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
             margin-bottom: 10px;
             text-transform: uppercase;
@@ -124,7 +126,8 @@
             color: #8E8EAF;
             line-height: 1.5;
             margin-bottom: 25px;
-            flex-grow: 1; /* Butonları aynı çizgide hizalar kanka */
+            flex-grow: 1;
+            /* Butonları aynı çizgide hizalar kanka */
         }
 
         /* Oyna Butonu */
@@ -155,6 +158,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <header>
@@ -163,7 +167,7 @@
     </header>
 
     <main class="games-grid" id="gamesContainer">
-        </main>
+    </main>
 
     <script>
         // =========================================================================
@@ -183,24 +187,24 @@
         // Kartları ekrana çizen fonksiyon
         function renderGames() {
             const container = document.getElementById("gamesContainer");
-            container.innerHTML = ""; 
+            container.innerHTML = "";
 
             oyunlar.forEach(oyun => {
                 const card = document.createElement("div");
                 card.className = "game-card";
-                
-                // window.location.origin kullanarak port veya domain değişikliklerini dinamik algılar kanka
+
                 const oyunGidisLinki = window.location.origin + oyun.alt_yol;
 
+                // target="_blank" kısmını sildik, artık aynı sekmede açılacak!
                 card.innerHTML = `
-                    <div class="game-icon-container">
-                        <i class="${oyun.ikon_class}"></i>
-                    </div>
-                    <h2 class="game-title">${oyun.isim}</h2>
-                    <p class="game-desc">${oyun.aciklama}</p>
-                    <a href="${oyunGidisLinki}" target="_blank" class="play-btn">Oyna</a>
-                `;
-                
+            <div class="game-icon-container">
+                <i class="${oyun.ikon_class}"></i>
+            </div>
+            <h2 class="game-title">${oyun.isim}</h2>
+            <p class="game-desc">${oyun.aciklama}</p>
+            <a href="${oyunGidisLinki}" class="play-btn">Oyna</a>
+        `;
+
                 container.appendChild(card);
             });
         }
@@ -209,4 +213,5 @@
         document.addEventListener("DOMContentLoaded", renderGames);
     </script>
 </body>
+
 </html>
