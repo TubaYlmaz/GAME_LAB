@@ -1,50 +1,220 @@
-import 'dart:async'; // Timer için gerekli
-import 'dart:math';
+// lib/screens/voting_screen.dart
+
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class VotingScreen extends StatefulWidget {
-  const VotingScreen({super.key});
+  final dynamic socket; // Canlı soket objesi
+  final String roomCode; // Oda kodu
+  final String myName; // Oyuncu ismi
+  final List<String> players; // Odadaki oyuncular
+  final bool amIImpostor; // Ben impostor mıyım?
+
+  const VotingScreen({
+    super.key,
+    required this.socket,
+    required this.roomCode,
+    required this.myName,
+    required this.players,
+    required this.amIImpostor,
+  });
 
   @override
   State<VotingScreen> createState() => _VotingScreenState();
 }
 
 class _VotingScreenState extends State<VotingScreen> {
-  late List<String> players;
   String? selectedPlayer;
   double progress = 0.0;
   Timer? _timer;
 
-  // DİKKAT: Burada 'bool' tipini kesinleştiriyoruz ve başlangıç değerini atıyoruz
   bool isVotingClosed = false;
+  bool hasVoted = false; // Kullanıcı oyunu gönderdi mi?
+  int votedCount = 0; // Kaç kişi oy verdi canlı göstergesi
+
   @override
   void initState() {
     super.initState();
-    int playerCount = Random().nextInt(8) + 3;
-    players = List.generate(playerCount, (index) => "Oyuncu ${index + 1}");
-    startTimer(); // Sayfa açılır açılmaz zamanlayıcıyı başlat
+    
+    startTimer();
+    setupSocketListeners();
+  }
+
+  // 🔌 Sunucudan gelecek canlı sonuç olaylarını dinliyoruz kanka
+  void setupSocketListeners() {
+    // Diğer oyuncular oy verdikçe sayacı güncelle
+    widget.socket.on('vote_status_updated', (data) {
+      if (!mounted) return;
+      setState(() {
+        votedCount = data['votedCount'];
+      });
+    });
+
+    // Herkes oy verince veya süre bitince sonuçlar geliyor kanka! 🔥
+    widget.socket.on('voting_results', (data) {
+      if (!mounted) return;
+      
+      _timer?.cancel(); // Zamanlayıcıyı kesin olarak kapat
+      
+      setState(() {
+        isVotingClosed = true;
+      });
+
+      String eliminatedPlayer = data['eliminatedPlayer'] ?? "Kimse elenmedi (Beraberlik)";
+      bool isTie = data['isTie'] ?? false;
+      String impostorName = data['impostorName'] ?? "";
+
+      showResultsDialog(eliminatedPlayer, isTie, impostorName);
+    });
   }
 
   void startTimer() {
-    const int totalDuration = 10; // Toplam saniye
-    const int milliseconds = 100; // Güncelleme hızı
+    const int totalDuration = 15; // 15 saniye oylama süresi
+    const int milliseconds = 100;
     final double increment = milliseconds / (totalDuration * 1000);
 
-    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (
-      timer,
-    ) {
+    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (timer) {
       if (!mounted) return;
       setState(() {
         if (progress < 1.0) {
           progress += increment;
         } else {
           progress = 1.0;
-          isVotingClosed = true;
           timer.cancel();
+          // Süre bittiğinde oy vermediysek otomatik "Boş/Skip" oy fırlat kanka
+          if (!hasVoted) {
+            submitVote(isTimeout: true);
+          }
         }
       });
     });
+  }
+
+  // OY VERME AKSİYONU
+  void submitVote({bool isTimeout = false}) {
+    HapticFeedback.heavyImpact();
+    
+    setState(() {
+      hasVoted = true;
+    });
+
+    // Oy verdiğimiz oyuncuyu soketle sunucuya fırlatıyoruz! 🚀
+    widget.socket.emit('submit_vote', {
+      'roomCode': widget.roomCode,
+      'voterName': widget.myName,
+      'votedFor': isTimeout ? 'skip' : selectedPlayer,
+    });
+  }
+
+  // MULTIPLAYER SONUÇ EKRANI DIALOG PENCERESİ 🏆
+  void showResultsDialog(String eliminatedPlayer, bool isTie, String impostorName) {
+    String title = "";
+    String subtitle = "";
+    bool isVictory = false;
+
+    // 1. Durum: Beraberlik olduysa
+    if (isTie) {
+      title = "BERABERLİK! ⚖️";
+      subtitle = "Oylamada eşitlik çıktı, kimse elenmedi! Gerçek İmpostor '$impostorName' aramızda sızmaya devam ediyor.";
+      isVictory = widget.amIImpostor; // İmpostor yakalanamadığı için İmpostor kazanmış sayılır
+    } 
+    // 2. Durum: İmpostor başarıyla elendiyse
+    else if (eliminatedPlayer == impostorName) {
+      if (widget.amIImpostor) {
+        title = "YAKALANDIN! 💀";
+        subtitle = "Diğer oyuncular senin İmpostor olduğunu doğru bildi. Maçı kaybettin kanka!";
+        isVictory = false;
+      } else {
+        title = "ZAFER! 🎉";
+        subtitle = "Tebrikler! İmpostor olan '$impostorName' oyuncusunu başarıyla elediniz ve kazandınız!";
+        isVictory = true;
+      }
+    } 
+    // 3. Durum: Masum bir köylü elendiyse
+    else {
+      if (widget.amIImpostor) {
+        title = "ZAFER! 😈";
+        subtitle = "Köylüler yanlış kişiyi ($eliminatedPlayer) eledi! Sen yakalanmadın ve maçı kazandın.";
+        isVictory = true;
+      } else {
+        title = "BOZGUN! 🛑";
+        subtitle = "Yanlış kişiyi ($eliminatedPlayer) elediniz! Gerçek İmpostor '$impostorName' aranızda sinsi sinsi dolaşıyor.";
+        isVictory = false;
+      }
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Dışarı tıklayıp kapatamazlar
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF151528),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isVictory ? Icons.emoji_events_rounded : Icons.gavel_rounded,
+                  size: 80,
+                  color: isVictory ? Colors.amber : Colors.redAccent,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    color: isVictory ? Colors.amber : Colors.redAccent,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 30),
+                GestureDetector(
+                  onTap: () {
+                    // Soket dinleyicilerini kapatıp çıkalım kanka
+                    widget.socket.off('vote_status_updated');
+                    widget.socket.off('voting_results');
+                    Navigator.of(context).pop(); // Diyaloğu kapat
+                    Navigator.of(context).pop(); // Oylamadan çık (GameScreen'e dön)
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2E2E5C),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "LOBİYE DÖN",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -73,7 +243,7 @@ class _VotingScreenState extends State<VotingScreen> {
       ),
       body: Column(
         children: [
-          // GÜNCELLENMİŞ ZAMAN ÇUBUĞU
+          // ZAMAN ÇUBUĞU
           Container(
             width: double.infinity,
             height: 4,
@@ -84,14 +254,14 @@ class _VotingScreenState extends State<VotingScreen> {
             ),
             alignment: Alignment.centerLeft,
             child: FractionallySizedBox(
-              widthFactor: progress, // Değişken buraya bağlandı
+              widthFactor: progress,
               child: Container(
                 decoration: BoxDecoration(
                   color: isVotingClosed ? Colors.grey : Colors.redAccent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.5),
+                      color: Colors.redAccent.withValues(alpha: 0.5),
                       blurRadius: 8,
                     ),
                   ],
@@ -100,15 +270,28 @@ class _VotingScreenState extends State<VotingScreen> {
             ),
           ),
 
-          const Padding(
-            padding: EdgeInsets.only(bottom: 20.0, top: 10.0),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10.0, top: 10.0),
             child: Text(
-              "ŞÜPHELENDİĞİN KİŞİYİ SEÇ",
+              widget.amIImpostor ? "😈 ROLÜN: İMPOSTOR" : "🧑‍🚀 ROLÜN: KÖYLÜ",
               style: TextStyle(
-                color: Color(0xFF8E8EAF),
-                fontSize: 13,
+                color: widget.amIImpostor ? Colors.redAccent : const Color(0xFF8E8EAF),
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.5,
+              ),
+            ),
+          ),
+
+          // Kaç kişinin oy verdiğini gösteren canlı bilgi kutusu kanka
+          Padding(
+            padding: const EdgeInsets.only(bottom: 15.0),
+            child: Text(
+              "Oy Verenler: $votedCount / ${widget.players.length}",
+              style: const TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -117,14 +300,13 @@ class _VotingScreenState extends State<VotingScreen> {
             child: ListView.builder(
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: players.length,
+              itemCount: widget.players.length,
               itemBuilder: (context, index) {
-                final playerName = players[index];
+                final playerName = widget.players[index];
                 final isSelected = selectedPlayer == playerName;
 
                 return GestureDetector(
-                  // Süre dolduysa tıklamayı engelle
-                  onTap: isVotingClosed
+                  onTap: (hasVoted || isVotingClosed)
                       ? null
                       : () {
                           HapticFeedback.lightImpact();
@@ -164,6 +346,13 @@ class _VotingScreenState extends State<VotingScreen> {
                               color: Colors.white,
                             ),
                           ),
+                          if (playerName == widget.myName) ...[
+                            const Spacer(),
+                            const Text(
+                              "(SEN)",
+                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                            )
+                          ]
                         ],
                       ),
                     ),
@@ -176,17 +365,17 @@ class _VotingScreenState extends State<VotingScreen> {
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: GestureDetector(
-              onTap: (selectedPlayer == null || isVotingClosed)
+              onTap: (selectedPlayer == null || hasVoted || isVotingClosed)
                   ? null
                   : () {
-                      HapticFeedback.heavyImpact();
+                      submitVote();
                     },
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
-                  color: isVotingClosed
-                      ? Colors.grey
+                  color: hasVoted
+                      ? const Color(0xFF2E2E5C).withValues(alpha: 0.5)
                       : (selectedPlayer == null
                             ? const Color(0xFF2E2E5C)
                             : Colors.redAccent),
@@ -194,8 +383,8 @@ class _VotingScreenState extends State<VotingScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    isVotingClosed
-                        ? "SÜRE DOLDU"
+                    hasVoted
+                        ? "DİĞER OYUNCULAR BEKLENİYOR..."
                         : (selectedPlayer == null
                               ? "BİRİNİ SEÇ"
                               : "OYU GÖNDER"),
