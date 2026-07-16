@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/host_screen.dart'; 
+import 'screens/host_screen.dart';
 import 'screens/host_login_screen.dart'; // 👈 EKSİK OLAN SATIR TAM OLARAK BU!
+import 'screens/voting_screen.dart';
 
 void main() {
   runApp(const ImpostorGameApp());

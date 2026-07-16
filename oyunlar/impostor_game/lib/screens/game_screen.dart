@@ -1,6 +1,7 @@
 // lib/screens/game_screen.dart
 
 import 'package:flutter/material.dart';
+import 'voting_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String playerName;
@@ -153,28 +154,72 @@ class _GameScreenState extends State<GameScreen> {
 
                 const SizedBox(height: 40),
 
-                // EN ALT KISIM: Oyundan Çıkış veya Geri Dönüş Butonu
-                ElevatedButton(
-                  onPressed: () {
-                    // Oyunu bitirip ana ekrana veya lobiye dönmek için
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E2E5C),
-                    side: const BorderSide(color: Color(0xFF00D2FF), width: 1),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                // OYLAMAYA GİT BUTONU
+                Row(
+                  children: [
+                    // 1. LOBİYE DÖN BUTONU
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E2E5C),
+                          side: const BorderSide(
+                            color: Color(0xFF00D2FF),
+                            width: 1,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'LOBİYE DÖN',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'LOBİYE GERİ DÖN',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+
+                    const SizedBox(width: 15), // İki buton arasındaki mesafe
+                    // 2. OYLAMAYA GİT BUTONU
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // Navigator ile geçişin
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const VotingScreen(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          // Lobi butonuyla aynı temel özellikler:
+                          backgroundColor: const Color(0xFF2E2E5C),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          // Oylama butonuna özel çerçeve:
+                          side: const BorderSide(
+                            color: Colors.redAccent,
+                            width: 1,
+                          ),
+                        ),
+                        child: const Text(
+                          'OYLAMAYA GİT',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),
