@@ -2,7 +2,9 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Rakam sınırlaması ve JSON okumak için kanka
+import 'package:flutter/services.dart'; 
+import 'package:socket_io_client/socket_io_client.dart' as IO; // 🔌 Soket kütüphanesini ekledik
+import '../config.dart'; // ⚙️ Config dosyamızı çektik
 import 'host_screen.dart';
 import 'player_screen.dart'; 
 
@@ -19,28 +21,53 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
   final TextEditingController _playerNameController = TextEditingController();
   final TextEditingController _roomCodeController = TextEditingController();
 
-  // =========================================================================
-  // ⚙️ GÜNCELLENEN YER: HOST AYAR DEĞİŞKENLERİ VE CONTROLLER
-  // =========================================================================
+  late IO.Socket _socket; // 🔌 Canlı soket değişkenimiz
+  bool _isSocketConnected = false;
+
   String _selectedMod = 'Klasik';
   String _selectedCategory = 'Rastgele';
   
-  // İmpostor sayısını klavyeden elle almak için text controller ekledik kanka
   final TextEditingController _impostorCountController = TextEditingController(text: '1');
 
   final List<String> _oyunModlari = ['Klasik', 'Yakin Kelime'];
   List<String> _kategoriler = ['Rastgele']; 
-  bool _isJsonLoading = true; // JSON yüklenirken bekletmek için kanka
-  // =========================================================================
+  bool _isJsonLoading = true; 
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _kategorileriYukle(); // Ekran açılır açılmaz JSON'ı tarıyoruz kanka 🔥
+    _kategorileriYukle(); 
+    _initSocket(); // 🔌 Soketi hemen ayağa kaldırıyoruz kanka!
   }
 
-  // JSON dosyasının içindeki kategori isimlerini dinamik çeken fonksiyon kanka
+  // Canlı soket bağlantısını kuran fonksiyon kanka
+  void _initSocket() {
+    _socket = IO.io(AppConfig.serverUrl, IO.OptionBuilder()
+      .setTransports(['websocket']) // WebAssembly ve mobil uyumluluğu için önemli
+      .disableAutoConnect()
+      .build()
+    );
+
+    _socket.connect();
+
+    _socket.onConnect((_) {
+      if (!mounted) return;
+      setState(() {
+        _isSocketConnected = true;
+      });
+      debugPrint("🔌 [SOKET] Başarıyla bağlandı: ${_socket.id}");
+    });
+
+    _socket.onDisconnect((_) {
+      if (!mounted) return;
+      setState(() {
+        _isSocketConnected = false;
+      });
+      debugPrint("❌ [SOKET] Bağlantı koptu.");
+    });
+  }
+
   Future<void> _kategorileriYukle() async {
     try {
       final String response = await rootBundle.loadString('dictionary.json');
@@ -62,7 +89,8 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
     _hostNameController.dispose();
     _playerNameController.dispose();
     _roomCodeController.dispose();
-    _impostorCountController.dispose(); // Bellek sızıntısı yapmasın diye dispose ediyoruz kanka
+    _impostorCountController.dispose(); 
+    _socket.dispose(); // Bellek sızıntısı yapmasın diye soketi kapatıyoruz kanka
     super.dispose();
   }
 
@@ -95,7 +123,7 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                   border: Border.all(color: Colors.white10, width: 1),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.redAccent.withOpacity(0.1),
+                      color: Colors.redAccent.withValues(alpha: 0.1),
                       blurRadius: 20,
                       spreadRadius: 2,
                     )
@@ -105,7 +133,13 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const SizedBox(height: 30),
-                    const Icon(Icons.videogame_asset_rounded, size: 60, color: Colors.redAccent),
+                    // Bağlantı durumunu gösteren küçük bir yeşil/kırmızı ışık kanka
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.videogame_asset_rounded, size: 60, color: _isSocketConnected ? Colors.greenAccent : Colors.redAccent),
+                      ],
+                    ),
                     const SizedBox(height: 10),
                     const Text(
                       'IMPOSTOR GAME',
@@ -113,7 +147,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                     ),
                     const SizedBox(height: 20),
                     
-                    // Üst Sekmeler
                     TabBar(
                       controller: _tabController,
                       indicatorColor: Colors.redAccent,
@@ -126,7 +159,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                       ],
                     ),
                     
-                    // JSON yüklenirken spinner dönüyor, yüklenince içerik geliyor kanka
                     _isJsonLoading
                         ? const Padding(
                             padding: EdgeInsets.all(40.0),
@@ -160,7 +192,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
     );
   }
 
-// 1. Sekme: ODA KURMA FORMU 🚀
   Widget _buildHostForm() {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -170,7 +201,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // İsim Girişi
             TextField(
               controller: _hostNameController,
               style: const TextStyle(color: Colors.white),
@@ -185,7 +215,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
             ),
             const SizedBox(height: 16),
 
-            // OYUN MODU SEÇİM KARTLARI 🚀
             const Text(
               'Oyun Modu Seçiniz',
               style: TextStyle(
@@ -199,7 +228,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
             RepaintBoundary(
               child: Row(
                 children: [
-                  // 1. Kart: Klasik Mod
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
@@ -225,7 +253,7 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                           boxShadow: _selectedMod == 'Klasik'
                               ? [
                                   BoxShadow(
-                                    color: Colors.redAccent.withOpacity(0.2),
+                                    color: Colors.redAccent.withValues(alpha: 0.2),
                                     blurRadius: 8,
                                     spreadRadius: 1,
                                   )
@@ -271,7 +299,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                   ),
                   const SizedBox(width: 12),
                   
-                  // 2. Kart: Yakın Kelime Modu
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
@@ -297,7 +324,7 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                           boxShadow: _selectedMod == 'Yakin Kelime'
                               ? [
                                   BoxShadow(
-                                    color: Colors.redAccent.withOpacity(0.2),
+                                    color: Colors.redAccent.withValues(alpha: 0.2),
                                     blurRadius: 8,
                                     spreadRadius: 1,
                                   )
@@ -346,7 +373,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
             ),
             const SizedBox(height: 16),
 
-            // 📂 GERİ EKLENEN KATEGORİ SEÇİM ALANI (DROPDOWN) 🚀
             DropdownButtonFormField<String>(
               value: _selectedCategory,
               dropdownColor: const Color(0xFF1A1A2E),
@@ -381,7 +407,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
             ),
             const SizedBox(height: 16),
 
-            // İmpostor Sayısı Giriş Alanı
             TextField(
               controller: _impostorCountController,
               keyboardType: TextInputType.number,
@@ -398,7 +423,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
             ),
             const SizedBox(height: 24),
 
-            // ODA OLUŞTUR BUTONU
             ElevatedButton(
               onPressed: () {
                 if (_hostNameController.text.trim().isEmpty) {
@@ -411,13 +435,16 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                 int parsedImpostorCount = int.tryParse(_impostorCountController.text.trim()) ?? 1;
                 if (parsedImpostorCount < 1) parsedImpostorCount = 1;
 
+                // 🔌 Soketi ve Host ismini HostScreen'e paslıyoruz!
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => HostScreen(
                       gameMode: _selectedMod,
-                      category: _selectedCategory, // 👈 Seçilen kategori artık buraya aslanlar gibi gidiyor!
+                      category: _selectedCategory, 
                       impostorCount: parsedImpostorCount,
+                      socket: _socket, // 🔌 Ekledik
+                      hostName: _hostNameController.text.trim(), // 🧑‍🏫 Ekledik
                     ),
                   ),
                 );
@@ -436,7 +463,6 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
     );
   }
 
-  // 2. Sekme: ODAYA KATILMA FORMU
   Widget _buildJoinForm() {
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -482,10 +508,15 @@ class _HostLoginScreenState extends State<HostLoginScreen> with SingleTickerProv
                 return;
               }
 
+              // 🔌 Soketi PlayerScreen'e paslıyoruz!
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PlayerScreen(playerName: pName, roomCode: rCode),
+                  builder: (context) => PlayerScreen(
+                    playerName: pName, 
+                    roomCode: rCode,
+                    socket: _socket, // 🔌 Ekledik
+                  ),
                 ),
               );
             },

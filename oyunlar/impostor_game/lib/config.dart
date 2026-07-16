@@ -1,13 +1,18 @@
 // lib/config.dart
 
 class AppConfig {
-  // Node.js sunucunuz 3000 portunda çalıştığı için burayı 3000 yapıyoruz.
-  // Tarayıcıda (Chrome) test ederken 'localhost' kalabilir.
-  static const String serverUrl = "http://localhost:3000";
+  // 1. 💻 Kendi bilgisayarındaki tarayıcı (Chrome) testleri için:
+  static const String localWebUrl = "http://localhost:3000";
 
-  // 💡 KÜÇÜK BİR TÜYOYLA GELECEĞE YATIRIM:
-  // Eğer ileride projeyi telefon emülatöründe (Android) test ederseniz, 
-  // emülatör bilgisayarın localhost'unu göremez. O zaman üstteki satırı yorum satırı yapıp
-  // alttaki satırı açarsın kanka, şimdiden elinin altında dursun:
-  // static const String serverUrl = "http://10.0.2.2:3000";
+  // 2. 📱 Telefon testleri için (Telefonun kendi ağındayken bilgisayarının aldığı IP'yi buraya yaz kanka):
+  static const String localMobileUrl = "http://10.87.97.21:3000"; 
+
+  // 3. 🚀 Yarın bir gün oyunu canlı sunucuya (AWS, Render vb.) yüklediğinde buraya o adresi yazacaksın:
+  static const String productionUrl = "https://gamelab-backend.onrender.com";
+
+
+  // 🎯 AKTİF BAĞLANTI ADRESİ:
+  // Telefonla test ederken burayı 'localMobileUrl' yap kanka.
+  // Canlıya çıkarken tek yapman gereken burayı 'productionUrl' olarak değiştirmek!
+  static const String serverUrl = localMobileUrl; 
 }

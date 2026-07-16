@@ -4,16 +4,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'game_screen.dart'; // Oyun ekranına geçiş için import ettik
+import 'package:socket_io_client/socket_io_client.dart' as IO; // 🔌 Soket kütüphanesi
+import '../config.dart'; // ⚙️ Server URL için config dosyasını dahil ettik
+import 'game_screen.dart'; 
 
 class PlayerScreen extends StatefulWidget {
   final String playerName;
   final String roomCode;
+  final dynamic socket; // 🔌 Giriş ekranından paslanan soket
 
   const PlayerScreen({
     super.key,
     required this.playerName,
     required this.roomCode,
+    required this.socket, // 🔌
   });
 
   @override
@@ -35,28 +39,50 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    // ⏳ Oyuncu bu ekrana girdiğinde, her 2 saniyede bir sunucuya "Oyun başladı mı?" diye sorar.
+    _joinRoomOnServer(); // 🔌 Odaya katılım soket mesajını fırlat kanka!
+    
+    // ⏳ Her 2 saniyede bir HTTP ile sormaya devam ediyoruz
     _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       _checkGameStatus();
     });
   }
 
+  // Sunucuya lobi odasına dahil olduğunu soketle bildir kanka
+  void _joinRoomOnServer() {
+    if (widget.socket != null) {
+      widget.socket.emit('join_room', {
+        'roomCode': widget.roomCode,
+        'playerName': widget.playerName,
+      });
+
+      // Lobi güncellenince canlı oyuncu listesini güncelliyoruz 🔥
+      widget.socket.on('room_updated', (data) {
+        if (!mounted) return;
+        var incomingPlayers = data['players'];
+        if (incomingPlayers is List) {
+          setState(() {
+            joinedPlayers.clear();
+            joinedPlayers.addAll(incomingPlayers.map((e) => e.toString()).toList());
+          });
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
-    // 🛑 Ekrandan çıkıldığında (örneğin odadan çıkıldığında) arka plandaki sorguyu durdururuz.
     _statusTimer?.cancel();
     super.dispose();
   }
 
-  // 📡 Sunucudan oyun durumunu sorgulayan fonksiyon
   Future<void> _checkGameStatus() async {
     if (_isChecking) return;
     if (!mounted) return;
     setState(() => _isChecking = true);
 
-    // Not: Web üzerinde test ediyorsanız localhost yerine 127.0.0.1 kullanımı daha kararlıdır.
+    // 🎯 Config dosyamızdan dinamik url'i çekiyoruz
     final url = Uri.parse(
-      'http://127.0.0.1:3000/api/game-status/${widget.roomCode}',
+      '${AppConfig.serverUrl}/api/game-status/${widget.roomCode}',
     );
 
     try {
@@ -65,13 +91,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Eğer sunucu "status: started" yanıtı dönerse oyuna otomatik geçişi tetikliyoruz
         if (data['status'] == 'started') {
-          _statusTimer?.cancel(); // Sorgulamayı tamamen kapat
+          _statusTimer?.cancel(); 
 
           String secretWord = data['secretWord'] ?? '';
           
-          // Gelen impostor array listesini veya string bilgisini güvenli alıyoruz kanka
           var impostorData = data['impostor'];
           List<String> impostors = [];
           if (impostorData is List) {
@@ -82,7 +106,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
           bool isMeImpostor = impostors.contains(widget.playerName);
 
-          // Sunucudaki veya yereldeki en güncel oyuncu listesini alalım kanka
           var serverPlayers = data['players'];
           List<String> activePlayersList = [...joinedPlayers];
           if (serverPlayers is List) {
@@ -90,8 +113,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
           }
 
           if (!mounted) return;
-
-          dynamic activeSocket; // İleride canlı lobi soketine bağlanacak kanka
 
           // 🚀 Oyuncuyu otomatik olarak GameScreen'e tüm yeni parametrelerle yönlendiriyoruz
           Navigator.pushReplacement(
@@ -101,9 +122,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 playerName: widget.playerName,
                 secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
                 isImpostor: isMeImpostor,
-                socket: activeSocket, // 🔌 Soketimizi gönderdik
-                roomCode: widget.roomCode, // 🏠 Oda kodunu gönderdik
-                players: activePlayersList, // 👥 Güncel oyuncu listesini gönderdik
+                socket: widget.socket, // 🔌 Soketimizi gönderdik
+                roomCode: widget.roomCode, 
+                players: activePlayersList, 
               ),
             ),
           );
@@ -240,6 +261,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 ? const Color(0xFF00D2FF)
                                 : const Color(0xFF2E2E5C),
                             width: isMe ? 1.5 : 1,
+                          ),
+                        ),
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.person,
+                            color: isMe
+                                ? const Color(0xFF00D2FF)
+                                : const Color(0xFF8E8EAF),
+                          ),
+                          title: Text(
+                            joinedPlayers[index] + (isMe ? " (Sen)" : ""),
+                            style: TextStyle(
+                              color: isMe
+                                  ? const Color(0xFF00D2FF)
+                                  : Colors.white,
+                              fontSize: 16,
+                              fontWeight: isMe
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          trailing: const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF00D2FF),
                           ),
                         ),
                       );

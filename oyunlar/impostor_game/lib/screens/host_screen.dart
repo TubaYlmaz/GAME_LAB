@@ -1,22 +1,27 @@
 // lib/screens/host_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO; // 🔌 Soket kütüphanesi
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config.dart'; // ⚙️ Server URL için config dosyasını dahil ettik
 import 'game_screen.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class HostScreen extends StatefulWidget {
   final String gameMode;
   final String category;
   final int impostorCount;
+  final dynamic socket; // 🔌 Üst ekrandan gelen soket nesnesi
+  final String hostName; // 🧑‍🏫 Kurucunun ismi
 
   const HostScreen({
     super.key,
     required this.gameMode,
     required this.category,
     required this.impostorCount,
+    required this.socket, // 🔌
+    required this.hostName, // 🧑‍🏫
   });
 
   @override
@@ -24,24 +29,19 @@ class HostScreen extends StatefulWidget {
 }
 
 class _HostScreenState extends State<HostScreen> {
-  // Şimdilik test amaçlı yazdığımız öğrenci listesi kanka
   final List<String> joinedPlayers = ['Ceyda', 'Ahmet', 'Ayşe', 'Mehmet'];
 
-  // =========================================================================
-  // ⚙️ GÜNCELLENEN ALGORİTMA DOĞRULAMA DEĞİŞKENLERİ (Çoklu İmpostor Destekli)
-  // =========================================================================
   String? debugSecretWord;
   List<String> debugImpostorNames = []; 
   Map<String, String> debugDistribution = {};
-  // =========================================================================
 
   late String roomCode;
 
   @override
   void initState() {
     super.initState();
-    // Ekran ilk açıldığı an kodu 6 haneli ve rastgele üretiyoruz
     roomCode = _generateRandomRoomCode();
+    _registerRoomOnServer(); // 🏠 Odayı sunucuya soketle bildir kanka!
   }
 
   // 6 Haneli Rastgele Kod Üreten Fonksiyon
@@ -54,8 +54,35 @@ class _HostScreenState extends State<HostScreen> {
     ).join();
   }
 
+  // Sunucuya oda oluşturma isteği fırlatır kanka
+  void _registerRoomOnServer() {
+    if (widget.socket != null) {
+      widget.socket.emit('create_room', {
+        'roomCode': roomCode,
+        'hostName': widget.hostName,
+      });
+
+      // Lobiye yeni oyuncular girdiğinde canlı güncellesin kanka! 🔥
+      widget.socket.on('room_updated', (data) {
+        if (!mounted) return;
+        var incomingPlayers = data['players'];
+        if (incomingPlayers is List) {
+          setState(() {
+            joinedPlayers.clear();
+            joinedPlayers.addAll(incomingPlayers.map((e) => e.toString()).toList());
+          });
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Kurucu ismi de oyuncular listesinde mutlaka yer alsın kanka
+    if (!joinedPlayers.contains(widget.hostName)) {
+      joinedPlayers.insert(0, widget.hostName);
+    }
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -73,9 +100,8 @@ class _HostScreenState extends State<HostScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ÜST KISIM: Oda Kodu Bilgisi
                 Card(
-                  color: const Color(0xFF181832).withOpacity(0.9),
+                  color: const Color(0xFF181832).withValues(alpha: 0.9),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                     side: const BorderSide(
@@ -112,7 +138,6 @@ class _HostScreenState extends State<HostScreen> {
                 ),
                 const SizedBox(height: 25),
 
-                // ORTA KISIM: Katılan Oyuncu Sayısı ve Başlığı
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -140,7 +165,6 @@ class _HostScreenState extends State<HostScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // OYUNCU LİSTESİ: Anlık girenlerin listelendiği alan
                 Expanded(
                   child: joinedPlayers.isEmpty
                       ? const Center(
@@ -189,12 +213,12 @@ class _HostScreenState extends State<HostScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // EN ALT KISIM: Oyunu Başlatma Butonu
                 ElevatedButton(
                   onPressed: () async {
                     if (joinedPlayers.isEmpty) return;
 
-                    final url = Uri.parse('http://127.0.0.1:3000/api/start-game');
+                    // 🎯 Sunucu adresimiz artık pırlanta gibi dinamik AppConfig'den geliyor kanka!
+                    final url = Uri.parse('${AppConfig.serverUrl}/api/start-game');
 
                     try {
                       final response = await http.post(
@@ -238,14 +262,12 @@ class _HostScreenState extends State<HostScreen> {
                           }
                         });
 
-                        // 💡 TERTEMİZ TEK SEFERDE TANIMLANAN GEÇİŞ BLOĞU 🚀
-                        String currentTestPlayer = joinedPlayers[0];
+                        String currentTestPlayer = widget.hostName; // Hostu oyuna sok kanka
                         bool isMeImpostor = debugImpostorNames.contains(currentTestPlayer);
 
                         if (!mounted) return;
 
-                        dynamic activeSocket; // İleride canlı lobi soketine bağlanacak kanka
-
+                        // 🔌 Canlı soketimizi ve tüm verileri zincirleme bir sonraki ekrana taşıdık! 🔥
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -253,7 +275,7 @@ class _HostScreenState extends State<HostScreen> {
                               playerName: currentTestPlayer,
                               secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
                               isImpostor: isMeImpostor,
-                              socket: activeSocket, 
+                              socket: widget.socket, // 🔌 Paslandı
                               roomCode: roomCode,   
                               players: joinedPlayers, 
                             ),
@@ -285,9 +307,6 @@ class _HostScreenState extends State<HostScreen> {
                   ),
                 ),
 
-                // =========================================================================
-                // 🛠️ HOST ALGORİTMA DOĞRULAMA PANELİ
-                // =========================================================================
                 if (debugImpostorNames.isNotEmpty) ...[
                   const SizedBox(height: 15),
                   Container(
