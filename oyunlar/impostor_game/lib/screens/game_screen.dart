@@ -7,12 +7,18 @@ class GameScreen extends StatefulWidget {
   final String playerName;
   final String secretWord;
   final bool isImpostor;
+  final dynamic socket; // 🔌 Soketimizi buraya aldık
+  final String roomCode; // 🏠 Oda kodumuz
+  final List<String> players; // 👥 Oyuncu listemiz
 
   const GameScreen({
     super.key,
     required this.playerName,
     required this.secretWord,
     required this.isImpostor,
+    required this.socket,
+    required this.roomCode,
+    required this.players,
   });
 
   @override
@@ -20,7 +26,6 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  // Kartın ilk başta gizli kalması, oyuncu tıklayınca açılması için (opsiyonel ama oyun zevkini artırır kanka)
   bool _isWordVisible = false;
 
   @override
@@ -43,7 +48,6 @@ class _GameScreenState extends State<GameScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ÜST KISIM: Oyuncu İsmi ve Küçük Bilgi
                 Text(
                   'Hoş geldin, ${widget.playerName}',
                   textAlign: TextAlign.center,
@@ -69,7 +73,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
                 const SizedBox(height: 40),
 
-                // ORTA KISIM: GİZLİ KELİME KARTI
+                // GİZLİ KELİME KARTI
                 GestureDetector(
                   onTap: () {
                     setState(() {
@@ -93,8 +97,8 @@ class _GameScreenState extends State<GameScreen> {
                           ? [
                               BoxShadow(
                                 color: widget.isImpostor
-                                    ? Colors.redAccent.withOpacity(0.3)
-                                    : const Color(0xFF00D2FF).withOpacity(0.3),
+                                    ? Colors.redAccent.withValues(alpha: 0.3)
+                                    : const Color(0xFF00D2FF).withValues(alpha: 0.3),
                                 blurRadius: 15,
                                 spreadRadius: 2,
                               ),
@@ -154,10 +158,8 @@ class _GameScreenState extends State<GameScreen> {
 
                 const SizedBox(height: 40),
 
-                // OYLAMAYA GİT BUTONU
                 Row(
                   children: [
-                    // 1. LOBİYE DÖN BUTONU
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
@@ -182,28 +184,30 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
                     ),
-
-                    const SizedBox(width: 15), // İki buton arasındaki mesafe
-                    // 2. OYLAMAYA GİT BUTONU
+                    const SizedBox(width: 15),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          // Navigator ile geçişin
+                          // Oylama ekranına soketimizi, oda kodumuzu ve listemizi paslıyoruz kanka! 🔥
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const VotingScreen(),
+                              builder: (context) => VotingScreen(
+                                socket: widget.socket,
+                                roomCode: widget.roomCode,
+                                myName: widget.playerName,
+                                players: widget.players,
+                                amIImpostor: widget.isImpostor,
+                              ),
                             ),
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          // Lobi butonuyla aynı temel özellikler:
                           backgroundColor: const Color(0xFF2E2E5C),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          // Oylama butonuna özel çerçeve:
                           side: const BorderSide(
                             color: Colors.redAccent,
                             width: 1,

@@ -1,3 +1,5 @@
+// lib/screens/player_screen.dart
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -49,6 +51,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   // 📡 Sunucudan oyun durumunu sorgulayan fonksiyon
   Future<void> _checkGameStatus() async {
     if (_isChecking) return;
+    if (!mounted) return;
     setState(() => _isChecking = true);
 
     // Not: Web üzerinde test ediyorsanız localhost yerine 127.0.0.1 kullanımı daha kararlıdır.
@@ -66,20 +69,41 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (data['status'] == 'started') {
           _statusTimer?.cancel(); // Sorgulamayı tamamen kapat
 
-          String secretWord = data['secretWord'];
-          String impostor = data['impostor'];
-          bool isMeImpostor = (widget.playerName == impostor);
+          String secretWord = data['secretWord'] ?? '';
+          
+          // Gelen impostor array listesini veya string bilgisini güvenli alıyoruz kanka
+          var impostorData = data['impostor'];
+          List<String> impostors = [];
+          if (impostorData is List) {
+            impostors = impostorData.map((e) => e.toString()).toList();
+          } else if (impostorData != null) {
+            impostors = [impostorData.toString()];
+          }
+
+          bool isMeImpostor = impostors.contains(widget.playerName);
+
+          // Sunucudaki veya yereldeki en güncel oyuncu listesini alalım kanka
+          var serverPlayers = data['players'];
+          List<String> activePlayersList = [...joinedPlayers];
+          if (serverPlayers is List) {
+            activePlayersList = serverPlayers.map((e) => e.toString()).toList();
+          }
 
           if (!mounted) return;
 
-          // 🚀 Oyuncuyu otomatik olarak GameScreen'e yönlendiriyoruz
+          dynamic activeSocket; // İleride canlı lobi soketine bağlanacak kanka
+
+          // 🚀 Oyuncuyu otomatik olarak GameScreen'e tüm yeni parametrelerle yönlendiriyoruz
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (context) => GameScreen(
                 playerName: widget.playerName,
-                secretWord: secretWord,
+                secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
                 isImpostor: isMeImpostor,
+                socket: activeSocket, // 🔌 Soketimizi gönderdik
+                roomCode: widget.roomCode, // 🏠 Oda kodunu gönderdik
+                players: activePlayersList, // 👥 Güncel oyuncu listesini gönderdik
               ),
             ),
           );
@@ -119,7 +143,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Card(
-                  color: const Color(0xFF181832).withOpacity(0.9),
+                  color: const Color(0xFF181832).withValues(alpha: 0.9),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                     side: const BorderSide(
@@ -218,30 +242,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             width: isMe ? 1.5 : 1,
                           ),
                         ),
-                        child: ListTile(
-                          leading: Icon(
-                            Icons.person,
-                            color: isMe
-                                ? const Color(0xFF00D2FF)
-                                : const Color(0xFF8E8EAF),
-                          ),
-                          title: Text(
-                            joinedPlayers[index] + (isMe ? " (Sen)" : ""),
-                            style: TextStyle(
-                              color: isMe
-                                  ? const Color(0xFF00D2FF)
-                                  : Colors.white,
-                              fontSize: 16,
-                              fontWeight: isMe
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                            ),
-                          ),
-                          trailing: const Icon(
-                            Icons.check_circle,
-                            color: Color(0xFF00D2FF),
-                          ),
-                        ),
                       );
                     },
                   ),
@@ -250,7 +250,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF181832).withOpacity(0.6),
+                    color: const Color(0xFF181832).withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFF2E2E5C)),
                   ),

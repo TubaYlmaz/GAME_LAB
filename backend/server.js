@@ -143,6 +143,87 @@ io.on('connection', (socket) => {
         });
     });
 
+// ==========================================
+    // 🗳️ GERÇEK ZAMANLI MULTIPLAYER OYLAMA SİSTEMİ
+    // ==========================================
+
+    // ➡️ 3. OYUNCU OY KULLANDIĞINDA
+    socket.on('submit_vote', async (data) => {
+        const { roomCode, voterName, votedFor } = data;
+
+        console.log(`🗳️ [OY] Oda: ${roomCode} | ${voterName} -> ${votedFor} için oy verdi.`);
+
+        // Redis'te bu oda için verilmiş oyları tutalım (Geçici hash yapısı)
+        const voteKey = `room:${roomCode}:votes`;
+        await redisClient.hset(voteKey, voterName, votedFor);
+
+        // Odadaki güncel oyuncu listesini ve rollerini çekelim
+        const roomData = await redisClient.hgetall(`room:${roomCode}`);
+        const players = JSON.parse(roomData.players || '[]');
+        const impostors = JSON.parse(roomData.impostor || '[]'); // İmpostor listesi array olarak duruyor
+
+        // Şu ana kadar kaç kişi oy vermiş kontrol edelim
+        const currentVotes = await redisClient.hgetall(voteKey);
+        const totalVotesCount = Object.keys(currentVotes).length;
+
+        // Odadaki herkes oy verdi mi?
+        if (totalVotesCount >= players.length) {
+            console.log(`🏁 Oda [${roomCode}] için oylama tamamlandı. Sonuçlar hesaplanıyor...`);
+
+            // Oyların sayımını yapalım (En çok oyu kim aldı?)
+            const voteCounts = {};
+            // Herkes için sayacı sıfırlayalım
+            players.forEach(p => voteCounts[p] = 0);
+
+            // Oyları sayalım
+            Object.values(currentVotes).forEach(voted => {
+                if (voted !== 'skip' && voteCounts[voted] !== undefined) {
+                    voteCounts[voted]++;
+                }
+            });
+
+            // En çok oyu alan kişiyi (elenen kişiyi) bulalım
+            let eliminatedPlayer = null;
+            let maxVotes = 0;
+            let isTie = false; // Beraberlik durumu kontrolü
+
+            Object.entries(voteCounts).forEach(([player, count]) => {
+                if (count > maxVotes) {
+                    maxVotes = count;
+                    eliminatedPlayer = player;
+                    isTie = false;
+                } else if (count === maxVotes && count > 0) {
+                    isTie = true; // Aynı oyu alan başka biri var, beraberlik!
+                }
+            });
+
+            // Eğer beraberlik varsa kimse elenmez kanka
+            if (isTie) {
+                eliminatedPlayer = null;
+            }
+
+            // İmpostor'un adını bulalım (Simülasyon için tek impostor olduğunu varsayalım ya da ilkini alalım)
+            const actualImpostor = impostors[0] || "Bulunamadı";
+
+            // Sonuçları odaya canlı yayınla!
+            io.to(roomCode).emit('voting_results', {
+                eliminatedPlayer: eliminatedPlayer, // En çok oyu alan (Beraberlikte null)
+                isTie: isTie,
+                impostorName: actualImpostor,
+                votes: currentVotes // Kim kime oy verdi detayı da gitsin kanka
+            });
+
+            // Oylama bittiği için Redis'teki oyları temizle
+            await redisClient.del(voteKey);
+        } else {
+            // Eğer herkes henüz oy vermediyse, sadece oyların güncel sayısını odadakilere bildir
+            io.to(roomCode).emit('vote_status_updated', {
+                votedCount: totalVotesCount,
+                totalPlayers: players.length
+            });
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log(`❌ Kullanıcı ayrıldı: ${socket.id}`);
     });

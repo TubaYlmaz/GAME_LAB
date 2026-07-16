@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'game_screen.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class HostScreen extends StatefulWidget {
   final String gameMode;
@@ -30,7 +31,7 @@ class _HostScreenState extends State<HostScreen> {
   // ⚙️ GÜNCELLENEN ALGORİTMA DOĞRULAMA DEĞİŞKENLERİ (Çoklu İmpostor Destekli)
   // =========================================================================
   String? debugSecretWord;
-  List<String> debugImpostorNames = []; // Tekil String yerine Liste yaptık kanka!
+  List<String> debugImpostorNames = []; 
   Map<String, String> debugDistribution = {};
   // =========================================================================
 
@@ -99,7 +100,7 @@ class _HostScreenState extends State<HostScreen> {
                         Text(
                           roomCode,
                           style: const TextStyle(
-                            color: Color(0xFF00D2FF), // Orijinal turkuaz neon renginiz
+                            color: Color(0xFF00D2FF), 
                             fontSize: 38,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 5,
@@ -196,7 +197,6 @@ class _HostScreenState extends State<HostScreen> {
                     final url = Uri.parse('http://127.0.0.1:3000/api/start-game');
 
                     try {
-                      // 1. Login ekranından constructor ile aldığımız tüm ayarları paketleyip backend'e fırlatıyoruz kanka 🚀
                       final response = await http.post(
                         url,
                         headers: {'Content-Type': 'application/json'},
@@ -214,7 +214,6 @@ class _HostScreenState extends State<HostScreen> {
 
                         String secretWord = data['secretWord'];
                         
-                        // Backend'den gelen array yapısını güvenli listeye döküyoruz
                         var impostorData = data['impostor']; 
                         List<String> impostors = [];
                         
@@ -226,7 +225,7 @@ class _HostScreenState extends State<HostScreen> {
 
                         setState(() {
                           debugSecretWord = secretWord;
-                          debugImpostorNames = impostors; // Sorun çıkaran liste artık eşitlendi kanka!
+                          debugImpostorNames = impostors; 
 
                           debugDistribution.clear();
                           for (var player in joinedPlayers) {
@@ -239,11 +238,13 @@ class _HostScreenState extends State<HostScreen> {
                           }
                         });
 
-                        // Test için ilk oyuncunun ekran geçiş durumu
+                        // 💡 TERTEMİZ TEK SEFERDE TANIMLANAN GEÇİŞ BLOĞU 🚀
                         String currentTestPlayer = joinedPlayers[0];
                         bool isMeImpostor = debugImpostorNames.contains(currentTestPlayer);
 
                         if (!mounted) return;
+
+                        dynamic activeSocket; // İleride canlı lobi soketine bağlanacak kanka
 
                         Navigator.push(
                           context,
@@ -252,6 +253,9 @@ class _HostScreenState extends State<HostScreen> {
                               playerName: currentTestPlayer,
                               secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
                               isImpostor: isMeImpostor,
+                              socket: activeSocket, 
+                              roomCode: roomCode,   
+                              players: joinedPlayers, 
                             ),
                           ),
                         );
@@ -264,7 +268,7 @@ class _HostScreenState extends State<HostScreen> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00D2FF), // Turkuaz buton renginiz
+                    backgroundColor: const Color(0xFF00D2FF), 
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -282,7 +286,7 @@ class _HostScreenState extends State<HostScreen> {
                 ),
 
                 // =========================================================================
-                // 🛠️ YENİ HALE GETİRİLEN: ÇOKLU CANLI KONTROL PANELİ WIDGET'I 🚀
+                // 🛠️ HOST ALGORİTMA DOĞRULAMA PANELİ
                 // =========================================================================
                 if (debugImpostorNames.isNotEmpty) ...[
                   const SizedBox(height: 15),
@@ -318,7 +322,6 @@ class _HostScreenState extends State<HostScreen> {
                           "🎯 Seçilen Kelime: $debugSecretWord",
                           style: const TextStyle(color: Colors.white, fontSize: 14),
                         ),
-                        // Tüm seçilen imposter'ları yan yana virgülle yazdırıyoruz kanka kanka
                         Text(
                           "😈 Seçilen Imposter(lar): ${debugImpostorNames.join(', ')}",
                           style: const TextStyle(
@@ -364,7 +367,6 @@ class _HostScreenState extends State<HostScreen> {
                     ),
                   ),
                 ],
-                // =========================================================================
               ],
             ),
           ),
