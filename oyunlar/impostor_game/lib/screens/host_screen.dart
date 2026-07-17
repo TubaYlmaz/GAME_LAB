@@ -1,3 +1,5 @@
+// lib/screens/host_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -34,7 +36,7 @@ class _HostScreenState extends State<HostScreen> {
   List<String> returnedPlayers = []; 
   bool isEveryoneBack = false;       
 
-  // 🎯 LOBİ İÇİ CANLI AYAR DEĞİŞKENLERİ
+  // 🎯 LOBİ İÇİ GÜNCEL STATE KORUYUCULARI
   late String currentMod;
   late String currentCategory;
   late TextEditingController _impostorCountController;
@@ -47,7 +49,7 @@ class _HostScreenState extends State<HostScreen> {
   void initState() {
     super.initState();
     
-    // Mevcut oyun ayarlarını local state'e çekiyoruz kanka
+    // Eğer oylamadan dönüldüyse default'a düşmesin diye mevcut state'i koru kanka!
     currentMod = widget.gameMode;
     currentCategory = widget.category;
     _impostorCountController = TextEditingController(text: widget.impostorCount.toString());
@@ -63,7 +65,6 @@ class _HostScreenState extends State<HostScreen> {
     _checkHostStatus(); 
   }
 
-  // Dropdown'ın içi boş kalmasın diye dictionary dosyasından kategorileri topluyoruz kanka
   Future<void> _kategorileriYukle() async {
     try {
       final String response = await rootBundle.loadString('dictionary.json');
@@ -73,11 +74,10 @@ class _HostScreenState extends State<HostScreen> {
         _kategoriler = ['Rastgele', ...data.keys.toList()];
       });
     } catch (e) {
-      debugPrint("Sözlük kategorileri yüklenirken hata oluştu: $e");
+      debugPrint("Sözlük yükleme hatası: $e");
     }
   }
 
-  // Değişen ayarları anlık sunucuya fırlatan fonksiyon kanka
   void _pushSettingsToServer() {
     if (widget.socket != null && isActualHost) {
       widget.socket.emit('update_room_settings', {
@@ -92,10 +92,7 @@ class _HostScreenState extends State<HostScreen> {
   String _generateRandomRoomCode() {
     const chars = 'ABCDEFGHJKLMNOPQRSTUVWXYZ23456789';
     Random random = Random();
-    return List.generate(
-      6,
-      (index) => chars[random.nextInt(chars.length)],
-    ).join();
+    return List.generate(6, (index) => chars[random.nextInt(chars.length)]).join();
   }
 
   void _registerRoomOnServer() {
@@ -114,9 +111,7 @@ class _HostScreenState extends State<HostScreen> {
         if (incomingPlayers is List) {
           setState(() {
             joinedPlayers.clear();
-            joinedPlayers.addAll(
-              incomingPlayers.map((e) => e.toString()).toList(),
-            );
+            joinedPlayers.addAll(incomingPlayers.map((e) => e.toString()));
           });
         }
       });
@@ -129,7 +124,7 @@ class _HostScreenState extends State<HostScreen> {
         });
       });
 
-      // Diğer istemcilerde veya sunucuda ayar güncellenirse senkron kalalım kanka
+      // Dinamik ayar değişimlerini lobi içinde anlık eşitle kanka
       widget.socket.on('room_settings_changed', (data) {
         if (!mounted) return;
         setState(() {
@@ -155,12 +150,17 @@ class _HostScreenState extends State<HostScreen> {
 
         bool isMeImpostor = impostors.contains(widget.hostName);
 
+        // 🎯 DÜZELTME: Eğer mod Klasik ise ve oyuncu Impostor ise kelime yerine direkt "IMPOSTOR" basıyoruz!
+        String nihaiKelime = isMeImpostor 
+            ? (currentMod == 'Klasik' ? 'IMPOSTOR' : impWord) 
+            : secretWord;
+
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => GameScreen(
               playerName: widget.hostName,
-              secretWord: isMeImpostor ? impWord : secretWord,
+              secretWord: nihaiKelime,
               isImpostor: isMeImpostor,
               socket: widget.socket,
               roomCode: roomCode,
@@ -245,22 +245,12 @@ class _HostScreenState extends State<HostScreen> {
                       children: [
                         const Text(
                           'ÖĞRENCİLER İÇİN ODA KODU',
-                          style: TextStyle(
-                            color: Color(0xFF8E8EAF),
-                            fontSize: 12,
-                            letterSpacing: 1.5,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: Color(0xFF8E8EAF), fontSize: 12, letterSpacing: 1.5, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           roomCode,
-                          style: const TextStyle(
-                            color: Color(0xFF00D2FF),
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 5,
-                          ),
+                          style: const TextStyle(color: Color(0xFF00D2FF), fontSize: 34, fontWeight: FontWeight.bold, letterSpacing: 5),
                         ),
                       ],
                     ),
@@ -268,28 +258,36 @@ class _HostScreenState extends State<HostScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                // 🎯 SADECE ASIL HOST İÇİN AKTİF AYAR PANELİ[cite: 8]
+                // 🎯 GÜNCELLEME: İSTEDİĞİN ŞIK AÇILIR-KAPANIR ÇEKMECE PANELİ (SADECE HOST)
                 if (isActualHost) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141430),
+                  Card(
+                    color: const Color(0xFF141430),
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF2E2E5C), width: 1),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      leading: const Icon(Icons.settings_suggest_rounded, color: Color(0xFF00D2FF)),
+                      title: const Text(
+                        "OYUN AYARLARINI DÜZENLE",
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1),
+                      ),
+                      collapsedIconColor: Colors.white54,
+                      iconColor: const Color(0xFF00D2FF),
+                      backgroundColor: const Color(0xFF141430),
+                      collapsedBackgroundColor: const Color(0xFF141430),
+                      // 🎯 DÜZELTME: 'border' parametresi silindi, shape mühürleri çakıldı![cite: 8]
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: Color(0xFF2E2E5C), width: 1),
+                      ),
+                      collapsedShape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: Color(0xFF2E2E5C), width: 1),
+                      ),
+                      childrenPadding: const EdgeInsets.all(16),
                       children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.settings_suggest_rounded, color: Color(0xFF00D2FF), size: 20),
-                            SizedBox(width: 8),
-                            Text("OYUN AYARLARINI DÜZENLE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        
-                        // Mod Seçim Çipleri
+                        // Mod Seçimi
                         Row(
                           children: [
                             Expanded(
@@ -323,7 +321,7 @@ class _HostScreenState extends State<HostScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
 
                         // Kategori Dropdown Seçimi
                         DropdownButtonFormField<String>(
@@ -349,7 +347,7 @@ class _HostScreenState extends State<HostScreen> {
                             }
                           },
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
 
                         // İmpostor Sayısı Ayarı
                         TextField(
@@ -379,10 +377,7 @@ class _HostScreenState extends State<HostScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Katılan Oyuncular',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    const Text('Katılan Oyuncular', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                     Chip(
                       label: Text('${joinedPlayers.length} Oyuncu'),
                       backgroundColor: const Color(0xFF2E2E5C),
@@ -394,12 +389,7 @@ class _HostScreenState extends State<HostScreen> {
                 const SizedBox(height: 5),
                 Expanded(
                   child: joinedPlayers.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Oyuncuların gelmesi bekleniyor...',
-                            style: TextStyle(color: Color(0xFF8E8EAF), fontSize: 14),
-                          ),
-                        )
+                      ? const Center(child: Text('Oyuncuların gelmesi bekleniyor...', style: TextStyle(color: Color(0xFF8E8EAF), fontSize: 14)))
                       : ListView.builder(
                           itemCount: joinedPlayers.length,
                           itemBuilder: (context, index) {
@@ -407,16 +397,10 @@ class _HostScreenState extends State<HostScreen> {
                             return Card(
                               color: const Color(0xFF101026),
                               margin: const EdgeInsets.symmetric(vertical: 4),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: Color(0xFF2E2E5C), width: 1),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFF2E2E5C), width: 1)),
                               child: ListTile(
                                 leading: const Icon(Icons.person, color: Color(0xFF8E8EAF), size: 20),
-                                title: Text(
-                                  joinedPlayers[index],
-                                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
-                                ),
+                                title: Text(joinedPlayers[index], style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500)),
                                 trailing: isReturned
                                     ? const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 22)
                                     : const Icon(Icons.hourglass_empty_rounded, color: Colors.amberAccent, size: 18),
@@ -447,7 +431,7 @@ class _HostScreenState extends State<HostScreen> {
                                     body: jsonEncode({
                                       'roomCode': roomCode,
                                       'players': joinedPlayers,
-                                      'gameMode': currentMod, // Güncel yerel state'i basıyoruz kanka!
+                                      'gameMode': currentMod, 
                                       'category': currentCategory,
                                       'impostorCount': int.tryParse(_impostorCountController.text) ?? 1,
                                     }),
@@ -462,9 +446,7 @@ class _HostScreenState extends State<HostScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         child: Text(
-                          !canStart
-                              ? 'OYUNCULARIN ODALARA DÖNMESİ BEKLENİYOR... ⏳'
-                              : 'OYUNU BAŞLAT',
+                          !canStart ? 'OYUNCULARIN ODALARA DÖNMESİ BEKLENİYOR... ⏳' : 'OYUNU BAŞLAT',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -475,16 +457,9 @@ class _HostScreenState extends State<HostScreen> {
                       )
                     : Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E38),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF2E2E5C)),
-                        ),
+                        decoration: BoxDecoration(color: const Color(0xFF1E1E38), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF2E2E5C))),
                         child: const Center(
-                          child: Text(
-                            'ÖĞRETMENİN OYUNU BAŞLATMASI BEKLENİYOR... ⏳',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white60),
-                          ),
+                          child: Text('HOSTUN OYUNU BAŞLATMASI BEKLENİYOR... ⏳', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white60)),
                         ),
                       ),
               ],

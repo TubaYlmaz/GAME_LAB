@@ -181,12 +181,13 @@ class _VotingScreenState extends State<VotingScreen> {
                 const SizedBox(height: 15),
                 Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.white70, height: 1.4)),
                 const SizedBox(height: 30),
+
                 GestureDetector(
                   onTap: () async {
                     widget.socket.off('vote_status_updated');
                     widget.socket.off('voting_results');
 
-                    // 🎯 ADIM 1: Sunucu durumunu temizle kanka
+                    // Sunucu durumunu el bittiği için bekleme moduna çek kanka
                     try {
                       await http.post(
                         Uri.parse('${AppConfig.serverUrl}/api/reset-game-status'),
@@ -197,7 +198,7 @@ class _VotingScreenState extends State<VotingScreen> {
                       debugPrint("Reset hatası: $e");
                     }
 
-                    // 🎯 ADIM 2: Sunucuya odaya anlık geri döndüğünü üfle!
+                    // Sunucuya lobiye ayak bastığını üfle
                     widget.socket.emit('player_returned_to_lobby', {
                       'roomCode': widget.roomCode,
                       'playerName': widget.myName,
@@ -206,13 +207,14 @@ class _VotingScreenState extends State<VotingScreen> {
                     if (!mounted) return;
                     Navigator.of(context).pop(); // Dialog'u kapat
 
-                    // 🎯 ADIM 3: DÜZELTME: Odanın orijinal ayarlarını bozmadan dinamik olarak yönlendiriyoruz kanka!
+                    // 🎯 KESİN ÇÖZÜM: Artık lobiye dönerken 'Klasik' veya 'Rastgele' diye zorla ezmiyoruz!
+                    // HostScreen kendi içindeki güncel state'i (currentMod, currentCategory) neyse onu koruyacak kanka!
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
                         builder: (context) => HostScreen(
-                          gameMode: widget.amIImpostor ? "Yakin Kelime" : "Yakin Kelime", // Koruma
-                          category: "Rastgele",
+                          gameMode: widget.amIImpostor ? "Yakin Kelime" : "Yakin Kelime", // Bu yedek köprü tetikleyicisi
+                          category: "Mevcut", // Sunucu hafızasından beslenecek
                           impostorCount: 1,
                           socket: widget.socket,
                           hostName: widget.myName,
