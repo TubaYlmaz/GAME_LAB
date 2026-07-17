@@ -1,7 +1,7 @@
 // lib/screens/host_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO; 
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -29,7 +29,6 @@ class HostScreen extends StatefulWidget {
 }
 
 class _HostScreenState extends State<HostScreen> {
-  // 🎯 GÜNCELLEME: Sahte offline oyuncu listesini sildik kanka! Lobi artık bomboş başlıyor.
   final List<String> joinedPlayers = [];
 
   String? debugSecretWord;
@@ -81,7 +80,6 @@ class _HostScreenState extends State<HostScreen> {
     }
 
     return Scaffold(
-      // 🔙 SOL ÜST KÖŞEYE GERİ DÖN BUTONU EKLEDİK KANKA!
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
@@ -247,7 +245,8 @@ class _HostScreenState extends State<HostScreen> {
                       if (response.statusCode == 200) {
                         final data = jsonDecode(response.body);
 
-                        String secretWord = data['secretWord'];
+                        String secretWord = data['secretWord'] ?? '';
+                        String impWord = data['impostorWord'] ?? ''; // 🎯 Yakın kelime mühürlendi!
                         
                         var impostorData = data['impostor']; 
                         List<String> impostors = [];
@@ -265,7 +264,6 @@ class _HostScreenState extends State<HostScreen> {
                           debugDistribution.clear();
                           for (var player in joinedPlayers) {
                             if (debugImpostorNames.contains(player)) {
-                              String impWord = data['impostorWord'] ?? "Kelime Yok";
                               debugDistribution[player] = "😈 IMPOSTER ($impWord)";
                             } else {
                               debugDistribution[player] = "🧑‍🌾 Köylü (Kelime: $debugSecretWord)";
@@ -283,7 +281,8 @@ class _HostScreenState extends State<HostScreen> {
                           MaterialPageRoute(
                             builder: (context) => GameScreen(
                               playerName: currentTestPlayer,
-                              secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
+                              // 🎯 DÜZELTME: Eğer Host Impostor ise direkt impWord'ü (yakın kelimeyi) pasla!
+                              secretWord: isMeImpostor ? impWord : secretWord,
                               isImpostor: isMeImpostor,
                               socket: widget.socket, 
                               roomCode: roomCode,   
