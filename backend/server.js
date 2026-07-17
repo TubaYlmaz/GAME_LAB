@@ -92,35 +92,39 @@ io.on('connection', (socket) => {
         const { roomCode, hostName, gameMode = 'Klasik', category = 'Rastgele', impostorCount = 1 } = data;
 
         const roomExists = await redisClient.exists(`room:${roomCode}`);
-        if (roomExists) {
-            console.log(`🔄 Oda (${roomCode}) zaten mevcut. Mevcut kurucu korunuyor.`);
-            socket.join(roomCode);
+                if (roomExists) {
+                    console.log(`🔄 Oda (${roomCode}) zaten mevcut. Mevcut kurucu korunuyor.`);
+                    socket.join(roomCode);
 
-            const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
-            const players = JSON.parse(currentRoom.players || '[]');
+                    const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
+                    const players = JSON.parse(currentRoom.players || '[]');
 
-            if (!players.includes(hostName)) {
-                players.push(hostName);
-                await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
-            }
+                    // 🎯 DÜZELTME 1: Tanımsız olan playerName yerine hostName yazıldı
+                    if (!players.includes(hostName)) {
+                        players.push(hostName);
+                        await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
+                    }
 
-            // Odaya her create istek atıldığında o an lobiye dönenleri tetikle kanka
-            const returnedKey = `room:${roomCode}:returned_players`;
-            await redisClient.sadd(returnedKey, hostName);
-            const returnedPlayers = await redisClient.smembers(returnedKey);
+                    // 🎯 DÜZELTME 2: Değişken kapsamı (scope) dışarı taşındı, kilitlenme önlendi
+                    const returnedKey = `room:${roomCode}:returned_players`;
+                    await redisClient.sadd(returnedKey, hostName);
+                    const returnedPlayers = await redisClient.smembers(returnedKey);
 
-            socket.emit('room_created', { success: true, roomCode });
-            io.to(roomCode).emit('room_updated', {
-                roomCode,
-                players: players,
-                host: currentRoom.host
-            });
-            io.to(roomCode).emit('lobby_return_status', {
-                returnedPlayers: returnedPlayers,
-                isEveryoneBack: returnedPlayers.length >= players.length
-            });
-            return;
-        }
+                    socket.emit('room_created', { success: true, roomCode });
+                    
+                    io.to(roomCode).emit('room_updated', {
+                        roomCode,
+                        players: players,
+                        host: currentRoom.host
+                    });
+                    
+                    // 🎯 DÜZELTME 3: Çift emit teke düşürüldü, doğru değişken (returnedPlayers) ile senkron edildi
+                    io.to(roomCode).emit('lobby_return_status', {
+                        returnedPlayers: returnedPlayers,
+                        isEveryoneBack: returnedPlayers.length >= players.length
+                    });
+                    return;
+                }
 
         const roomData = {
             host: hostName,
