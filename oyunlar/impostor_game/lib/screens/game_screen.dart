@@ -7,9 +7,9 @@ class GameScreen extends StatefulWidget {
   final String playerName;
   final String secretWord;
   final bool isImpostor;
-  final dynamic socket; // 🔌 Soketimizi buraya aldık
-  final String roomCode; // 🏠 Oda kodumuz
-  final List<String> players; // 👥 Oyuncu listemiz
+  final dynamic socket; 
+  final String roomCode; 
+  final List<String> players; 
 
   const GameScreen({
     super.key,
@@ -27,10 +27,73 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _isWordVisible = false;
+  bool amIHost = false; // Oyuncu oda kurucusu mu?
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Eğer oyuncu listedeki ilk elemansa (Host) yetkilendiriyoruz
+    if (widget.players.isNotEmpty && widget.players.first == widget.playerName) {
+      amIHost = true;
+    }
+
+    _listenForVotingTrigger();
+  }
+
+  // 🔌 Oylamaya geçiş soket emrini dinleme servisi kanka
+  void _listenForVotingTrigger() {
+    if (widget.socket != null) {
+      widget.socket.on('navigate_to_voting', (_) {
+        if (!mounted) return;
+        
+        // Sunucudan oylama komutu geldiğinde herkesi oylamaya uçur! 🚀
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VotingScreen(
+              socket: widget.socket,
+              roomCode: widget.roomCode,
+              myName: widget.playerName,
+              players: widget.players,
+              amIImpostor: widget.isImpostor,
+            ),
+          ),
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.socket != null) {
+      widget.socket.off('navigate_to_voting');
+    }
+    super.dispose();
+  }
+
+  // Host oylamaya git butonuna bastığında sunucuya haber ver kanka
+  void _triggerVotingOnServer() {
+    if (widget.socket != null) {
+      widget.socket.emit('start_voting', {
+        'roomCode': widget.roomCode,
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0B0B1A),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true, 
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -184,45 +247,36 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Oylama ekranına soketimizi, oda kodumuzu ve listemizi paslıyoruz kanka! 🔥
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => VotingScreen(
-                                socket: widget.socket,
-                                roomCode: widget.roomCode,
-                                myName: widget.playerName,
-                                players: widget.players,
-                                amIImpostor: widget.isImpostor,
-                              ),
+                    // 🎯 Sadece Host ise Oylama butonunu çiz kanka!
+                    if (amIHost) ...[
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            _triggerVotingOnServer(); // Oylamayı tüm odada başlat! 🔥
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E2E5C),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E2E5C),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(
+                              color: Colors.redAccent,
+                              width: 1,
+                            ),
                           ),
-                          side: const BorderSide(
-                            color: Colors.redAccent,
-                            width: 1,
-                          ),
-                        ),
-                        child: const Text(
-                          'OYLAMAYA GİT',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                          child: const Text(
+                            'OYLAMAYA GİT',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
