@@ -1,6 +1,5 @@
-// lib/screens/host_screen.dart
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:math';
 import 'dart:convert';
@@ -32,26 +31,62 @@ class HostScreen extends StatefulWidget {
 
 class _HostScreenState extends State<HostScreen> {
   final List<String> joinedPlayers = [];
-  List<String> returnedPlayers = []; // 🎯 YEŞİL OK TAKİBİ İÇİN
-  bool isEveryoneBack = false;       // 🎯 BUTON KİLİDİ İÇİN
+  List<String> returnedPlayers = []; 
+  bool isEveryoneBack = false;       
 
-  String? debugSecretWord;
-  List<String> debugImpostorNames = [];
-  Map<String, String> debugDistribution = {};
+  // 🎯 LOBİ İÇİ CANLI AYAR DEĞİŞKENLERİ
+  late String currentMod;
+  late String currentCategory;
+  late TextEditingController _impostorCountController;
 
+  List<String> _kategoriler = ['Rastgele'];
   late String roomCode;
   bool isActualHost = false; 
 
   @override
   void initState() {
     super.initState();
+    
+    // Mevcut oyun ayarlarını local state'e çekiyoruz kanka
+    currentMod = widget.gameMode;
+    currentCategory = widget.category;
+    _impostorCountController = TextEditingController(text: widget.impostorCount.toString());
+
     if (widget.existingRoomCode != null) {
       roomCode = widget.existingRoomCode!;
     } else {
       roomCode = _generateRandomRoomCode();
     }
+    
+    _kategorileriYukle();
     _registerRoomOnServer();
     _checkHostStatus(); 
+  }
+
+  // Dropdown'ın içi boş kalmasın diye dictionary dosyasından kategorileri topluyoruz kanka
+  Future<void> _kategorileriYukle() async {
+    try {
+      final String response = await rootBundle.loadString('dictionary.json');
+      final Map<String, dynamic> data = json.decode(response);
+      if (!mounted) return;
+      setState(() {
+        _kategoriler = ['Rastgele', ...data.keys.toList()];
+      });
+    } catch (e) {
+      debugPrint("Sözlük kategorileri yüklenirken hata oluştu: $e");
+    }
+  }
+
+  // Değişen ayarları anlık sunucuya fırlatan fonksiyon kanka
+  void _pushSettingsToServer() {
+    if (widget.socket != null && isActualHost) {
+      widget.socket.emit('update_room_settings', {
+        'roomCode': roomCode,
+        'gameMode': currentMod,
+        'category': currentCategory,
+        'impostorCount': int.tryParse(_impostorCountController.text) ?? 1,
+      });
+    }
   }
 
   String _generateRandomRoomCode() {
@@ -68,9 +103,9 @@ class _HostScreenState extends State<HostScreen> {
       widget.socket.emit('create_room', {
         'roomCode': roomCode,
         'hostName': widget.hostName,
-        'gameMode': widget.gameMode,
-        'category': widget.category,
-        'impostorCount': widget.impostorCount,
+        'gameMode': currentMod,
+        'category': currentCategory,
+        'impostorCount': int.tryParse(_impostorCountController.text) ?? 1,
       });
 
       widget.socket.on('room_updated', (data) {
@@ -86,12 +121,21 @@ class _HostScreenState extends State<HostScreen> {
         }
       });
 
-      // 🎯 SİNKRONE LOBİ DİNLEYİCİSİ: Oylama bitip gelenleri yakalar
       widget.socket.on('lobby_return_status', (data) {
         if (!mounted) return;
         setState(() {
           returnedPlayers = List<String>.from(data['returnedPlayers'] ?? []);
           isEveryoneBack = data['isEveryoneBack'] ?? false;
+        });
+      });
+
+      // Diğer istemcilerde veya sunucuda ayar güncellenirse senkron kalalım kanka
+      widget.socket.on('room_settings_changed', (data) {
+        if (!mounted) return;
+        setState(() {
+          currentMod = data['gameMode'] ?? currentMod;
+          currentCategory = data['category'] ?? currentCategory;
+          _impostorCountController.text = (data['impostorCount'] ?? 1).toString();
         });
       });
 
@@ -126,7 +170,6 @@ class _HostScreenState extends State<HostScreen> {
         );
       });
       
-      // Giriş yapar yapmaz sunucuya "Buradayım" de kanka
       widget.socket.emit('player_returned_to_lobby', {
         'roomCode': roomCode,
         'playerName': widget.hostName,
@@ -151,12 +194,17 @@ class _HostScreenState extends State<HostScreen> {
   }
 
   @override
+  void dispose() {
+    _impostorCountController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!joinedPlayers.contains(widget.hostName)) {
       joinedPlayers.insert(0, widget.hostName);
     }
 
-    // Tek başına oynuyorsa buton kilitlenmesin kanka
     bool canStart = isEveryoneBack || joinedPlayers.length <= 1;
 
     return Scaffold(
@@ -192,24 +240,24 @@ class _HostScreenState extends State<HostScreen> {
                     side: const BorderSide(color: Color(0xFF2E2E5C), width: 1.5),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(20.0),
+                    padding: const EdgeInsets.all(15.0),
                     child: Column(
                       children: [
                         const Text(
                           'ÖĞRENCİLER İÇİN ODA KODU',
                           style: TextStyle(
                             color: Color(0xFF8E8EAF),
-                            fontSize: 13,
+                            fontSize: 12,
                             letterSpacing: 1.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 6),
                         Text(
                           roomCode,
                           style: const TextStyle(
                             color: Color(0xFF00D2FF),
-                            fontSize: 38,
+                            fontSize: 34,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 5,
                           ),
@@ -218,62 +266,169 @@ class _HostScreenState extends State<HostScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 15),
+
+                // 🎯 SADECE ASIL HOST İÇİN AKTİF AYAR PANELİ[cite: 8]
+                if (isActualHost) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141430),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF2E2E5C), width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.settings_suggest_rounded, color: Color(0xFF00D2FF), size: 20),
+                            SizedBox(width: 8),
+                            Text("OYUN AYARLARINI DÜZENLE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        
+                        // Mod Seçim Çipleri
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ChoiceChip(
+                                label: const Center(child: Text("Klasik")),
+                                selected: currentMod == 'Klasik',
+                                selectedColor: Colors.redAccent,
+                                labelStyle: TextStyle(color: currentMod == 'Klasik' ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                                onSelected: (val) {
+                                  if (val) {
+                                    setState(() { currentMod = 'Klasik'; });
+                                    _pushSettingsToServer();
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ChoiceChip(
+                                label: const Center(child: Text("Yakın Kelime")),
+                                selected: currentMod == 'Yakin Kelime',
+                                selectedColor: Colors.redAccent,
+                                labelStyle: TextStyle(color: currentMod == 'Yakin Kelime' ? Colors.white : Colors.grey, fontWeight: FontWeight.bold),
+                                onSelected: (val) {
+                                  if (val) {
+                                    setState(() { currentMod = 'Yakin Kelime'; });
+                                    _pushSettingsToServer();
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Kategori Dropdown Seçimi
+                        DropdownButtonFormField<String>(
+                          value: _kategoriler.contains(currentCategory) ? currentCategory : 'Rastgele',
+                          dropdownColor: const Color(0xFF1A1A2E),
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          decoration: InputDecoration(
+                            labelText: 'Kelime Kategorisi',
+                            labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                            filled: true,
+                            fillColor: const Color(0xFF0B0B1A),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.redAccent)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white10)),
+                          ),
+                          items: _kategoriler.map((String kat) {
+                            return DropdownMenuItem<String>(value: kat, child: Text(kat));
+                          }).toList(),
+                          onChanged: (String? yeniKat) {
+                            if (yeniKat != null) {
+                              setState(() { currentCategory = yeniKat; });
+                              _pushSettingsToServer();
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+
+                        // İmpostor Sayısı Ayarı
+                        TextField(
+                          controller: _impostorCountController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          decoration: InputDecoration(
+                            labelText: 'İmpostor Sayısı',
+                            labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                            filled: true,
+                            fillColor: const Color(0xFF0B0B1A),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.redAccent)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.white10)),
+                          ),
+                          onChanged: (val) {
+                            _pushSettingsToServer();
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                ],
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'Katılan Oyuncular',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     Chip(
                       label: Text('${joinedPlayers.length} Oyuncu'),
                       backgroundColor: const Color(0xFF2E2E5C),
                       side: const BorderSide(color: Color(0xFF00D2FF), width: 1),
-                      labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 5),
                 Expanded(
                   child: joinedPlayers.isEmpty
                       ? const Center(
                           child: Text(
                             'Oyuncuların gelmesi bekleniyor...',
-                            style: TextStyle(color: Color(0xFF8E8EAF), fontSize: 16),
+                            style: TextStyle(color: Color(0xFF8E8EAF), fontSize: 14),
                           ),
                         )
                       : ListView.builder(
                           itemCount: joinedPlayers.length,
                           itemBuilder: (context, index) {
-                            // 🎯 YEŞİL OK KONTROLÜ
                             bool isReturned = returnedPlayers.contains(joinedPlayers[index]);
                             return Card(
                               color: const Color(0xFF101026),
-                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              margin: const EdgeInsets.symmetric(vertical: 4),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: const BorderSide(color: Color(0xFF2E2E5C), width: 1),
                               ),
                               child: ListTile(
-                                leading: const Icon(Icons.person, color: Color(0xFF8E8EAF)),
+                                leading: const Icon(Icons.person, color: Color(0xFF8E8EAF), size: 20),
                                 title: Text(
                                   joinedPlayers[index],
-                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
                                 ),
                                 trailing: isReturned
-                                    ? const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 24)
-                                    : const Icon(Icons.hourglass_empty_rounded, color: Colors.amberAccent, size: 20),
+                                    ? const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 22)
+                                    : const Icon(Icons.hourglass_empty_rounded, color: Colors.amberAccent, size: 18),
                               ),
                             );
                           },
                         ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 15),
 
                 isActualHost
                     ? ElevatedButton(
-                        // 🎯 KİLİT MEKANİZMASI: Herkes dönmediyse buton kilitli (null)
                         onPressed: !canStart
                             ? null
                             : () async {
@@ -292,9 +447,9 @@ class _HostScreenState extends State<HostScreen> {
                                     body: jsonEncode({
                                       'roomCode': roomCode,
                                       'players': joinedPlayers,
-                                      'gameMode': widget.gameMode,
-                                      'category': widget.category,
-                                      'impostorCount': widget.impostorCount,
+                                      'gameMode': currentMod, // Güncel yerel state'i basıyoruz kanka!
+                                      'category': currentCategory,
+                                      'impostorCount': int.tryParse(_impostorCountController.text) ?? 1,
                                     }),
                                   );
                                 } catch (e) {
@@ -311,7 +466,7 @@ class _HostScreenState extends State<HostScreen> {
                               ? 'OYUNCULARIN ODALARA DÖNMESİ BEKLENİYOR... ⏳'
                               : 'OYUNU BAŞLAT',
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: !canStart ? Colors.white30 : const Color(0xFF0B0B1A),
                             letterSpacing: 1,
@@ -328,7 +483,7 @@ class _HostScreenState extends State<HostScreen> {
                         child: const Center(
                           child: Text(
                             'ÖĞRETMENİN OYUNU BAŞLATMASI BEKLENİYOR... ⏳',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white60),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white60),
                           ),
                         ),
                       ),

@@ -135,7 +135,6 @@ io.on('connection', (socket) => {
         await redisClient.hmset(`room:${roomCode}`, roomData);
         await redisClient.expire(`room:${roomCode}`, 7200);
 
-        // Odayı ilk kuranı otomatik hazır setine alalım kanka
         await redisClient.sadd(`room:${roomCode}:returned_players`, hostName);
 
         try {
@@ -156,6 +155,27 @@ io.on('connection', (socket) => {
         socket.join(roomCode);
         console.log(`🏠 Oda Oluşturuldu: ${roomCode} | Host: ${hostName} | Mod: ${gameMode} | Kategori: ${category}`);
         socket.emit('room_created', { success: true, roomCode });
+    });
+
+    // 🎯 YENİ SOKET: Host lobi içinden ayar değiştirdiğinde anlık tetiklenir kanka![cite: 9]
+    socket.on('update_room_settings', async (data) => {
+        const { roomCode, gameMode, category, impostorCount } = data;
+        const roomExists = await redisClient.exists(`room:${roomCode}`);
+
+        if (roomExists) {
+            await redisClient.hset(`room:${roomCode}`, 'gameMode', gameMode);
+            await redisClient.hset(`room:${roomCode}`, 'category', category);
+            await redisClient.hset(`room:${roomCode}`, 'impostorCount', impostorCount.toString());
+
+            console.log(`⚙️ [AYARLAR GÜNCELLENDİ] Oda: ${roomCode} | Mod: ${gameMode} | Kategori: ${category} | İmp: ${impostorCount}`);
+            
+            // Lobi ekranındaki herkese ayarların değiştiğini haber veriyoruz kanka
+            io.to(roomCode).emit('room_settings_changed', {
+                gameMode,
+                category,
+                impostorCount: parseInt(impostorCount, 10)
+            });
+        }
     });
 
     socket.on('player_returned_to_lobby', async (data) => {
@@ -219,7 +239,6 @@ io.on('connection', (socket) => {
 
         await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
 
-        // Katılan yeni oyuncuyu lobiye direkt hazır setine ekliyoruz ki ilk tur kilitlenmesin!
         await redisClient.sadd(`room:${roomCode}:returned_players`, playerName);
         const returnedPlayers = await redisClient.smembers(`room:${roomCode}:returned_players`);
 
@@ -358,12 +377,12 @@ app.post('/api/start-game', async (req, res) => {
 
         const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
         
-        // 🎯 GÜNCELLEME: Eğer Flutter'dan 'Rastgele' veya boş gelirse, Redis'teki orijinal lobi ayarını asla ezmiyoruz!
-        let aktifOyunModu = (gameMode && gameMode !== 'Rastgele') ? gameMode : (savedRoom.gameMode || 'Klasik');
-        let aktifKategori = (category && category !== 'Rastgele') ? category : (savedRoom.category || 'Rastgele');
-        let aktifImpostorSayisi = parseInt(impostorCount || savedRoom.impostorCount || '1', 10);
+        // 🎯 KATEGORİ VE MOD KORUMA DUVARI: Redis hafızasında (savedRoom) zaten kurulan geçerli bir oda ayarı varsa,
+        // Flutter'dan oylama dönüşünde gelen ezici 'Rastgele' veya boş dataları tamamen ezip orijinal ayarlara öncelik tanıyoruz kanka![cite: 9]
+        let aktifOyunModu = (savedRoom.gameMode && savedRoom.gameMode !== 'Rastgele') ? savedRoom.gameMode : (gameMode || 'Klasik');
+        let aktifKategori = (savedRoom.category && savedRoom.category !== 'Rastgele') ? savedRoom.category : (category || 'Rastgele');
+        let aktifImpostorSayisi = parseInt(savedRoom.impostorCount || impostorCount || '1', 10);
 
-        // Eğer orijinal oda ayarı da Rastgele ise o zaman havuzdan seç kanka
         if (aktifKategori === 'Rastgele') {
             const kategoriler = Object.keys(dictionary);
             aktifKategori = kategoriler[Math.floor(Math.random() * kategoriler.length)];
