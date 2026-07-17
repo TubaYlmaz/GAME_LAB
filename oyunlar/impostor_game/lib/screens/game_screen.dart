@@ -118,14 +118,12 @@ class _GameScreenState extends State<GameScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  widget.isImpostor
-                      ? 'DİKKAT KİMSEYE BELLİ ETME!'
-                      : 'Kelimeyi arkadaşlarına anlatmaya hazır ol!',
+                  // 🎯 DÜZELTME: Üstteki alt başlığı da tamamen eşitledik kanka. 
+                  // İmpostor buraya bakıp "Aha bende kırmızı yazmıyor, kesin köylüyüm" diyecek!
+                  'Kelimeyi arkadaşlarına anlatmaya hazır ol!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: widget.isImpostor
-                        ? Colors.redAccent
-                        : const Color(0xFF8E8EAF),
+                  style: const TextStyle(
+                    color: Color(0xFF8E8EAF),
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -145,19 +143,17 @@ class _GameScreenState extends State<GameScreen> {
                       color: const Color(0xFF181832).withOpacity(0.9),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
+                        // 🎯 DÜZELTME: Kart açıldığında İmpostor için kırmızı çerçeve yanmıyor,
+                        // herkesle aynı şık köylü mavisi yanıyor ki durum çakılmasın!
                         color: _isWordVisible
-                            ? (widget.isImpostor
-                                  ? Colors.redAccent
-                                  : const Color(0xFF00D2FF))
+                            ? const Color(0xFF00D2FF)
                             : const Color(0xFF2E2E5C),
                         width: 2,
                       ),
                       boxShadow: _isWordVisible
                           ? [
                               BoxShadow(
-                                color: widget.isImpostor
-                                    ? Colors.redAccent.withValues(alpha: 0.3)
-                                    : const Color(0xFF00D2FF).withValues(alpha: 0.3),
+                                color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
                                 blurRadius: 15,
                                 spreadRadius: 2,
                               ),
@@ -185,12 +181,12 @@ class _GameScreenState extends State<GameScreen> {
                             ),
                           ),
                         ] else ...[
-                          Text(
-                            widget.isImpostor ? 'ROLÜN' : 'GİZLİ KELİMEN',
+                          // 🎯 DÜZELTME: Kartın içindeki "ROLÜN: IMPOSTER" ibaresini tamamen sildik.
+                          // Herkes için sadece "GİZLİ KELİMEN" yazıyor kanka.
+                          const Text(
+                            'GİZLİ KELİMEN',
                             style: TextStyle(
-                              color: widget.isImpostor
-                                  ? Colors.redAccent
-                                  : const Color(0xFF8E8EAF),
+                              color: Color(0xFF8E8EAF),
                               fontSize: 13,
                               letterSpacing: 1.5,
                               fontWeight: FontWeight.bold,
@@ -198,40 +194,17 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            widget.isImpostor ? 'IMPOSTER' : widget.secretWord,
+                            // 🎯 DÜZELTME: Artık İmpostor'a da doğrudan kendi yakın kelimesi (widget.secretWord)
+                            // köylülerin yazı stilinde ve pürüzsüz mavi renkte gösteriliyor!
+                            widget.secretWord,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: widget.isImpostor
-                                  ? Colors.redAccent
-                                  : const Color(0xFF00D2FF),
+                            style: const TextStyle(
+                              color: Color(0xFF00D2FF),
                               fontSize: 34,
                               fontWeight: FontWeight.bold,
-                              letterSpacing: widget.isImpostor ? 3 : 1,
+                              letterSpacing: 1,
                             ),
                           ),
-                          
-                          // 🎯 GÜNCELLEME: Eğer İmpostor ise ve elinde bir yakın kelime varsa (Klasik modda 'Kelime Yok' veya boş gelebilir) bunu kartın altına şıkça yazıyoruz!
-                          if (widget.isImpostor && widget.secretWord.isNotEmpty && widget.secretWord != 'Kelime Yok') ...[
-                            const SizedBox(height: 15),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
-                              ),
-                              child: Text(
-                                'Yakın Kelimen: ${widget.secretWord}',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ],
                     ),
