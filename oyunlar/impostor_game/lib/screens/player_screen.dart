@@ -29,6 +29,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _isChecking = false;
 
   final List<String> joinedPlayers = [];
+  List<String> returnedPlayers = []; // 🎯 YEŞİL OK TAKİBİ İÇİN
 
   @override
   void initState() {
@@ -57,6 +58,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
           });
         }
       });
+
+      // 🎯 ANLIK YEŞİL OK GÜNCELLEMESİ
+      widget.socket.on('lobby_return_status', (data) {
+        if (!mounted) return;
+        setState(() {
+          returnedPlayers = List<String>.from(data['returnedPlayers'] ?? []);
+        });
+      });
+
+      // Odaya girer girmez sunucuya "Ben de buradayım" desin kanka
+      widget.socket.emit('player_returned_to_lobby', {
+        'roomCode': widget.roomCode,
+        'playerName': widget.playerName,
+      });
     }
   }
 
@@ -71,13 +86,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (!mounted) return;
     setState(() => _isChecking = true);
 
-    final url = Uri.parse(
-      '${AppConfig.serverUrl}/api/game-status/${widget.roomCode}',
-    );
+    final url = Uri.parse('${AppConfig.serverUrl}/api/game-status/${widget.roomCode}');
 
     try {
       final response = await http.get(url);
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
@@ -85,7 +97,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           _statusTimer?.cancel(); 
 
           String secretWord = data['secretWord'] ?? '';
-          String impWord = data['impostorWord'] ?? ''; // 🎯 Yakın kelime mühürlendi!
+          String impWord = data['impostorWord'] ?? '';
           
           var impostorData = data['impostor'];
           List<String> impostors = [];
@@ -110,7 +122,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
             MaterialPageRoute(
               builder: (context) => GameScreen(
                 playerName: widget.playerName,
-                // 🎯 DÜZELTME: Katılan oyuncu Impostor ise direkt impWord'ü (yakın kelimeyi) pasla!
                 secretWord: isMeImpostor ? impWord : secretWord,
                 isImpostor: isMeImpostor,
                 socket: widget.socket, 
@@ -158,10 +169,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   color: const Color(0xFF181832).withValues(alpha: 0.9),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
-                    side: const BorderSide(
-                      color: Color(0xFF2E2E5C),
-                      width: 1.5,
-                    ),
+                    side: const BorderSide(color: Color(0xFF2E2E5C), width: 1.5),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(20.0),
@@ -169,22 +177,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       children: [
                         const Text(
                           'BAĞLANILAN ODA KODU',
-                          style: TextStyle(
-                            color: Color(0xFF8E8EAF),
-                            fontSize: 13,
-                            letterSpacing: 1.5,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: Color(0xFF8E8EAF), fontSize: 13, letterSpacing: 1.5, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 12),
                         Text(
                           widget.roomCode,
-                          style: const TextStyle(
-                            color: Color(0xFF00D2FF),
-                            fontSize: 38,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 5,
-                          ),
+                          style: const TextStyle(color: Color(0xFF00D2FF), fontSize: 38, fontWeight: FontWeight.bold, letterSpacing: 5),
                         ),
                       ],
                     ),
@@ -198,41 +196,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       children: [
                         const Text(
                           'Odada Kimler Var?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(width: 8),
                         Chip(
                           label: Text('${joinedPlayers.length} Oyuncu'),
                           backgroundColor: const Color(0xFF2E2E5C),
                           padding: EdgeInsets.zero,
-                          labelStyle: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          labelStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                     TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(
-                        Icons.logout_rounded,
-                        color: Colors.redAccent,
-                        size: 20,
-                      ),
-                      label: const Text(
-                        'Odadan Çık',
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                      label: const Text('Odadan Çık', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -242,41 +220,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     itemCount: joinedPlayers.length,
                     itemBuilder: (context, index) {
                       bool isMe = joinedPlayers[index] == widget.playerName;
+                      bool isReturned = returnedPlayers.contains(joinedPlayers[index]); // 🎯 YEŞİL OK
                       return Card(
                         color: const Color(0xFF101026),
                         margin: const EdgeInsets.symmetric(vertical: 6),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: isMe
-                                ? const Color(0xFF00D2FF)
-                                : const Color(0xFF2E2E5C),
-                            width: isMe ? 1.5 : 1,
-                          ),
+                          side: BorderSide(color: isMe ? const Color(0xFF00D2FF) : const Color(0xFF2E2E5C), width: isMe ? 1.5 : 1),
                         ),
                         child: ListTile(
-                          leading: Icon(
-                            Icons.person,
-                            color: isMe
-                                ? const Color(0xFF00D2FF)
-                                : const Color(0xFF8E8EAF),
-                          ),
+                          leading: Icon(Icons.person, color: isMe ? const Color(0xFF00D2FF) : const Color(0xFF8E8EAF)),
                           title: Text(
                             joinedPlayers[index] + (isMe ? " (Sen)" : ""),
-                            style: TextStyle(
-                              color: isMe
-                                  ? const Color(0xFF00D2FF)
-                                  : Colors.white,
-                              fontSize: 16,
-                              fontWeight: isMe
-                                  ? FontWeight.bold
-                                  : FontWeight.w500,
-                            ),
+                            style: TextStyle(color: isMe ? const Color(0xFF00D2FF) : Colors.white, fontSize: 16, fontWeight: isMe ? FontWeight.bold : FontWeight.w500),
                           ),
-                          trailing: const Icon(
-                            Icons.check_circle,
-                            color: Color(0xFF00D2FF),
-                          ),
+                          trailing: isReturned
+                              ? const Icon(Icons.check_circle_rounded, color: Colors.greenAccent, size: 24)
+                              : const Icon(Icons.hourglass_empty_rounded, color: Colors.amberAccent, size: 20),
                         ),
                       );
                     },
@@ -298,21 +258,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF00D2FF),
-                          ),
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D2FF)),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        _isChecking
-                            ? 'Oda kontrol ediliyor...'
-                            : 'Hostun oyunu başlatması bekleniyor...',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF8E8EAF),
-                        ),
+                      const Text(
+                        'Hostun oyunu başlatması bekleniyor...',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF8E8EAF)),
                       ),
                     ],
                   ),

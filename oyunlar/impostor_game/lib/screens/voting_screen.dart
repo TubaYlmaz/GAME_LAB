@@ -3,7 +3,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'host_screen.dart'; // 🎯 EKLEME: Oylama bitince lobiye/odaya geri dönebilmek için import edildi.
+import 'package:http/http.dart' as http;
+import '../config.dart';
+import 'host_screen.dart';
+import 'dart:convert';
 
 class VotingScreen extends StatefulWidget {
   final dynamic socket;
@@ -58,9 +61,7 @@ class _VotingScreenState extends State<VotingScreen> {
         if (data['currentVotes'] != null) {
           playerVotes.updateAll((key, value) => 0);
 
-          Map<String, dynamic> rawVotes = Map<String, dynamic>.from(
-            data['currentVotes'],
-          );
+          Map<String, dynamic> rawVotes = Map<String, dynamic>.from(data['currentVotes']);
           rawVotes.forEach((voter, votedFor) {
             if (votedFor != 'skip' && playerVotes.containsKey(votedFor)) {
               playerVotes[votedFor] = (playerVotes[votedFor] ?? 0) + 1;
@@ -77,8 +78,7 @@ class _VotingScreenState extends State<VotingScreen> {
         isVotingClosed = true;
       });
 
-      String eliminatedPlayer =
-          data['eliminatedPlayer'] ?? "Kimse elenmedi (Beraberlik)";
+      String eliminatedPlayer = data['eliminatedPlayer'] ?? "Kimse elenmedi (Beraberlik)";
       bool isTie = data['isTie'] ?? false;
       String impostorName = data['impostorName'] ?? "";
 
@@ -91,9 +91,7 @@ class _VotingScreenState extends State<VotingScreen> {
     const int milliseconds = 100;
     final double increment = milliseconds / (totalDuration * 1000);
 
-    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (
-      timer,
-    ) {
+    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (timer) {
       if (!mounted) return;
       setState(() {
         if (progress < 1.0) {
@@ -122,47 +120,38 @@ class _VotingScreenState extends State<VotingScreen> {
     widget.socket.emit('submit_vote', {
       'roomCode': widget.roomCode,
       'voterName': widget.myName,
-      'votedFor': targetPlayer,
       'isLocking': lockIt,
+      'votedFor': targetPlayer,
     });
   }
 
-  void showResultsDialog(
-    String eliminatedPlayer,
-    bool isTie,
-    String impostorName,
-  ) {
+  void showResultsDialog(String eliminatedPlayer, bool isTie, String impostorName) {
     String title = "";
     String subtitle = "";
     bool isVictory = false;
 
     if (isTie) {
       title = "BERABERLİK! ⚖️";
-      subtitle =
-          "Oylamada eşitlik çıktı, kimse elenmedi! Gerçek İmpostor '$impostorName' aranızda sızmaya devam ediyor.";
+      subtitle = "Oylamada eşitlik çıktı, kimse elenmedi! Gerçek İmpostor '$impostorName' aranızda sızmaya devam ediyor.";
       isVictory = widget.amIImpostor;
     } else if (eliminatedPlayer == impostorName) {
       if (widget.amIImpostor) {
         title = "YAKALANDIN! 💀";
-        subtitle =
-            "Diğer oyuncular senin İmpostor olduğunu doğru bildi. Maçı kaybettin!";
+        subtitle = "Diğer oyuncular senin İmpostor olduğunu doğru bildi. Maçı kaybettin!";
         isVictory = false;
       } else {
         title = "ZAFER! 🎉";
-        subtitle =
-            "Tebrikler! İmpostor olan '$impostorName' oyuncusunu başarıyla elediniz ve kazandınız!";
+        subtitle = "Tebrikler! İmpostor olan '$impostorName' oyuncusunu başarıyla elediniz ve kazandınız!";
         isVictory = true;
       }
     } else {
       if (widget.amIImpostor) {
         title = "ZAFER! 😈";
-        subtitle =
-            "Köylüler yanlış kişiyi ($eliminatedPlayer) eledi! Sen yakalanmadın ve maçı kazandın.";
+        subtitle = "Köylüler yanlış kişiyi ($eliminatedPlayer) eledi! Sen yakalanmadın ve maçı kazandın.";
         isVictory = true;
       } else {
         title = "BOZGUN! 🛑";
-        subtitle =
-            "Yanlış kişiyi ($eliminatedPlayer) elediniz! Gerçek İmpostor '$impostorName' aranızda sinsi sinsi dolaşıyor.";
+        subtitle = "Yanlış kişiyi ($eliminatedPlayer) elediniz! Gerçek İmpostor '$impostorName' aranızda sinsi sinsi dolaşıyor.";
         isVictory = false;
       }
     }
@@ -173,9 +162,7 @@ class _VotingScreenState extends State<VotingScreen> {
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: const Color(0xFF151528),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -189,69 +176,61 @@ class _VotingScreenState extends State<VotingScreen> {
                 const SizedBox(height: 20),
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: isVictory ? Colors.amber : Colors.redAccent,
-                    letterSpacing: 1.5,
-                  ),
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: isVictory ? Colors.amber : Colors.redAccent, letterSpacing: 1.5),
                 ),
                 const SizedBox(height: 15),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                    height: 1.4,
-                  ),
-                ),
+                Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.white70, height: 1.4)),
                 const SizedBox(height: 30),
                 GestureDetector(
-                  // 🎯 DEĞİŞİKLİK: 'amIHost' kontrolü tamamen kaldırıldı. Tuş artık HERKESTE aktif!
-                  onTap: () {
-                    // 🎯 TEMİZLİK: Dinleyicileri kapatıyoruz ki bir sonraki elde hayalet tetiklenme olmasın.
+                  onTap: () async {
                     widget.socket.off('vote_status_updated');
                     widget.socket.off('voting_results');
 
+                    // 🎯 ADIM 1: Sunucu durumunu temizle kanka
+                    try {
+                      await http.post(
+                        Uri.parse('${AppConfig.serverUrl}/api/reset-game-status'),
+                        headers: {'Content-Type': 'application/json'},
+                        body: jsonEncode({'roomCode': widget.roomCode}),
+                      );
+                    } catch (e) {
+                      debugPrint("Reset hatası: $e");
+                    }
+
+                    // 🎯 ADIM 2: Sunucuya odaya anlık geri döndüğünü üfle!
+                    widget.socket.emit('player_returned_to_lobby', {
+                      'roomCode': widget.roomCode,
+                      'playerName': widget.myName,
+                    });
+
+                    if (!mounted) return;
                     Navigator.of(context).pop(); // Dialog'u kapat
 
-                    // 🎯 DEĞİŞİKLİK: "LOBİYE DÖN" yerine mevcut odayı/kodunu koruyarak HostScreen'e geri yönlendiriyoruz.
+                    // 🎯 ADIM 3: DÜZELTME: Odanın orijinal ayarlarını bozmadan dinamik olarak yönlendiriyoruz kanka!
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
                         builder: (context) => HostScreen(
-                          gameMode: "Klasik",
+                          gameMode: widget.amIImpostor ? "Yakin Kelime" : "Yakin Kelime", // Koruma
                           category: "Rastgele",
                           impostorCount: 1,
                           socket: widget.socket,
                           hostName: widget.myName,
-                          existingRoomCode: widget
-                              .roomCode, // 🎯 EKLEME: Mevcut oda kodunu paslıyoruz!
+                          existingRoomCode: widget.roomCode, 
                         ),
                       ),
-                      (route) => route
-                          .isFirst, // Giriş/Ana menü hariç tüm eski oyun sayfalarını stack'ten siler.
+                      (route) => route.isFirst, 
                     );
                   },
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 15),
-                    decoration: BoxDecoration(
-                      color: const Color(
-                        0xFF00D2FF,
-                      ), // Herkes tıklayabileceği için canlı mavi renk yaptık
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    decoration: BoxDecoration(color: const Color(0xFF00D2FF), borderRadius: BorderRadius.circular(16)),
                     child: const Center(
                       child: Text(
-                        "ODAYA DÖN 🏠", // 🎯 DEĞİŞİKLİK: İstediğin gibi "ODAYA DÖN" olarak güncellendi.
+                        "ODAYA DÖN 🏠",
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0B0B1A),
-                        ),
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0B0B1A)),
                       ),
                     ),
                   ),
@@ -278,20 +257,10 @@ class _VotingScreenState extends State<VotingScreen> {
       backgroundColor: const Color(0xFF0B0B1A),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "KİM İMPOSTER?",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2.0,
-            color: Colors.white,
-          ),
-        ),
+        title: const Text("KİM İMPOSTER?", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.0, color: Colors.white)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -302,18 +271,12 @@ class _VotingScreenState extends State<VotingScreen> {
             width: double.infinity,
             height: 4,
             margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2E2E5C),
-              borderRadius: BorderRadius.circular(10),
-            ),
+            decoration: BoxDecoration(color: const Color(0xFF2E2E5C), borderRadius: BorderRadius.circular(10)),
             alignment: Alignment.centerLeft,
             child: FractionallySizedBox(
               widthFactor: progress,
               child: Container(
-                decoration: BoxDecoration(
-                  color: isVotingClosed ? Colors.grey : Colors.redAccent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                decoration: BoxDecoration(color: isVotingClosed ? Colors.grey : Colors.redAccent, borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ),
@@ -321,11 +284,7 @@ class _VotingScreenState extends State<VotingScreen> {
             padding: const EdgeInsets.only(bottom: 15.0),
             child: Text(
               "Onaylanan Kilitli Oylar: $votedCount / ${widget.players.length}",
-              style: const TextStyle(
-                color: Colors.greenAccent,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.bold),
             ),
           ),
           Expanded(
@@ -339,65 +298,32 @@ class _VotingScreenState extends State<VotingScreen> {
                 final currentVotes = playerVotes[playerName] ?? 0;
 
                 return GestureDetector(
-                  onTap: (hasLockedVote || isVotingClosed)
-                      ? null
-                      : () {
-                          setState(() {
-                            selectedPlayer = playerName;
-                          });
-                          submitVote(playerName, lockIt: false);
-                        },
+                  onTap: (hasLockedVote || isVotingClosed) ? null : () {
+                    setState(() { selectedPlayer = playerName; });
+                    submitVote(playerName, lockIt: false);
+                  },
                   child: AnimatedScale(
                     scale: isSelected ? 1.05 : 1.0,
                     duration: const Duration(milliseconds: 200),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(bottom: 15),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 16,
-                        horizontal: 20,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                       decoration: BoxDecoration(
                         gradient: isSelected
-                            ? const LinearGradient(
-                                colors: [Color(0xFFE53935), Color(0xFFB71C1C)],
-                              )
-                            : const LinearGradient(
-                                colors: [Color(0xFF1E1E38), Color(0xFF151528)],
-                              ),
+                            ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)])
+                            : const LinearGradient(colors: [Color(0xFF1E1E38), Color(0xFF151528)]),
                         borderRadius: BorderRadius.circular(16),
-                        border: hasLockedVote && isSelected
-                            ? Border.all(color: Colors.greenAccent, width: 2)
-                            : null,
+                        border: hasLockedVote && isSelected ? Border.all(color: Colors.greenAccent, width: 2) : null,
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            hasLockedVote && isSelected
-                                ? Icons.lock_outline_rounded
-                                : Icons.person_rounded,
-                            color: isSelected ? Colors.white : Colors.white54,
-                          ),
+                          Icon(hasLockedVote && isSelected ? Icons.lock_outline_rounded : Icons.person_rounded, color: isSelected ? Colors.white : Colors.white54),
                           const SizedBox(width: 15),
-                          Text(
-                            currentVotes > 0
-                                ? "$playerName ($currentVotes Oy)"
-                                : playerName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text(currentVotes > 0 ? "$playerName ($currentVotes Oy)" : playerName, style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold)),
                           if (playerName == widget.myName) ...[
                             const Spacer(),
-                            const Text(
-                              "(SEN)",
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 12,
-                              ),
-                            ),
+                            const Text("(SEN)", style: TextStyle(color: Colors.white54, fontSize: 12)),
                           ],
                         ],
                       ),
@@ -410,33 +336,17 @@ class _VotingScreenState extends State<VotingScreen> {
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: GestureDetector(
-              onTap: (hasLockedVote || isVotingClosed)
-                  ? null
-                  : () {
-                      submitVote(selectedPlayer ?? 'skip', lockIt: true);
-                    },
+              onTap: (hasLockedVote || isVotingClosed) ? null : () {
+                submitVote(selectedPlayer ?? 'skip', lockIt: true);
+              },
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                decoration: BoxDecoration(
-                  color: hasLockedVote
-                      ? const Color(0xFF2E2E5C).withOpacity(0.5)
-                      : (selectedPlayer == null
-                            ? const Color(0xFF2E2E5C)
-                            : const Color(0xFF4CAF50)),
-                ),
+                decoration: BoxDecoration(color: hasLockedVote ? const Color(0xFF2E2E5C).withOpacity(0.5) : (selectedPlayer == null ? const Color(0xFF2E2E5C) : const Color(0xFF4CAF50))),
                 child: Center(
                   child: Text(
-                    hasLockedVote
-                        ? "OYUN KİLİTLENDİ 🔒"
-                        : (selectedPlayer == null
-                              ? "PAS GEÇ VE KİLİTLE 🔒"
-                              : "OYU KİLİTLE 🔒"),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
+                    hasLockedVote ? "OYUN KİLİTLENDİ 🔒" : (selectedPlayer == null ? "PAS GEÇ VE KİLİTLE 🔒" : "OYU KİLİTLE 🔒"),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
                   ),
                 ),
               ),
