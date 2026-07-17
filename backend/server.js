@@ -89,18 +89,17 @@ io.on('connection', (socket) => {
     console.log(`🔌 Bir kullanıcı bağlandı: ${socket.id}`);
 
     socket.on('create_room', async (data) => {
-        const { roomCode, hostName, gameMode = 'Klasik', impostorCount = 1 } = data;
+        // 🎯 GÜNCELLEME: Oda ilk açılırken seçilen ayarları (mod, kategori, imp sayısı) alıyoruz!
+        const { roomCode, hostName, gameMode = 'Klasik', category = 'Rastgele', impostorCount = 1 } = data;
 
         const roomExists = await redisClient.exists(`room:${roomCode}`);
         if (roomExists) {
-            // 🎯 GÜNCELLEME: Oda zaten varsa kurucuyu ezmiyoruz. Mevcut odaya socket'i dahil edip güncel durumu gönderiyoruz.
             console.log(`🔄 Oda (${roomCode}) zaten mevcut. Mevcut kurucu korunuyor.`);
             socket.join(roomCode);
 
             const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
             const players = JSON.parse(currentRoom.players || '[]');
 
-            // Eğer odaya geri giren oyuncu oyuncu listesinde yoksa ekle
             if (!players.includes(hostName)) {
                 players.push(hostName);
                 await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
@@ -115,10 +114,14 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // 🎯 GÜNCELLEME: İlk ayarlanan oyun yapılandırmalarını Redis odasında saklıyoruz ki turlarda sıfırlanmasın!
         const roomData = {
             host: hostName,
             status: 'waiting',
-            players: JSON.stringify([hostName])
+            players: JSON.stringify([hostName]),
+            gameMode: gameMode,
+            category: category,
+            impostorCount: impostorCount.toString()
         };
 
         await redisClient.hmset(`room:${roomCode}`, roomData);
@@ -140,11 +143,10 @@ io.on('connection', (socket) => {
         }
 
         socket.join(roomCode);
-        console.log(`🏠 Oda Oluşturuldu: ${roomCode} | Host: ${hostName}`);
+        console.log(`🏠 Oda Oluşturuldu: ${roomCode} | Host: ${hostName} | Mod: ${gameMode} | Kategori: ${category}`);
         socket.emit('room_created', { success: true, roomCode });
     });
 
-    // 🎯 YENİ SOKET EVENT'İ: İstemci odaya döndüğünde asıl host olup olmadığını doğrular
     socket.on('check_host', async (data) => {
         const { roomCode, playerName } = data;
         const roomExists = await redisClient.exists(`room:${roomCode}`);
@@ -312,13 +314,20 @@ app.post('/api/start-game', async (req, res) => {
             return res.status(400).json({ error: "Odadaki oyuncu listesi boş olamaz!" });
         }
 
-        let secilenKategori = category;
-        if (!category || category === 'Rastgele') {
+        // 🎯 GÜNCELLEME: Önce Redis odasından ilk kurulum ayarlarını çekiyoruz kanka!
+        const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
+        
+        // Eğer istekten (req.body) ayar gelmediyse (lobiden dönüldüğünde gelmiyor), Redis'teki orijinal ayarı kullan!
+        let aktifOyunModu = gameMode || savedRoom.gameMode || 'Klasik';
+        let aktifKategori = category || savedRoom.category || 'Rastgele';
+        let aktifImpostorSayisi = parseInt(impostorCount || savedRoom.impostorCount || '1', 10);
+
+        if (aktifKategori === 'Rastgele') {
             const kategoriler = Object.keys(dictionary);
-            secilenKategori = kategoriler[Math.floor(Math.random() * kategoriler.length)];
+            aktifKategori = kategoriler[Math.floor(Math.random() * kategoriler.length)];
         }
 
-        const kategoriKelimeleri = dictionary[secilenKategori];
+        const kategoriKelimeleri = dictionary[aktifKategori];
         if (!kategoriKelimeleri || kategoriKelimeleri.length < 2) {
             return res.status(500).json({ error: "Seçilen kategoride yeterli kelime bulunamadı kanka!" });
         }
@@ -327,13 +336,14 @@ app.post('/api/start-game', async (req, res) => {
         const selectedWord = kategoriKelimeleri[randomIndex1];
 
         let impostorWord = "Kelime Yok";
-        if (gameMode === 'Yakin Kelime') {
+        // 🎯 DÜZELTME: Aktif oyun modunu 'Yakin Kelime' olarak güvenli hafızadan okuduğumuz için artık asla pas geçmeyecek!
+        if (aktifOyunModu === 'Yakin Kelime' || aktifOyunModu === 'Yakin Kelime') {
             const kalanKelimeler = kategoriKelimeleri.filter(w => w !== selectedWord);
             const randomIndex2 = Math.floor(Math.random() * kalanKelimeler.length);
             impostorWord = kalanKelimeler[randomIndex2];
         }
 
-        const hedonImpostorSayisi = Math.min(impostorCount || 1, players.length - 1);
+        const hedonImpostorSayisi = Math.min(aktifImpostorSayisi, players.length - 1);
 
         let karistirilmisOyuncular = [...players];
         for (let i = karistirilmisOyuncular.length - 1; i > 0; i--) {
@@ -344,7 +354,7 @@ app.post('/api/start-game', async (req, res) => {
         const chosenImpostors = karistirilmisOyuncular.slice(0, hedonImpostorSayisi);
 
         console.log(`🎮 Oda [${roomCode}] için Yeni El Başladı!`);
-        console.log(`📂 Kategori: ${secilenKategori} | Mod: ${gameMode}`);
+        console.log(`📂 Kategori: ${aktifKategori} | Mod: ${aktifOyunModu}`);
         console.log(`🎯 Köylü Kelimesi: ${selectedWord} | 😈 İmpostorlar: ${chosenImpostors.join(', ')} (${impostorWord})`);
 
         try {
@@ -361,6 +371,7 @@ app.post('/api/start-game', async (req, res) => {
             console.error("❌ [MySQL Error] Rol dağılımı kaydedilemedi:", dbErr);
         }
 
+        // 🎯 GÜNCELLEME: Oda durumunu kaydederken ilk ayarları ezmeden sadece el durumunu güncelliyoruz kanka!
         await redisClient.hset(`room:${roomCode}`, 'status', 'started');
         await redisClient.hset(`room:${roomCode}`, 'secretWord', selectedWord);
         await redisClient.hset(`room:${roomCode}`, 'impostor', JSON.stringify(chosenImpostors));
@@ -370,7 +381,9 @@ app.post('/api/start-game', async (req, res) => {
             status: "started",
             secretWord: selectedWord,
             impostor: chosenImpostors,
-            impostorWord: impostorWord
+            impostorWord: impostorWord,
+            gameMode: aktifOyunModu,
+            category: aktifKategori
         };
         await redisClient.set(`room:string:${roomCode}`, JSON.stringify(roomDataString));
 
@@ -386,6 +399,19 @@ app.post('/api/start-game', async (req, res) => {
     } catch (error) {
         console.error("Oyunu ilerletirken hata oluştu:", error);
         return res.status(500).json({ error: "Sunucu hatası kanka" });
+    }
+});
+
+app.post('/api/reset-game-status', async (req, res) => {
+    try {
+        const { roomCode } = req.body;
+        // Lobiye geri dönüldüğünde odanın durumunu bekleme moduna çekiyoruz kanka
+        await redisClient.hset(`room:${roomCode}`, 'status', 'waiting');
+        await redisClient.del(`room:string:${roomCode}`);
+        console.log(`🔄 Oda [${roomCode}] durumu lobi için başarıyla sıfırlandı.`);
+        return res.json({ status: "success" });
+    } catch (error) {
+        return res.status(500).json({ error: "Sıfırlama hatası" });
     }
 });
 
