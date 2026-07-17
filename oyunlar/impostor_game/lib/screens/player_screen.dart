@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:socket_io_client/socket_io_client.dart' as IO; 
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../config.dart'; 
 import 'game_screen.dart'; 
 
@@ -28,7 +28,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _statusTimer;
   bool _isChecking = false;
 
-  // 🎯 GÜNCELLEME: Sahte offline oyuncuları sildik kanka! Lobi tertemiz.
   final List<String> joinedPlayers = [];
 
   @override
@@ -86,6 +85,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           _statusTimer?.cancel(); 
 
           String secretWord = data['secretWord'] ?? '';
+          String impWord = data['impostorWord'] ?? ''; // 🎯 Yakın kelime mühürlendi!
           
           var impostorData = data['impostor'];
           List<String> impostors = [];
@@ -110,7 +110,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
             MaterialPageRoute(
               builder: (context) => GameScreen(
                 playerName: widget.playerName,
-                secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
+                // 🎯 DÜZELTME: Katılan oyuncu Impostor ise direkt impWord'ü (yakın kelimeyi) pasla!
+                secretWord: isMeImpostor ? impWord : secretWord,
                 isImpostor: isMeImpostor,
                 socket: widget.socket, 
                 roomCode: widget.roomCode, 

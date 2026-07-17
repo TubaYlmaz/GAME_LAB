@@ -5,7 +5,7 @@ import 'voting_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String playerName;
-  final String secretWord;
+  final String secretWord; // Köylünün kelimesi ya da İmpostor'ın yakın kelimesi buraya paslanıyor kanka!
   final bool isImpostor;
   final dynamic socket; 
   final String roomCode; 
@@ -27,13 +27,12 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _isWordVisible = false;
-  bool amIHost = false; // Oyuncu oda kurucusu mu?
+  bool amIHost = false; 
 
   @override
   void initState() {
     super.initState();
     
-    // Eğer oyuncu listedeki ilk elemansa (Host) yetkilendiriyoruz
     if (widget.players.isNotEmpty && widget.players.first == widget.playerName) {
       amIHost = true;
     }
@@ -41,13 +40,11 @@ class _GameScreenState extends State<GameScreen> {
     _listenForVotingTrigger();
   }
 
-  // 🔌 Oylamaya geçiş soket emrini dinleme servisi kanka
   void _listenForVotingTrigger() {
     if (widget.socket != null) {
       widget.socket.on('navigate_to_voting', (_) {
         if (!mounted) return;
         
-        // Sunucudan oylama komutu geldiğinde herkesi oylamaya uçur! 🚀
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -72,7 +69,6 @@ class _GameScreenState extends State<GameScreen> {
     super.dispose();
   }
 
-  // Host oylamaya git butonuna bastığında sunucuya haber ver kanka
   void _triggerVotingOnServer() {
     if (widget.socket != null) {
       widget.socket.emit('start_voting', {
@@ -213,6 +209,29 @@ class _GameScreenState extends State<GameScreen> {
                               letterSpacing: widget.isImpostor ? 3 : 1,
                             ),
                           ),
+                          
+                          // 🎯 GÜNCELLEME: Eğer İmpostor ise ve elinde bir yakın kelime varsa (Klasik modda 'Kelime Yok' veya boş gelebilir) bunu kartın altına şıkça yazıyoruz!
+                          if (widget.isImpostor && widget.secretWord.isNotEmpty && widget.secretWord != 'Kelime Yok') ...[
+                            const SizedBox(height: 15),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                'Yakın Kelimen: ${widget.secretWord}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ],
                     ),
@@ -247,13 +266,12 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
                     ),
-                    // 🎯 Sadece Host ise Oylama butonunu çiz kanka!
                     if (amIHost) ...[
                       const SizedBox(width: 15),
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            _triggerVotingOnServer(); // Oylamayı tüm odada başlat! 🔥
+                            _triggerVotingOnServer(); 
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2E2E5C),
