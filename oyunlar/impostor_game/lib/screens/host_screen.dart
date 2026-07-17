@@ -1,27 +1,27 @@
 // lib/screens/host_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO; // 🔌 Soket kütüphanesi
+import 'package:socket_io_client/socket_io_client.dart' as IO; 
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../config.dart'; // ⚙️ Server URL için config dosyasını dahil ettik
+import '../config.dart'; 
 import 'game_screen.dart';
 
 class HostScreen extends StatefulWidget {
   final String gameMode;
   final String category;
   final int impostorCount;
-  final dynamic socket; // 🔌 Üst ekrandan gelen soket nesnesi
-  final String hostName; // 🧑‍🏫 Kurucunun ismi
+  final dynamic socket; 
+  final String hostName; 
 
   const HostScreen({
     super.key,
     required this.gameMode,
     required this.category,
     required this.impostorCount,
-    required this.socket, // 🔌
-    required this.hostName, // 🧑‍🏫
+    required this.socket, 
+    required this.hostName, 
   });
 
   @override
@@ -29,7 +29,8 @@ class HostScreen extends StatefulWidget {
 }
 
 class _HostScreenState extends State<HostScreen> {
-  final List<String> joinedPlayers = ['Ceyda', 'Ahmet', 'Ayşe', 'Mehmet'];
+  // 🎯 GÜNCELLEME: Sahte offline oyuncu listesini sildik kanka! Lobi artık bomboş başlıyor.
+  final List<String> joinedPlayers = [];
 
   String? debugSecretWord;
   List<String> debugImpostorNames = []; 
@@ -41,10 +42,9 @@ class _HostScreenState extends State<HostScreen> {
   void initState() {
     super.initState();
     roomCode = _generateRandomRoomCode();
-    _registerRoomOnServer(); // 🏠 Odayı sunucuya soketle bildir kanka!
+    _registerRoomOnServer(); 
   }
 
-  // 6 Haneli Rastgele Kod Üreten Fonksiyon
   String _generateRandomRoomCode() {
     const chars = 'ABCDEFGHJKLMNOPQRSTUVWXYZ23456789';
     Random random = Random();
@@ -54,7 +54,6 @@ class _HostScreenState extends State<HostScreen> {
     ).join();
   }
 
-  // Sunucuya oda oluşturma isteği fırlatır kanka
   void _registerRoomOnServer() {
     if (widget.socket != null) {
       widget.socket.emit('create_room', {
@@ -62,7 +61,6 @@ class _HostScreenState extends State<HostScreen> {
         'hostName': widget.hostName,
       });
 
-      // Lobiye yeni oyuncular girdiğinde canlı güncellesin kanka! 🔥
       widget.socket.on('room_updated', (data) {
         if (!mounted) return;
         var incomingPlayers = data['players'];
@@ -78,12 +76,21 @@ class _HostScreenState extends State<HostScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Kurucu ismi de oyuncular listesinde mutlaka yer alsın kanka
     if (!joinedPlayers.contains(widget.hostName)) {
       joinedPlayers.insert(0, widget.hostName);
     }
 
     return Scaffold(
+      // 🔙 SOL ÜST KÖŞEYE GERİ DÖN BUTONU EKLEDİK KANKA!
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      extendBodyBehindAppBar: true,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -215,9 +222,13 @@ class _HostScreenState extends State<HostScreen> {
 
                 ElevatedButton(
                   onPressed: () async {
-                    if (joinedPlayers.isEmpty) return;
+                    if (joinedPlayers.length < 2) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Oyunu başlatmak için en az 2 oyuncu olmalıdır!')),
+                      );
+                      return;
+                    }
 
-                    // 🎯 Sunucu adresimiz artık pırlanta gibi dinamik AppConfig'den geliyor kanka!
                     final url = Uri.parse('${AppConfig.serverUrl}/api/start-game');
 
                     try {
@@ -262,12 +273,11 @@ class _HostScreenState extends State<HostScreen> {
                           }
                         });
 
-                        String currentTestPlayer = widget.hostName; // Hostu oyuna sok kanka
+                        String currentTestPlayer = widget.hostName; 
                         bool isMeImpostor = debugImpostorNames.contains(currentTestPlayer);
 
                         if (!mounted) return;
 
-                        // 🔌 Canlı soketimizi ve tüm verileri zincirleme bir sonraki ekrana taşıdık! 🔥
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -275,7 +285,7 @@ class _HostScreenState extends State<HostScreen> {
                               playerName: currentTestPlayer,
                               secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
                               isImpostor: isMeImpostor,
-                              socket: widget.socket, // 🔌 Paslandı
+                              socket: widget.socket, 
                               roomCode: roomCode,   
                               players: joinedPlayers, 
                             ),

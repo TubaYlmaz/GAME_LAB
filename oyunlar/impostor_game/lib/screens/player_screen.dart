@@ -4,20 +4,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:socket_io_client/socket_io_client.dart' as IO; // 🔌 Soket kütüphanesi
-import '../config.dart'; // ⚙️ Server URL için config dosyasını dahil ettik
+import 'package:socket_io_client/socket_io_client.dart' as IO; 
+import '../config.dart'; 
 import 'game_screen.dart'; 
 
 class PlayerScreen extends StatefulWidget {
   final String playerName;
   final String roomCode;
-  final dynamic socket; // 🔌 Giriş ekranından paslanan soket
+  final dynamic socket; 
 
   const PlayerScreen({
     super.key,
     required this.playerName,
     required this.roomCode,
-    required this.socket, // 🔌
+    required this.socket, 
   });
 
   @override
@@ -28,26 +28,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _statusTimer;
   bool _isChecking = false;
 
-  final List<String> joinedPlayers = [
-    'Ceyda',
-    'Ahmet',
-    'Ayşe',
-    'Mehmet',
-    'Selin',
-  ];
+  // 🎯 GÜNCELLEME: Sahte offline oyuncuları sildik kanka! Lobi tertemiz.
+  final List<String> joinedPlayers = [];
 
   @override
   void initState() {
     super.initState();
-    _joinRoomOnServer(); // 🔌 Odaya katılım soket mesajını fırlat kanka!
+    _joinRoomOnServer(); 
     
-    // ⏳ Her 2 saniyede bir HTTP ile sormaya devam ediyoruz
     _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       _checkGameStatus();
     });
   }
 
-  // Sunucuya lobi odasına dahil olduğunu soketle bildir kanka
   void _joinRoomOnServer() {
     if (widget.socket != null) {
       widget.socket.emit('join_room', {
@@ -55,7 +48,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
         'playerName': widget.playerName,
       });
 
-      // Lobi güncellenince canlı oyuncu listesini güncelliyoruz 🔥
       widget.socket.on('room_updated', (data) {
         if (!mounted) return;
         var incomingPlayers = data['players'];
@@ -80,7 +72,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (!mounted) return;
     setState(() => _isChecking = true);
 
-    // 🎯 Config dosyamızdan dinamik url'i çekiyoruz
     final url = Uri.parse(
       '${AppConfig.serverUrl}/api/game-status/${widget.roomCode}',
     );
@@ -114,7 +105,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
           if (!mounted) return;
 
-          // 🚀 Oyuncuyu otomatik olarak GameScreen'e tüm yeni parametrelerle yönlendiriyoruz
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -122,7 +112,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 playerName: widget.playerName,
                 secretWord: isMeImpostor ? (data['impostorWord'] ?? '') : secretWord,
                 isImpostor: isMeImpostor,
-                socket: widget.socket, // 🔌 Soketimizi gönderdik
+                socket: widget.socket, 
                 roomCode: widget.roomCode, 
                 players: activePlayersList, 
               ),

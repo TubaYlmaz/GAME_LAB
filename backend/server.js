@@ -143,49 +143,63 @@ io.on('connection', (socket) => {
         });
     });
 
-// ==========================================
-    // 🗳️ GERÇEK ZAMANLI MULTIPLAYER OYLAMA SİSTEMİ
-    // ==========================================
+    // ➡️ 3. HOST OYLAMAYI TETİKLEDİĞİNDE
+    socket.on('start_voting', (data) => {
+        const { roomCode } = data;
+        console.log(`📣 [OYLAMA BAŞLADI] Host odayı oylamaya yönlendiriyor: ${roomCode}`);
+        // Odadaki herkese oylama ekranına geçme emri gönderiyoruz
+        io.to(roomCode).emit('navigate_to_voting');
+    });
 
-    // ➡️ 3. OYUNCU OY KULLANDIĞINDA
+// ➡️ 4. OYUNCU OY KULLANDIĞINDA VEYA OYUNU KİLİTLEDİĞİNDE (MANTIK HATALARI SIFIRLANDI 🚀)
     socket.on('submit_vote', async (data) => {
-        const { roomCode, voterName, votedFor } = data;
+        const { roomCode, voterName, votedFor, isLocking } = data;
 
-        console.log(`🗳️ [OY] Oda: ${roomCode} | ${voterName} -> ${votedFor} için oy verdi.`);
-
-        // Redis'te bu oda için verilmiş oyları tutalım (Geçici hash yapısı)
         const voteKey = `room:${roomCode}:votes`;
-        await redisClient.hset(voteKey, voterName, votedFor);
+        const lockKey = `room:${roomCode}:locked_votes`;
 
-        // Odadaki güncel oyuncu listesini ve rollerini çekelim
+        // 🟢 1. Oyuncunun seçtiği hedef ne olursa olsun (skip dahil) Redis'e anında yazıyoruz kanka!
+        if (votedFor !== undefined) {
+            await redisClient.hset(voteKey, voterName, votedFor);
+            console.log(`🗳️ [OY ANLIK GÜNCELLEME] Oda: ${roomCode} | ${voterName} -> ${votedFor}`);
+        }
+
+        // 🔒 2. Oyuncu kilitlemeye bastıysa kilit listesine hemen ekle
+        if (isLocking) {
+            await redisClient.sadd(lockKey, voterName);
+            console.log(`🔒 [OY KİLİTLENDİ] Oda: ${roomCode} | ${voterName} oyunu kilitledi.`);
+        }
+
         const roomData = await redisClient.hgetall(`room:${roomCode}`);
         const players = JSON.parse(roomData.players || '[]');
-        const impostors = JSON.parse(roomData.impostor || '[]'); // İmpostor listesi array olarak duruyor
+        const impostors = JSON.parse(roomData.impostor || '[]'); 
 
-        // Şu ana kadar kaç kişi oy vermiş kontrol edelim
         const currentVotes = await redisClient.hgetall(voteKey);
-        const totalVotesCount = Object.keys(currentVotes).length;
+        const lockedPlayers = await redisClient.smembers(lockKey);
 
-        // Odadaki herkes oy verdi mi?
-        if (totalVotesCount >= players.length) {
-            console.log(`🏁 Oda [${roomCode}] için oylama tamamlandı. Sonuçlar hesaplanıyor...`);
+        // Kilitli sayısını ve güncel durumları tüm odaya anlık fırlat kanka
+        io.to(roomCode).emit('vote_status_updated', {
+            votedCount: lockedPlayers.length, // Sadece oyunu kilitleyenlerin sayısı
+            totalPlayers: players.length,
+            currentVotes: currentVotes // Anlık kim kime tıklamış haritası
+        });
 
-            // Oyların sayımını yapalım (En çok oyu kim aldı?)
+        // EĞER HERKES OYUNU KİLİTLEDİYSE OYLAMAYI BİTİR! 🏁
+        if (lockedPlayers.length >= players.length) {
+            console.log(`🏁 Oda [${roomCode}] için tüm oylar kilitlendi. Sonuçlar hesaplanıyor...`);
+
             const voteCounts = {};
-            // Herkes için sayacı sıfırlayalım
             players.forEach(p => voteCounts[p] = 0);
 
-            // Oyları sayalım
-            Object.values(currentVotes).forEach(voted => {
+            Object.entries(currentVotes).forEach(([voter, voted]) => {
                 if (voted !== 'skip' && voteCounts[voted] !== undefined) {
                     voteCounts[voted]++;
                 }
             });
 
-            // En çok oyu alan kişiyi (elenen kişiyi) bulalım
             let eliminatedPlayer = null;
             let maxVotes = 0;
-            let isTie = false; // Beraberlik durumu kontrolü
+            let isTie = false; 
 
             Object.entries(voteCounts).forEach(([player, count]) => {
                 if (count > maxVotes) {
@@ -193,34 +207,23 @@ io.on('connection', (socket) => {
                     eliminatedPlayer = player;
                     isTie = false;
                 } else if (count === maxVotes && count > 0) {
-                    isTie = true; // Aynı oyu alan başka biri var, beraberlik!
+                    isTie = true; 
                 }
             });
 
-            // Eğer beraberlik varsa kimse elenmez kanka
-            if (isTie) {
-                eliminatedPlayer = null;
-            }
-
-            // İmpostor'un adını bulalım (Simülasyon için tek impostor olduğunu varsayalım ya da ilkini alalım)
+            if (isTie) eliminatedPlayer = null;
             const actualImpostor = impostors[0] || "Bulunamadı";
 
-            // Sonuçları odaya canlı yayınla!
             io.to(roomCode).emit('voting_results', {
-                eliminatedPlayer: eliminatedPlayer, // En çok oyu alan (Beraberlikte null)
+                eliminatedPlayer: eliminatedPlayer, 
                 isTie: isTie,
                 impostorName: actualImpostor,
-                votes: currentVotes // Kim kime oy verdi detayı da gitsin kanka
+                votes: currentVotes 
             });
 
-            // Oylama bittiği için Redis'teki oyları temizle
+            // Oda temizliği yapıyoruz kanka
             await redisClient.del(voteKey);
-        } else {
-            // Eğer herkes henüz oy vermediyse, sadece oyların güncel sayısını odadakilere bildir
-            io.to(roomCode).emit('vote_status_updated', {
-                votedCount: totalVotesCount,
-                totalPlayers: players.length
-            });
+            await redisClient.del(lockKey);
         }
     });
 
