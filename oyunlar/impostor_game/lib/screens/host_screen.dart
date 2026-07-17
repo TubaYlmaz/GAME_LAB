@@ -5,23 +5,26 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:math';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../config.dart'; 
+import '../config.dart';
 import 'game_screen.dart';
 
 class HostScreen extends StatefulWidget {
   final String gameMode;
   final String category;
   final int impostorCount;
-  final dynamic socket; 
-  final String hostName; 
+  final dynamic socket;
+  final String hostName;
+  final String?
+  existingRoomCode; // 🎯 Oylamadan geri dönen oyuncular için opsiyonel eski oda kodu parametresi.
 
   const HostScreen({
     super.key,
     required this.gameMode,
     required this.category,
     required this.impostorCount,
-    required this.socket, 
-    required this.hostName, 
+    required this.socket,
+    required this.hostName,
+    this.existingRoomCode,
   });
 
   @override
@@ -32,16 +35,23 @@ class _HostScreenState extends State<HostScreen> {
   final List<String> joinedPlayers = [];
 
   String? debugSecretWord;
-  List<String> debugImpostorNames = []; 
+  List<String> debugImpostorNames = [];
   Map<String, String> debugDistribution = {};
 
   late String roomCode;
+  bool isActualHost =
+      false; // 🎯 Kullanıcının asıl host (kurucu) olup olmadığını tutar.
 
   @override
   void initState() {
     super.initState();
-    roomCode = _generateRandomRoomCode();
-    _registerRoomOnServer(); 
+    if (widget.existingRoomCode != null) {
+      roomCode = widget.existingRoomCode!;
+    } else {
+      roomCode = _generateRandomRoomCode();
+    }
+    _registerRoomOnServer();
+    _checkHostStatus(); // 🎯 Sunucuya host kimliği sorgusu gönderir.
   }
 
   String _generateRandomRoomCode() {
@@ -66,9 +76,62 @@ class _HostScreenState extends State<HostScreen> {
         if (incomingPlayers is List) {
           setState(() {
             joinedPlayers.clear();
-            joinedPlayers.addAll(incomingPlayers.map((e) => e.toString()).toList());
+            joinedPlayers.addAll(
+              incomingPlayers.map((e) => e.toString()).toList(),
+            );
           });
         }
+      });
+
+      // 🎯 HATA ÇÖZÜMÜ: Öğretmen oyunu başlattığında, lobi modunda bekleyen öğrencileri de yakalayıp GameScreen'e uçuracak soket dinleyicisi:
+      widget.socket.on('game_started', (data) {
+        if (!mounted) return;
+
+        String secretWord = data['secretWord'] ?? '';
+        String impWord = data['impostorWord'] ?? '';
+
+        var impostorData = data['impostor'];
+        List<String> impostors = [];
+        if (impostorData is List) {
+          impostors = impostorData.map((e) => e.toString()).toList();
+        } else {
+          impostors = [impostorData.toString()];
+        }
+
+        bool isMeImpostor = impostors.contains(widget.hostName);
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => GameScreen(
+              playerName: widget.hostName,
+              secretWord: isMeImpostor ? impWord : secretWord,
+              isImpostor: isMeImpostor,
+              socket: widget.socket,
+              roomCode: roomCode,
+              players: joinedPlayers.isNotEmpty
+                  ? joinedPlayers
+                  : [widget.hostName],
+            ),
+          ),
+        );
+      });
+    }
+  }
+
+  // 🎯 Geri dönen oyuncunun asıl yetkili olup olmadığını doğrular
+  void _checkHostStatus() {
+    if (widget.socket != null) {
+      widget.socket.emit('check_host', {
+        'roomCode': roomCode,
+        'playerName': widget.hostName,
+      });
+
+      widget.socket.on('host_verification', (data) {
+        if (!mounted) return;
+        setState(() {
+          isActualHost = data['isHost'] ?? false;
+        });
       });
     }
   }
@@ -82,7 +145,10 @@ class _HostScreenState extends State<HostScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         backgroundColor: Colors.transparent,
@@ -131,7 +197,7 @@ class _HostScreenState extends State<HostScreen> {
                         Text(
                           roomCode,
                           style: const TextStyle(
-                            color: Color(0xFF00D2FF), 
+                            color: Color(0xFF00D2FF),
                             fontSize: 38,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 5,
@@ -142,7 +208,6 @@ class _HostScreenState extends State<HostScreen> {
                   ),
                 ),
                 const SizedBox(height: 25),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -169,7 +234,6 @@ class _HostScreenState extends State<HostScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-
                 Expanded(
                   child: joinedPlayers.isEmpty
                       ? const Center(
@@ -218,103 +282,80 @@ class _HostScreenState extends State<HostScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                ElevatedButton(
-                  onPressed: () async {
-                    if (joinedPlayers.length < 2) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Oyunu başlatmak için en az 2 oyuncu olmalıdır!')),
-                      );
-                      return;
-                    }
-
-                    final url = Uri.parse('${AppConfig.serverUrl}/api/start-game');
-
-                    try {
-                      final response = await http.post(
-                        url,
-                        headers: {'Content-Type': 'application/json'},
-                        body: jsonEncode({
-                          'roomCode': roomCode,
-                          'players': joinedPlayers,
-                          'gameMode': widget.gameMode,
-                          'category': widget.category,
-                          'impostorCount': widget.impostorCount,
-                        }),
-                      );
-
-                      if (response.statusCode == 200) {
-                        final data = jsonDecode(response.body);
-
-                        String secretWord = data['secretWord'] ?? '';
-                        String impWord = data['impostorWord'] ?? ''; // 🎯 Yakın kelime mühürlendi!
-                        
-                        var impostorData = data['impostor']; 
-                        List<String> impostors = [];
-                        
-                        if (impostorData is List) {
-                          impostors = impostorData.map((e) => e.toString()).toList();
-                        } else {
-                          impostors = [impostorData.toString()];
-                        }
-
-                        setState(() {
-                          debugSecretWord = secretWord;
-                          debugImpostorNames = impostors; 
-
-                          debugDistribution.clear();
-                          for (var player in joinedPlayers) {
-                            if (debugImpostorNames.contains(player)) {
-                              debugDistribution[player] = "😈 IMPOSTER ($impWord)";
-                            } else {
-                              debugDistribution[player] = "🧑‍🌾 Köylü (Kelime: $debugSecretWord)";
-                            }
+                // 🎯 Sadece asıl oda kurucusu (Öğretmen) başlatma butonunu görebilir.
+                isActualHost
+                    ? ElevatedButton(
+                        onPressed: () async {
+                          if (joinedPlayers.length < 2) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Oyunu başlatmak için en az 2 oyuncu olmalıdır!',
+                                ),
+                              ),
+                            );
+                            return;
                           }
-                        });
 
-                        String currentTestPlayer = widget.hostName; 
-                        bool isMeImpostor = debugImpostorNames.contains(currentTestPlayer);
+                          final url = Uri.parse(
+                            '${AppConfig.serverUrl}/api/start-game',
+                          );
 
-                        if (!mounted) return;
+                          try {
+                            final response = await http.post(
+                              url,
+                              headers: {'Content-Type': 'application/json'},
+                              body: jsonEncode({
+                                'roomCode': roomCode,
+                                'players': joinedPlayers,
+                                'gameMode': widget.gameMode,
+                                'category': widget.category,
+                                'impostorCount': widget.impostorCount,
+                              }),
+                            );
 
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => GameScreen(
-                              playerName: currentTestPlayer,
-                              // 🎯 DÜZELTME: Eğer Host Impostor ise direkt impWord'ü (yakın kelimeyi) pasla!
-                              secretWord: isMeImpostor ? impWord : secretWord,
-                              isImpostor: isMeImpostor,
-                              socket: widget.socket, 
-                              roomCode: roomCode,   
-                              players: joinedPlayers, 
+                            if (response.statusCode != 200) {
+                              debugPrint("Sunucu hatası: ${response.body}");
+                            }
+                          } catch (e) {
+                            debugPrint("Bağlantı hatası: $e");
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00D2FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'OYUNU BAŞLAT',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0B0B1A),
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E38),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF2E2E5C)),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'ÖĞRETMENİN OYUNU BAŞLATMASI BEKLENİYOR... ⏳',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white60,
                             ),
                           ),
-                        );
-
-                      } else {
-                        debugPrint("Sunucu hatası: ${response.body}");
-                      }
-                    } catch (e) {
-                      debugPrint("Bağlantı hatası: $e");
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00D2FF), 
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'OYUNU BAŞLAT',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0B0B1A),
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
+                        ),
+                      ),
 
                 if (debugImpostorNames.isNotEmpty) ...[
                   const SizedBox(height: 15),
@@ -333,7 +374,11 @@ class _HostScreenState extends State<HostScreen> {
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.bug_report, color: Color(0xFF00D2FF), size: 20),
+                            Icon(
+                              Icons.bug_report,
+                              color: Color(0xFF00D2FF),
+                              size: 20,
+                            ),
                             SizedBox(width: 8),
                             Text(
                               "HOST ALGORİTMA DOĞRULAMA PANELİ",
@@ -348,7 +393,10 @@ class _HostScreenState extends State<HostScreen> {
                         const Divider(color: Colors.white24),
                         Text(
                           "🎯 Seçilen Kelime: $debugSecretWord",
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           "😈 Seçilen Imposter(lar): ${debugImpostorNames.join(', ')}",
@@ -359,17 +407,10 @@ class _HostScreenState extends State<HostScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        const Text(
-                          "📊 Oyuncu Rol Dağılım Listesi:",
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
                         ...debugDistribution.entries.map((entry) {
-                          bool isImpostor = debugImpostorNames.contains(entry.key);
+                          bool isImpostor = debugImpostorNames.contains(
+                            entry.key,
+                          );
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 2.0),
                             child: Row(
@@ -377,12 +418,17 @@ class _HostScreenState extends State<HostScreen> {
                               children: [
                                 Text(
                                   entry.key,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 Text(
                                   entry.value,
                                   style: TextStyle(
-                                    color: isImpostor ? Colors.redAccent : Colors.greenAccent,
+                                    color: isImpostor
+                                        ? Colors.redAccent
+                                        : Colors.greenAccent,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
                                   ),

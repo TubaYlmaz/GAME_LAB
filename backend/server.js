@@ -2,45 +2,51 @@ const express = require('express');
 const http = require('http');
 const Redis = require('ioredis');
 const fs = require('fs');
-const path = require('path'); // Dosya yolları için güvenli modül
-const { Server } = require('socket.io'); // Canlı bağlantılar için Socket.io
-const cors = require('cors'); // İşte o meşhur paketimiz burada!
-const db = require('./db'); // Veri tabanı bağlantımız
+const path = require('path');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const db = require('./db');
+
 const app = express();
-app.use(cors()); // Flutter Web ve Mobil ağ istekleri için CORS aktif
-app.use(express.json()); // HTTP POST isteklerindeki JSON gövdelerini okuyabilmek için
 
-// =========================================================================
-// 🎯 ANA BACKEND - DİNAMİK OTOMATİK OYUN TARAYICI (ORTAK SUNUCU)
-// =========================================================================
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true
+}));
+app.use(express.json());
 
-// __dirname şu an: OyunLauncherProjesi/backend[cite: 2]
-const anaProjeDizini = path.resolve(__dirname, '..'); // Bir üst klasör (OyunLauncherProjesi)[cite: 2]
-const oyunlarDizini = path.resolve(anaProjeDizini, 'oyunlar'); // .../OyunLauncherProjesi/oyunlar[cite: 2]
+const server = http.createServer(app);
 
-// 1. Kullanıcı 'localhost:3000' yazdığında ana launcher sayfasını gönderiyoruz:[cite: 2]
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    allowEIO3: true,
+    transports: ['websocket', 'polling']
+});
+
+const anaProjeDizini = path.resolve(__dirname, '..');
+const oyunlarDizini = path.resolve(anaProjeDizini, 'oyunlar');
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(anaProjeDizini, 'oyun_launcher.html'));
 });
 
-// 2. 'oyunlar' klasöründeki tüm oyunları tarayıp otomatik olarak sunucuya bağlıyoruz:[cite: 2]
 if (fs.existsSync(oyunlarDizini)) {
     const oyunKlasorleri = fs.readdirSync(oyunlarDizini);
 
     oyunKlasorleri.forEach(oyunAdı => {
         const oyunBuildYolu = path.join(oyunlarDizini, oyunAdı, 'build', 'web');
 
-        // Eğer oyun klasörünün içinde 'build/web' derleme çıktısı varsa otomatik aktif et kanka:[cite: 2]
         if (fs.existsSync(oyunBuildYolu)) {
-
-            // Oyuna ait index.html yönlendirmesi:[cite: 2]
             app.get(`/oyunlar/${oyunAdı}/web/index.html`, (req, res) => {
                 res.sendFile(path.join(oyunBuildYolu, 'index.html'));
             });
 
-            // Oyuna ait statik dosyaların (js, assets vb.) servisi:[cite: 2]
             app.use(`/oyunlar/${oyunAdı}/web`, express.static(oyunBuildYolu));
-
             console.log(`🎮 [OTOMATİK AKTİF] "${oyunAdı}" oyunu başarıyla sunucuya bağlandı!`);
         }
     });
@@ -48,19 +54,7 @@ if (fs.existsSync(oyunlarDizini)) {
     console.log("⚠️ Uyarı: 'oyunlar' klasörü bulunamadı!");
 }
 
-const server = http.createServer(app);
-
-// WebSocket için CORS ayarları[cite: 2]
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
-
 const redisClient = new Redis();
-
-// 📁 dictionary.json dosyasını oyunun kendi klasöründen dinamik olarak okuyoruz kanka 🔥[cite: 2]
 const dictionaryPath = path.resolve(__dirname, '../oyunlar/impostor_game/dictionary.json');
 let dictionary = {};
 
@@ -94,11 +88,32 @@ redisClient.on('error', (err) => {
 io.on('connection', (socket) => {
     console.log(`🔌 Bir kullanıcı bağlandı: ${socket.id}`);
 
-    // ➡️ 1. HOST ODA OLUŞTURDUĞUNDA[cite: 2]
     socket.on('create_room', async (data) => {
-        // Flutter uygulamasından "gameMode" ve "impostorCount" değerlerinin de geldiğini varsayıyoruz. 
-        // Eğer Flutter'dan henüz gelmiyorsa default olarak 'Klasik' ve 1 değerlerini yazdırıyoruz kanka.
         const { roomCode, hostName, gameMode = 'Klasik', impostorCount = 1 } = data;
+
+        const roomExists = await redisClient.exists(`room:${roomCode}`);
+        if (roomExists) {
+            // 🎯 GÜNCELLEME: Oda zaten varsa kurucuyu ezmiyoruz. Mevcut odaya socket'i dahil edip güncel durumu gönderiyoruz.
+            console.log(`🔄 Oda (${roomCode}) zaten mevcut. Mevcut kurucu korunuyor.`);
+            socket.join(roomCode);
+
+            const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
+            const players = JSON.parse(currentRoom.players || '[]');
+
+            // Eğer odaya geri giren oyuncu oyuncu listesinde yoksa ekle
+            if (!players.includes(hostName)) {
+                players.push(hostName);
+                await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
+            }
+
+            socket.emit('room_created', { success: true, roomCode });
+            io.to(roomCode).emit('room_updated', {
+                roomCode,
+                players: players,
+                host: currentRoom.host
+            });
+            return;
+        }
 
         const roomData = {
             host: hostName,
@@ -109,7 +124,6 @@ io.on('connection', (socket) => {
         await redisClient.hmset(`room:${roomCode}`, roomData);
         await redisClient.expire(`room:${roomCode}`, 7200);
 
-        // 🟢 [MYSQL'E YAZMA]: Odayı ve odayı kuran Host'u ilk kez MySQL'e kaydediyoruz.
         try {
             await db.query(
                 'INSERT INTO rooms (room_code, game_mode, impostor_count) VALUES (?, ?, ?)',
@@ -127,14 +141,25 @@ io.on('connection', (socket) => {
 
         socket.join(roomCode);
         console.log(`🏠 Oda Oluşturuldu: ${roomCode} | Host: ${hostName}`);
-
         socket.emit('room_created', { success: true, roomCode });
     });
 
-    // ➡️ 2. OYUNCU ODAYA KATILMAK İSTEDİĞİNDE[cite: 2]
+    // 🎯 YENİ SOKET EVENT'İ: İstemci odaya döndüğünde asıl host olup olmadığını doğrular
+    socket.on('check_host', async (data) => {
+        const { roomCode, playerName } = data;
+        const roomExists = await redisClient.exists(`room:${roomCode}`);
+
+        if (roomExists) {
+            const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
+            const isHost = currentRoom.host === playerName;
+            socket.emit('host_verification', { isHost: isHost, actualHost: currentRoom.host });
+        } else {
+            socket.emit('host_verification', { isHost: false, actualHost: "" });
+        }
+    });
+
     socket.on('join_room', async (data) => {
         const { roomCode, playerName } = data;
-
         const roomExists = await redisClient.exists(`room:${roomCode}`);
 
         if (!roomExists) {
@@ -148,8 +173,6 @@ io.on('connection', (socket) => {
         if (!players.includes(playerName)) {
             players.push(playerName);
 
-            // 🟢 [MYSQL'E YAZMA]: Odaya yeni bir oyuncu katıldığında onu players tablosuna ekliyoruz.
-            // is_winner varsayılan olarak NULL kalacaktır kanka.
             try {
                 await db.query(
                     'INSERT INTO players (room_code, player_name, role, is_host) VALUES (?, ?, ?, ?)',
@@ -173,14 +196,12 @@ io.on('connection', (socket) => {
         });
     });
 
-    // ➡️ 3. HOST OYLAMAYI TETİKLEDİĞİNDE[cite: 2]
     socket.on('start_voting', (data) => {
         const { roomCode } = data;
         console.log(`📣 [OYLAMA BAŞLADI] Host odayı oylamaya yönlendiriyor: ${roomCode}`);
         io.to(roomCode).emit('navigate_to_voting');
     });
 
-    // ➡️ 4. OYUNCU OY KULLANDIĞINDA VEYA OYUNU KİLİTLEDİĞİNDE[cite: 2]
     socket.on('submit_vote', async (data) => {
         const { roomCode, voterName, votedFor, isLocking } = data;
 
@@ -239,11 +260,7 @@ io.on('connection', (socket) => {
             if (isTie) eliminatedPlayer = null;
             const actualImpostor = impostors[0] || "Bulunamadı";
 
-            // 🟢 [MYSQL'E YAZMA - OYUN BİTİŞ KONTROLÜ]:
-            // Eğer elenen kişi İmpostor ise veya elenecek kimse kalmadıysa oyunun bittiği anı yakalıyoruz.
-            // Flutter tarafında oyunu bitiren bir event de olabilir ama biz burada da önlem alıyoruz:
             if (eliminatedPlayer === actualImpostor && !isTie) {
-                // Köylüler kazandı!
                 try {
                     await db.query('UPDATE players SET is_winner = TRUE WHERE room_code = ? AND role = "PLAYER"', [roomCode]);
                     await db.query('UPDATE players SET is_winner = FALSE WHERE room_code = ? AND role = "IMPOSTOR"', [roomCode]);
@@ -253,9 +270,8 @@ io.on('connection', (socket) => {
                     console.error("❌ [MySQL Error] Oyun sonlandırılamadı:", dbErr);
                 }
             } else if (eliminatedPlayer !== null && eliminatedPlayer !== actualImpostor && !isTie) {
-                // Yanlış kişi elendi, oyunda 1 impostor ve 1 köylü kalma sınırına gelindiyse İmpostor kazanır.
                 const kalanOyuncuSayisi = players.length - 1;
-                if (kalanOyuncuSayisi <= 2) { // 1 İmpostor ve 1 Köylü kaldığında impostor kazanır kanka
+                if (kalanOyuncuSayisi <= 2) {
                     try {
                         await db.query('UPDATE players SET is_winner = TRUE WHERE room_code = ? AND role = "IMPOSTOR"', [roomCode]);
                         await db.query('UPDATE players SET is_winner = FALSE WHERE room_code = ? AND role = "PLAYER"', [roomCode]);
@@ -288,7 +304,6 @@ io.on('connection', (socket) => {
 // 🏁 --- API ENDPOINT'LERİ ---
 // ==========================================
 
-// 🏁 1. Host'un Oyunu Başlatma İsteği[cite: 2]
 app.post('/api/start-game', async (req, res) => {
     try {
         const { roomCode, players, gameMode, category, impostorCount } = req.body;
@@ -328,25 +343,20 @@ app.post('/api/start-game', async (req, res) => {
 
         const chosenImpostors = karistirilmisOyuncular.slice(0, hedonImpostorSayisi);
 
-        console.log(`🎮 Oda [${roomCode}] için Oyun Başladı!`);
+        console.log(`🎮 Oda [${roomCode}] için Yeni El Başladı!`);
         console.log(`📂 Kategori: ${secilenKategori} | Mod: ${gameMode}`);
         console.log(`🎯 Köylü Kelimesi: ${selectedWord} | 😈 İmpostorlar: ${chosenImpostors.join(', ')} (${impostorWord})`);
 
-        // 🟢 [MYSQL'E YAZMA - ROLLERİ GÜNCELLEME]: 
-        // Oyun resmen başladığında artık İmpostor olan oyuncular bellidir. 
-        // players tablosunda, seçilen impostorların rolünü 'IMPOSTOR' olarak güncelliyoruz.
         try {
-            // Önce tüm oyuncuların rolünü PLAYER yapalım (garanti olsun)
             await db.query('UPDATE players SET role = "PLAYER" WHERE room_code = ?', [roomCode]);
 
-            // Sonra seçilen impostor'ları güncelle
             for (const impName of chosenImpostors) {
                 await db.query(
                     'UPDATE players SET role = "IMPOSTOR" WHERE room_code = ? AND player_name = ?',
                     [roomCode, impName]
                 );
             }
-            console.log(`💾 [MySQL] Rol dağılımları başarıyla güncellendi.`);
+            console.log(`💾 [MySQL] Yeni el rol dağılımları başarıyla güncellendi.`);
         } catch (dbErr) {
             console.error("❌ [MySQL Error] Rol dağılımı kaydedilemedi:", dbErr);
         }
@@ -374,16 +384,14 @@ app.post('/api/start-game', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Oyun başlatılırken hata oluştu:", error);
+        console.error("Oyunu ilerletirken hata oluştu:", error);
         return res.status(500).json({ error: "Sunucu hatası kanka" });
     }
 });
 
-// 📡 2. Oyuncuların Oda Durumunu Sorgulama İsteği[cite: 2]
 app.get('/api/game-status/:roomCode', async (req, res) => {
     try {
         const { roomCode } = req.params;
-
         let roomData = await redisClient.hgetall(`room:${roomCode}`);
 
         if (!roomData || Object.keys(roomData).length === 0) {
@@ -405,7 +413,6 @@ app.get('/api/game-status/:roomCode', async (req, res) => {
     }
 });
 
-// 🎯 CANLIYA GEÇİŞİ VE HER PORTU DESTEKLEYEN YAPI[cite: 2]
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Sunucu ${PORT} portunda hazır kanka.`);
