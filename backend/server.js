@@ -92,39 +92,36 @@ io.on('connection', (socket) => {
         const { roomCode, hostName, gameMode = 'Klasik', category = 'Rastgele', impostorCount = 1 } = data;
 
         const roomExists = await redisClient.exists(`room:${roomCode}`);
-                if (roomExists) {
-                    console.log(`🔄 Oda (${roomCode}) zaten mevcut. Mevcut kurucu korunuyor.`);
-                    socket.join(roomCode);
+        if (roomExists) {
+            console.log(`🔄 Oda (${roomCode}) zaten mevcut. Mevcut kurucu korunuyor.`);
+            socket.join(roomCode);
 
-                    const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
-                    const players = JSON.parse(currentRoom.players || '[]');
+            const currentRoom = await redisClient.hgetall(`room:${roomCode}`);
+            const players = JSON.parse(currentRoom.players || '[]');
 
-                    // 🎯 DÜZELTME 1: Tanımsız olan playerName yerine hostName yazıldı
-                    if (!players.includes(hostName)) {
-                        players.push(hostName);
-                        await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
-                    }
+            if (!players.includes(hostName)) {
+                players.push(hostName);
+                await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
+            }
 
-                    // 🎯 DÜZELTME 2: Değişken kapsamı (scope) dışarı taşındı, kilitlenme önlendi
-                    const returnedKey = `room:${roomCode}:returned_players`;
-                    await redisClient.sadd(returnedKey, hostName);
-                    const returnedPlayers = await redisClient.smembers(returnedKey);
+            const returnedKey = `room:${roomCode}:returned_players`;
+            await redisClient.sadd(returnedKey, hostName);
+            const returnedPlayers = await redisClient.smembers(returnedKey);
 
-                    socket.emit('room_created', { success: true, roomCode });
-                    
-                    io.to(roomCode).emit('room_updated', {
-                        roomCode,
-                        players: players,
-                        host: currentRoom.host
-                    });
-                    
-                    // 🎯 DÜZELTME 3: Çift emit teke düşürüldü, doğru değişken (returnedPlayers) ile senkron edildi
-                    io.to(roomCode).emit('lobby_return_status', {
-                        returnedPlayers: returnedPlayers,
-                        isEveryoneBack: returnedPlayers.length >= players.length
-                    });
-                    return;
-                }
+            socket.emit('room_created', { success: true, roomCode });
+            
+            io.to(roomCode).emit('room_updated', {
+                roomCode,
+                players: players,
+                host: currentRoom.host
+            });
+            
+            io.to(roomCode).emit('lobby_return_status', {
+                returnedPlayers: returnedPlayers,
+                isEveryoneBack: returnedPlayers.length >= players.length
+            });
+            return;
+        }
 
         const roomData = {
             host: hostName,
@@ -138,7 +135,7 @@ io.on('connection', (socket) => {
         await redisClient.hmset(`room:${roomCode}`, roomData);
         await redisClient.expire(`room:${roomCode}`, 7200);
 
-        // Odayı ilk kuranı otomatik hazır setine alalım
+        // Odayı ilk kuranı otomatik hazır setine alalım kanka
         await redisClient.sadd(`room:${roomCode}:returned_players`, hostName);
 
         try {
@@ -161,7 +158,6 @@ io.on('connection', (socket) => {
         socket.emit('room_created', { success: true, roomCode });
     });
 
-    // 🎯 YENİ SOKET: Oyuncu oylamadan lobiye her geri döndüğünde burası tetiklenir kanka!
     socket.on('player_returned_to_lobby', async (data) => {
         const { roomCode, playerName } = data;
         const roomExists = await redisClient.exists(`room:${roomCode}`);
@@ -223,7 +219,7 @@ io.on('connection', (socket) => {
 
         await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
 
-        // Katılan yeni oyuncuyu hazır setine de ekleyelim kanka
+        // Katılan yeni oyuncuyu lobiye direkt hazır setine ekliyoruz ki ilk tur kilitlenmesin!
         await redisClient.sadd(`room:${roomCode}:returned_players`, playerName);
         const returnedPlayers = await redisClient.smembers(`room:${roomCode}:returned_players`);
 
@@ -339,7 +335,6 @@ io.on('connection', (socket) => {
             await redisClient.del(voteKey);
             await redisClient.del(lockKey);
             
-            // 🎯 OYLAMA BİTTİ: Hazır lobi setini temizle, herkesin geri dönmesini bekleyeceğiz!
             await redisClient.del(`room:${roomCode}:returned_players`);
         }
     });
@@ -363,10 +358,12 @@ app.post('/api/start-game', async (req, res) => {
 
         const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
         
-        let aktifOyunModu = gameMode || savedRoom.gameMode || 'Klasik';
-        let aktifKategori = category || savedRoom.category || 'Rastgele';
+        // 🎯 GÜNCELLEME: Eğer Flutter'dan 'Rastgele' veya boş gelirse, Redis'teki orijinal lobi ayarını asla ezmiyoruz!
+        let aktifOyunModu = (gameMode && gameMode !== 'Rastgele') ? gameMode : (savedRoom.gameMode || 'Klasik');
+        let aktifKategori = (category && category !== 'Rastgele') ? category : (savedRoom.category || 'Rastgele');
         let aktifImpostorSayisi = parseInt(impostorCount || savedRoom.impostorCount || '1', 10);
 
+        // Eğer orijinal oda ayarı da Rastgele ise o zaman havuzdan seç kanka
         if (aktifKategori === 'Rastgele') {
             const kategoriler = Object.keys(dictionary);
             aktifKategori = kategoriler[Math.floor(Math.random() * kategoriler.length)];
@@ -420,7 +417,6 @@ app.post('/api/start-game', async (req, res) => {
         await redisClient.hset(`room:${roomCode}`, 'impostor', JSON.stringify(chosenImpostors));
         await redisClient.hset(`room:${roomCode}`, 'impostorWord', impostorWord);
 
-        // 🎯 YENİ EL BAŞLADI: Hazır dönen oyuncular listesini yeni el için temizliyoruz kanka!
         await redisClient.del(`room:${roomCode}:returned_players`);
 
         const roomDataString = {
