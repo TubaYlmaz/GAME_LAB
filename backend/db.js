@@ -6,7 +6,7 @@ const mysql = require('mysql2');
 const pool = mysql.createPool({
     host: 'localhost',       // Lokalinde çalıştığın için localhost
     user: 'root',            // MySQL kullanıcı adın (varsayılan olarak root)
-    password: '1234', // MySQL kurarken belirlediğin şifreni buraya yaz!
+    password: 'My2003.SQL.root-', // MySQL kurarken belirlediğin şifreni buraya yaz!
     database: 'impostor_game', // Workbench'te oluşturduğumuz veri tabanı adı
     waitForConnections: true,
     connectionLimit: 10,     // Aynı anda en fazla 10 aktif bağlantı kuyrukta bekleyebilir

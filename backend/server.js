@@ -35,6 +35,9 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(anaProjeDizini, 'oyun_launcher.html'));
 });
 
+// YENİ DİNAMİK YAPI
+const dinamikAktifOyunlar = [];
+
 if (fs.existsSync(oyunlarDizini)) {
     const oyunKlasorleri = fs.readdirSync(oyunlarDizini);
 
@@ -48,11 +51,36 @@ if (fs.existsSync(oyunlarDizini)) {
 
             app.use(`/oyunlar/${oyunAdı}/web`, express.static(oyunBuildYolu));
             console.log(`🎮 [OTOMATİK AKTİF] "${oyunAdı}" oyunu başarıyla sunucuya bağlandı!`);
+
+            // Launcher için oyun bilgilerini dinamik hazırlıyoruz kanka
+            let ikon = "fa-solid fa-gamepad";
+            let aciklama = "Eğlenirken öğrenmeye hazır mısın? İstediğin oyunu seç ve hemen başla!";
+
+            if (oyunAdı === "impostor_game") {
+                ikon = "fa-solid fa-user-secret";
+                aciklama = "Arkadaşlarınla birlikte gizli kelimeyi bulmaya çalış, aranızdaki imposter(lar)ı ayıkla!";
+            } else if (oyunAdı === "vampir_koylu_game") {
+                ikon = "fa-solid fa-cloud-moon";
+                aciklama = "Karanlık çöktüğünde vampirler avlanacak, gündüz olduğunda ise köy meydanında adalet aranacak!";
+            }
+
+            dinamikAktifOyunlar.push({
+                id: oyunAdı,
+                isim: oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                aciklama: aciklama,
+                alt_yol: `/oyunlar/${oyunAdı}/web/index.html`,
+                ikon_class: ikon
+            });
         }
     });
 } else {
     console.log("⚠️ Uyarı: 'oyunlar' klasörü bulunamadı!");
 }
+
+// Ön yüzün oyunları çekebileceği yeni API kapısı
+app.get('/api/aktif-oyunlar', (req, res) => {
+    res.json(dinamikAktifOyunlar);
+});
 
 const redisClient = new Redis();
 const dictionaryPath = path.resolve(__dirname, '../oyunlar/impostor_game/dictionary.json');
