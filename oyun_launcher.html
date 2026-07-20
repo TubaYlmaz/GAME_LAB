@@ -169,49 +169,46 @@
     <main class="games-grid" id="gamesContainer">
     </main>
 
-    <script>
-        // =========================================================================
-        // ⚙️ DINAMIK OYUN LİSTESİ (Yarın yeni oyun eklerken burayı kullan kanka)
-        // =========================================================================
-        const oyunlar = [
-            {
-                id: "impostor_game",
-                isim: "Impostor Game",
-                aciklama: "Arkadaşlarınla birlikte gizli kelimeyi bulmaya çalış, aranızdaki imposter(lar)ı ayıkla!",
-                // Sunucu üzerinden erişeceğimiz oyun adresi:
-                alt_yol: "/oyunlar/impostor_game/web/index.html",
-                ikon_class: "fa-solid fa-user-secret"
-            }
-        ];
+<script>
+    // Sunucudan aktif oyunları dinamik olarak çeken fonksiyon
+    function dinamikOyunlariYukle() {
+        const container = document.getElementById("gamesContainer");
+        container.innerHTML = "<p style='color: #8E8EAF; grid-column: 1/-1; text-align: center;'>Oyunlar yükleniyor kanka...</p>";
 
-        // Kartları ekrana çizen fonksiyon
-        function renderGames() {
-            const container = document.getElementById("gamesContainer");
-            container.innerHTML = "";
+        fetch('/api/aktif-oyunlar')
+            .then(response => response.json())
+            .then(oyunlar => {
+                container.innerHTML = "";
+                
+                if (oyunlar.length === 0) {
+                    container.innerHTML = "<p style='color: #8E8EAF; grid-column: 1/-1; text-align: center;'>Henüz aktif bir oyun bulunamadı kanka.</p>";
+                    return;
+                }
 
-            oyunlar.forEach(oyun => {
-                const card = document.createElement("div");
-                card.className = "game-card";
+                oyunlar.forEach(oyun => {
+                    const card = document.createElement("div");
+                    card.className = "game-card";
+                    const oyunGidisLinki = window.location.origin + oyun.alt_yol;
 
-                const oyunGidisLinki = window.location.origin + oyun.alt_yol;
-
-                // target="_blank" kısmını sildik, artık aynı sekmede açılacak!
-                card.innerHTML = `
-            <div class="game-icon-container">
-                <i class="${oyun.ikon_class}"></i>
-            </div>
-            <h2 class="game-title">${oyun.isim}</h2>
-            <p class="game-desc">${oyun.aciklama}</p>
-            <a href="${oyunGidisLinki}" class="play-btn">Oyna</a>
-        `;
-
-                container.appendChild(card);
+                    card.innerHTML = `
+                        <div class="game-icon-container">
+                            <i class="${oyun.ikon_class}"></i>
+                        </div>
+                        <h2 class="game-title">${oyun.isim}</h2>
+                        <p class="game-desc">${oyun.aciklama}</p>
+                        <a href="${oyunGidisLinki}" class="play-btn">Oyna</a>
+                    `;
+                    container.appendChild(card);
+                });
+            })
+            .catch(err => {
+                console.error("Oyunlar yüklenirken patladı:", err);
+                container.innerHTML = "<p style='color: #ff4a4a; grid-column: 1/-1; text-align: center;'>Oyun listesi sunucudan alınamadı!</p>";
             });
-        }
+    }
 
-        // Sayfa yüklendiğinde oyunları çiz
-        document.addEventListener("DOMContentLoaded", renderGames);
-    </script>
+    document.addEventListener("DOMContentLoaded", dinamikOyunlariYukle);
+</script>
 </body>
 
 </html>
