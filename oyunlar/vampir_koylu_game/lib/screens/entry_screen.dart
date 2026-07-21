@@ -23,7 +23,7 @@ class _EntryScreenState extends State<EntryScreen>
   int _vampireCount = 2;
   int _doctorCount = 1;
   int _serialKillerCount = 1;
-  int _villagerCount = 4; // 👈 Köylü sayısı artık dinamik seçilebilir
+  int _villagerCount = 4;
 
   // Form Controller & State (Köye Katıl)
   final TextEditingController _joinNameController = TextEditingController();
@@ -62,6 +62,9 @@ class _EntryScreenState extends State<EntryScreen>
           gender: _hostGender,
           isHost: true,
           vampireCount: _vampireCount,
+          doctorCount: _doctorCount,
+          serialKillerCount: _serialKillerCount,
+          villagerCount: _villagerCount,
         ),
       ),
     );
@@ -77,7 +80,6 @@ class _EntryScreenState extends State<EntryScreen>
       return;
     }
 
-    // "VK-" prefixini otomatik temizleme
     String cleanCode = _roomCodeController.text
         .trim()
         .toUpperCase()
@@ -92,6 +94,9 @@ class _EntryScreenState extends State<EntryScreen>
           gender: _joinGender,
           isHost: false,
           vampireCount: 2,
+          doctorCount: 1,
+          serialKillerCount: 1,
+          villagerCount: 4,
         ),
       ),
     );
@@ -155,7 +160,6 @@ class _EntryScreenState extends State<EntryScreen>
                   ),
                   const SizedBox(height: 32),
 
-                  // TAB VE FORM KARTI
                   Container(
                     width: min(size.width, 520),
                     decoration: BoxDecoration(
@@ -169,7 +173,6 @@ class _EntryScreenState extends State<EntryScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // TAB BAR TASARIMI
                         Container(
                           margin: const EdgeInsets.all(8),
                           height: 48,
@@ -224,7 +227,6 @@ class _EntryScreenState extends State<EntryScreen>
   }
 
   Widget _buildCreateVillageForm() {
-    // Toplam oyundaki oyuncu sayısı hesabı
     final totalPlayersInVillage =
         _vampireCount + _doctorCount + _serialKillerCount + _villagerCount;
 
@@ -269,7 +271,6 @@ class _EntryScreenState extends State<EntryScreen>
         ),
         const SizedBox(height: 12),
 
-        // 🧛 VAMPİR SAYAÇ
         _buildRoleCounter(
           title: '🧛 Vampir Sayısı:',
           count: _vampireCount,
@@ -280,7 +281,6 @@ class _EntryScreenState extends State<EntryScreen>
           onIncrement: () => setState(() => _vampireCount++),
         ),
 
-        // 🩺 DOKTOR SAYAÇ
         _buildRoleCounter(
           title: '🩺 Doktor Sayısı:',
           count: _doctorCount,
@@ -291,7 +291,6 @@ class _EntryScreenState extends State<EntryScreen>
           onIncrement: () => setState(() => _doctorCount++),
         ),
 
-        // 🔪 SERİ KATİL SAYAÇ
         _buildRoleCounter(
           title: '🔪 Seri Katil Sayısı:',
           count: _serialKillerCount,
@@ -302,7 +301,6 @@ class _EntryScreenState extends State<EntryScreen>
           onIncrement: () => setState(() => _serialKillerCount++),
         ),
 
-        // 🧑‍🌾 KÖYLÜ SAYAÇ (Artık Dinamik)
         _buildRoleCounter(
           title: '🧑‍🌾 Köylü Sayısı:',
           count: _villagerCount,
