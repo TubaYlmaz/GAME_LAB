@@ -1,29 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'entry_screen.dart';
-
-enum GamePhase { night, dayDiscussion, voting }
-
-class PlayerModel {
-  final String id;
-  final String name;
-  final Color avatarColor;
-  final Gender gender;
-  final String role;
-  bool isAlive;
-
-  double? posX;
-  double? posY;
-
-  PlayerModel({
-    required this.id,
-    required this.name,
-    required this.avatarColor,
-    required this.gender,
-    required this.role,
-    this.isAlive = true,
-  });
-}
+import '../player_model.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomCode;
@@ -59,7 +37,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   late List<String> _logs;
   late List<PlayerModel> _players;
-  late AnimationController _phaseAnimController;
   bool _positionsCalculated = false;
 
   @override
@@ -71,11 +48,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     ];
 
     _players = _generateAndDistributeRoles();
-
-    _phaseAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showRoleDistributionDebugDialog();
@@ -125,13 +97,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ? widget.gender
           : (i % 2 == 0 ? Gender.male : Gender.female);
 
+      final roleStr = rolePool[i];
+
       generatedPlayers.add(
         PlayerModel(
           id: 'p_$i',
           name: pName,
           avatarColor: colors[i % colors.length],
           gender: pGender,
-          role: rolePool[i],
+          role: roleStr,
+          isVampire: roleStr.contains('Vampir'),
         ),
       );
     }
@@ -228,60 +203,45 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
           content: SizedBox(
             width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Seçtiğin ayarlara göre ${_players.length} oyuncu oluşturuldu:',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _players.length,
-                    itemBuilder: (context, index) {
-                      final p = _players[index];
-                      return Container(
-                        margin: const EdgeInsets.symmetric(vertical: 3),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0D0D2A),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: p.avatarColor.withOpacity(0.4),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              p.name,
-                              style: TextStyle(
-                                color: p.avatarColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              p.role,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _players.length,
+              itemBuilder: (context, index) {
+                final p = _players[index];
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
                   ),
-                ),
-              ],
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D0D2A),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: p.avatarColor.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        p.name,
+                        style: TextStyle(
+                          color: p.avatarColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        p.role,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
           actions: [
@@ -335,12 +295,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Rolün arkadaşlarına gösterilmez. Stratejini buna göre belirle!',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 11),
-              ),
             ],
           ),
         );
@@ -358,7 +312,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void _startVoting() {
     setState(() {
       _phase = GamePhase.voting;
-      _logs.add('System: Oylama başladı. Seçiminizi yapın...');
+      _logs.add('System: Oylama başladı. Sağdaki listeden isim seçin...');
     });
   }
 
@@ -393,14 +347,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             errorBuilder: (_, __, ___) =>
                 Container(color: const Color(0xFF13132B)),
           ),
-          if (isNight) const _StarField(),
           AnimatedOpacity(
             opacity: isNight ? 0.45 : 0.0,
             duration: const Duration(milliseconds: 800),
             child: Container(color: const Color(0xFF07071F).withOpacity(0.8)),
           ),
           _buildGameCanvas(size),
-          _buildTopBar(),
+          Positioned(top: 0, left: 0, right: 0, child: _buildTopBar()),
           Positioned(left: 16, bottom: 16, child: _buildGameLog(size)),
           Positioned(right: 16, bottom: 16, child: _buildPlayerStatusPanel()),
           Positioned(
@@ -606,10 +559,29 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: _players
-            .map(
-              (p) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
+        children: _players.map((p) {
+          final isSelected = _selectedVoteTargetId == p.id;
+          return GestureDetector(
+            onTap: () {
+              if (_phase == GamePhase.voting && p.isAlive) {
+                setState(() {
+                  _selectedVoteTargetId = p.id;
+                });
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.redAccent.withOpacity(0.3)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: isSelected
+                      ? Border.all(color: Colors.redAccent)
+                      : null,
+                ),
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -621,16 +593,22 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       child: Text(
                         p.name,
                         style: TextStyle(
-                          color: p.isAlive ? Colors.white : Colors.white30,
+                          color: isSelected
+                              ? Colors.yellow
+                              : (p.isAlive ? Colors.white : Colors.white30),
                           fontSize: 11,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            )
-            .toList(),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -651,16 +629,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
         if (_phase == GamePhase.voting)
           ElevatedButton(
-            onPressed: _submitVote,
-            child: const Text('OYU GÖNDER'),
+            onPressed: _selectedVoteTargetId != null ? _submitVote : null,
+            child: Text(
+              _selectedVoteTargetId != null ? 'OYU GÖNDER' : 'KİŞİ SEÇİN',
+            ),
           ),
       ],
     );
   }
-}
-
-class _StarField extends StatelessWidget {
-  const _StarField();
-  @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/entry_screen.dart'; // Gender enum'ı buradan geliyor
 
 enum GamePhase { night, dayDiscussion, voting }
 
@@ -6,8 +7,10 @@ class PlayerModel {
   final String id;
   final String name;
   final Color avatarColor;
+  final Gender gender;
+  final String role;
+  final bool isVampire;
   bool isAlive;
-  bool isVampire;
 
   double? posX;
   double? posY;
@@ -16,7 +19,9 @@ class PlayerModel {
     required this.id,
     required this.name,
     required this.avatarColor,
-    this.isAlive = true,
+    required this.gender,
+    required this.role,
     this.isVampire = false,
+    this.isAlive = true,
   });
 }
