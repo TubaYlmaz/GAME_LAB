@@ -1,9 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../widgets/role_reveal_card.dart';
-import '../player_model.dart';
-import '../widgets.dart';
 import 'entry_screen.dart';
+import '../player_model.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomCode;
@@ -40,16 +38,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late List<String> _logs;
   late List<PlayerModel> _players;
   bool _positionsCalculated = false;
-  final TransformationController _transformationController =
-      TransformationController();
 
   @override
   void initState() {
     super.initState();
     _logs = [
-      'Sistem: Köy kuruldu (${widget.roomCode}).',
-      'Sistem: Roller rastgele dağıtıldı ve gece başladı...',
-      'Sistem: Vampirler uyanıyor...',
+      'System: Köy kuruldu (${widget.roomCode}).',
+      'System: Roller rastgele dağıtıldı ve gece başladı...',
     ];
 
     _players = _generateAndDistributeRoles();
@@ -95,10 +90,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     ];
 
     for (int i = 0; i < totalPlayers; i++) {
-      String pName = (i == 0) ? widget.playerName : 'Oyuncu ${i + 1}';
       Gender pGender = (i == 0)
           ? widget.gender
           : (i % 2 == 0 ? Gender.male : Gender.female);
+
+      String genderTag = pGender == Gender.male ? '(e)' : '(k)';
+
+      String pName = (i == 0)
+          ? '${widget.playerName} $genderTag'
+          : 'Oyuncu ${i + 1} $genderTag';
 
       final roleStr = rolePool[i];
 
@@ -118,18 +118,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _calculatePlayerPositions(Size size) {
-    if (_positionsCalculated || size.width == 0 || size.height == 0) return;
+    if (_positionsCalculated) return;
 
     final cx = size.width / 2;
-    final cy = size.height / 2;
+    final cy = size.height / 2 + 28;
+    final double squareRadius = min(size.width, size.height) * 0.18;
+    final double minX = size.width * 0.08;
+    final double maxX = size.width * 0.92;
+    final double minY = size.height * 0.12;
+    final double maxY = size.height * 0.85;
 
-    final double squareRadius = min(size.width, size.height) * 0.20;
-    final double minX = size.width * 0.12;
-    final double maxX = size.width * 0.88;
-    final double minY = size.height * 0.18;
-    final double maxY = size.height * 0.80;
-
-    final rand = Random(1337);
+    final rand = Random();
 
     for (int i = 0; i < _players.length; i++) {
       double x = 0;
@@ -137,32 +136,32 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       bool validPosition = false;
       int attempts = 0;
 
-      final double currentW = _players[i].isAlive ? 150.0 : 95.0;
-      final double currentH = _players[i].isAlive ? 120.0 : 75.0;
+      final double currentW = _players[i].isAlive ? 180.0 : 110.0;
+      final double currentH = _players[i].isAlive ? 150.0 : 90.0;
 
-      while (!validPosition && attempts < 1500) {
+      while (!validPosition && attempts < 3000) {
         attempts++;
         x = minX + rand.nextDouble() * (maxX - minX);
         y = minY + rand.nextDouble() * (maxY - minY);
 
         final distanceToCenter = sqrt(pow(x - cx, 2) + pow(y - cy, 2));
         if (distanceToCenter <
-            (squareRadius + max(currentW, currentH) / 2 + 15)) {
+            (squareRadius + max(currentW, currentH) / 2 + 10)) {
           continue;
         }
 
         bool overlaps = false;
         for (int j = 0; j < i; j++) {
           final other = _players[j];
-          final double otherW = other.isAlive ? 150.0 : 95.0;
-          final double otherH = other.isAlive ? 120.0 : 75.0;
+          final double otherW = other.isAlive ? 180.0 : 110.0;
+          final double otherH = other.isAlive ? 150.0 : 90.0;
 
           final bool xOverlap =
-              (x - currentW / 2 < other.posX! + otherW / 2) &&
-              (x + currentW / 2 > other.posX! - otherW / 2);
+              (x - currentW / 2 < other.posX! + otherW / 2 + 10) &&
+              (x + currentW / 2 > other.posX! - otherW / 2 - 10);
           final bool yOverlap =
-              (y - currentH / 2 < other.posY! + otherH / 2) &&
-              (y + currentH / 2 > other.posY! - otherH / 2);
+              (y - currentH / 2 < other.posY! + otherH / 2 + 10) &&
+              (y + currentH / 2 > other.posY! - otherH / 2 - 10);
 
           if (xOverlap && yOverlap) {
             overlaps = true;
@@ -221,9 +220,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   decoration: BoxDecoration(
                     color: const Color(0xFF0D0D2A),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: p.avatarColor.withValues(alpha: 0.4),
-                    ),
+                    border: Border.all(color: p.avatarColor.withOpacity(0.4)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -270,19 +267,55 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showMyRoleCard() {
+    final myPlayer = _players[0];
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF13132B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: myPlayer.avatarColor, width: 2),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'GİZLİ ROLÜN',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                myPlayer.role,
+                style: TextStyle(
+                  color: myPlayer.avatarColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _startDay() {
     setState(() {
       _phase = GamePhase.dayDiscussion;
-      _logs.add('Sistem: Gün ağarıyor — köylüler meydanda toplanıyor!');
+      _logs.add('System: Gün doğdu — Köylüler meydanda toplandı!');
     });
   }
 
   void _startVoting() {
     setState(() {
       _phase = GamePhase.voting;
-      _logs.add(
-        'Sistem: Oylama evresi başladı. Şüphelendiğiniz kişiye tıklayın...',
-      );
+      _logs.add('System: Oylama başladı. Sağdaki listeden isim seçin...');
     });
   }
 
@@ -291,97 +324,99 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final target = _players.firstWhere((p) => p.id == _selectedVoteTargetId);
     setState(() {
       target.isAlive = false;
-      _logs.add(
-        'Sistem: ${target.name} köyden sürgün edildi! Rolü: [${target.role}]',
-      );
+      _logs.add('System: ${target.name} elendi! Rolü: [${target.role}]');
       _selectedVoteTargetId = null;
       _round++;
       _phase = GamePhase.night;
-      _logs.add('Sistem: Gece tekrar çöküyor... Tur $_round başladı.');
+      _logs.add('System: Gece çöktü... Tur $_round başladı.');
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     final isNight = _phase == GamePhase.night;
 
-    return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final size = Size(constraints.maxWidth, constraints.maxHeight);
-            _calculatePlayerPositions(size);
+    _calculatePlayerPositions(size);
 
-            return Stack(
-              children: [
-                InteractiveViewer(
-                  transformationController: _transformationController,
-                  minScale: 1.0,
-                  maxScale: 2.2,
-                  boundaryMargin: EdgeInsets.zero,
-                  child: SizedBox(
-                    width: size.width,
-                    height: size.height,
-                    child: Stack(
-                      children: [
-                        Image.asset(
-                          'assets/images/arkaplan.png',
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        ),
-                        if (isNight) const StarField(),
-                        AnimatedOpacity(
-                          opacity: isNight ? 0.45 : 0.0,
-                          duration: const Duration(milliseconds: 800),
-                          child: Container(
-                            color: const Color(
-                              0xFF07071F,
-                            ).withValues(alpha: 0.8),
-                          ),
-                        ),
-                        _buildGameCanvas(size),
-                      ],
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.topCenter,
-                  child: TopBar(phase: _phase, round: _round),
-                ),
-                Positioned(
-                  left: 12,
-                  bottom: 12,
-                  child: GameLogPanel(logs: _logs, screenSize: size),
-                ),
-                Positioned(
-                  right: 12,
-                  bottom: 12,
-                  child: PlayerStatusPanel(
-                    players: _players,
-                    phase: _phase,
-                    selectedVoteTargetId: _selectedVoteTargetId,
-                    onSelectTarget: (id) =>
-                        setState(() => _selectedVoteTargetId = id),
-                  ),
-                ),
-                Positioned(
-                  bottom: 16,
-                  left: 0,
-                  right: 0,
-                  child: Center(child: _buildBottomControls()),
-                ),
-              ],
-            );
-          },
+    return Scaffold(
+      body: Stack(
+        children: [
+          Image.asset(
+            'assets/images/arkaplan.png',
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (_, __, ___) =>
+                Container(color: const Color(0xFF13132B)),
+          ),
+          AnimatedOpacity(
+            opacity: isNight ? 0.45 : 0.0,
+            duration: const Duration(milliseconds: 800),
+            child: Container(color: const Color(0xFF07071F).withOpacity(0.8)),
+          ),
+          _buildGameCanvas(size),
+          Positioned(top: 0, left: 0, right: 0, child: _buildTopBar()),
+          Positioned(left: 16, bottom: 16, child: _buildGameLog(size)),
+          Positioned(right: 16, bottom: 16, child: _buildPlayerStatusPanel()),
+          Positioned(
+            bottom: 24,
+            left: 0,
+            right: 0,
+            child: _buildBottomControls(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D0D2A).withOpacity(0.9),
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFF00D2FF), width: 1),
         ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          Text(
+            'KÖY: ${widget.roomCode}',
+            style: const TextStyle(
+              color: Color(0xFF00D2FF),
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.style, color: Color(0xFF00D2FF)),
+            tooltip: 'Gizli Rolünü Gör',
+            onPressed: _showMyRoleCard,
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.bug_report_outlined,
+              color: Colors.orangeAccent,
+            ),
+            tooltip: 'Algoritma Rol Çıktısı',
+            onPressed: _showRoleDistributionDebugDialog,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Tur $_round',
+            style: const TextStyle(color: Color(0xFF8888BB), fontSize: 13),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildGameCanvas(Size size) {
     final cx = size.width / 2;
-    final cy = size.height / 2;
+    final cy = size.height / 2 + 28;
     final inSquare =
         _phase == GamePhase.dayDiscussion || _phase == GamePhase.voting;
 
@@ -410,23 +445,25 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }) {
     final hx = player.posX ?? cx;
     final hy = player.posY ?? cy;
-
-    final double houseWidth = player.isAlive ? 150.0 : 95.0;
-    final double houseHeight = player.isAlive ? 120.0 : 75.0;
+    final double houseWidth = player.isAlive ? 180.0 : 110.0;
+    final double houseHeight = player.isAlive ? 150.0 : 90.0;
 
     final double tx;
     final double ty;
     if (inSquare && player.isAlive) {
-      final spread = 35.0;
+      final spread = 45.0;
       final innerAngle = (2 * pi * index / total);
-      tx = cx + spread * cos(innerAngle) - 15;
-      ty = cy + spread * sin(innerAngle) - 25;
+      tx = cx + spread * cos(innerAngle) - 20;
+      ty = cy + spread * sin(innerAngle) - 35;
     } else {
-      tx = hx - 15;
-      ty = hy + (houseHeight / 5);
+      tx = hx - 20;
+      ty = hy + (houseHeight / 4) - (player.isAlive ? 5 : -5);
     }
 
-    final isSelected = _selectedVoteTargetId == player.id;
+    // Cinsiyete göre figür seçimi
+    final String figureAsset = player.gender == Gender.female
+        ? 'assets/images/k_kız.png'
+        : 'assets/images/k_erkek.png';
 
     return Stack(
       children: [
@@ -440,82 +477,56 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             width: houseWidth,
             height: houseHeight,
             fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return Icon(
-                player.isAlive ? Icons.home_rounded : Icons.gite_outlined,
-                size: 42,
-                color: player.isAlive ? player.avatarColor : Colors.white24,
-              );
-            },
+            errorBuilder: (_, __, ___) => Icon(
+              player.isAlive ? Icons.home : Icons.gite_outlined,
+              size: 50,
+              color: player.isAlive ? player.avatarColor : Colors.grey,
+            ),
           ),
         ),
-        if (!player.isAlive)
-          Positioned(
-            left: hx - 8,
-            top: hy + (houseHeight / 2) - 12,
-            child: const Text('🪦', style: TextStyle(fontSize: 13)),
-          ),
         AnimatedPositioned(
-          duration: const Duration(milliseconds: 1200),
+          duration: const Duration(milliseconds: 1500),
           curve: Curves.easeInOutCubic,
           left: tx,
           top: ty,
           child: player.isAlive
-              ? GestureDetector(
-                  onTap: () {
-                    if (_phase == GamePhase.voting) {
-                      setState(() {
-                        _selectedVoteTargetId = player.id;
-                      });
-                    }
-                  },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Colors.redAccent.withValues(alpha: 0.9)
-                              : const Color(0xFF090919).withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isSelected
-                                ? Colors.yellow
-                                : player.avatarColor.withValues(alpha: 0.6),
-                            width: isSelected ? 2 : 1,
-                          ),
-                        ),
-                        child: Text(
-                          player.name,
-                          style: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : player.avatarColor,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0A0A22).withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: player.avatarColor.withOpacity(0.5),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Image.asset(
-                        'assets/images/karakter.png',
-                        width: 26,
-                        height: 30,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.accessibility_new_rounded,
-                            size: 20,
-                            color: player.avatarColor,
-                          );
-                        },
+                      child: Text(
+                        player.name,
+                        style: TextStyle(
+                          color: player.avatarColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 3),
+                    Image.asset(
+                      figureAsset,
+                      width: 32,
+                      height: 36,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.person,
+                        size: 24,
+                        color: player.avatarColor,
+                      ),
+                    ),
+                  ],
                 )
               : const SizedBox.shrink(),
         ),
@@ -523,51 +534,115 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildBottomControls() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_phase == GamePhase.night)
-              NeonButton(
-                label: 'GÜNDÜZÜ BAŞLAT',
-                icon: Icons.wb_sunny_outlined,
-                color: const Color(0xFFF39C12),
-                onPressed: _startDay,
-              ),
-            if (_phase == GamePhase.dayDiscussion)
-              NeonButton(
-                label: 'OYLAMAYA GEÇ',
-                icon: Icons.how_to_vote_outlined,
-                color: const Color(0xFF00D2FF),
-                onPressed: _startVoting,
-              ),
-          ],
+  Widget _buildGameLog(Size screenSize) {
+    final w = min(screenSize.width * 0.28, 340.0);
+    return Container(
+      width: w,
+      height: 180,
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A22).withOpacity(0.82),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.3)),
+      ),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: _logs.length,
+        reverse: true,
+        itemBuilder: (_, i) => Text(
+          _logs[_logs.length - 1 - i],
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
         ),
-        if (_phase == GamePhase.voting) ...[
-          const SizedBox(height: 6),
-          NeonButton(
-            label: _selectedVoteTargetId != null
-                ? 'OYU ONAYLA'
-                : 'OYUNCU SEÇİN',
-            icon: Icons.gavel_rounded,
-            color: _selectedVoteTargetId != null
-                ? const Color(0xFFE74C3C)
-                : const Color(0xFF00D2FF),
-            enabled: _selectedVoteTargetId != null,
-            onPressed: _submitVote,
-            large: true,
-          ),
-        ],
-      ],
+      ),
     );
   }
 
-  @override
-  void dispose() {
-    _transformationController.dispose();
-    super.dispose();
+  Widget _buildPlayerStatusPanel() {
+    return Container(
+      width: 180,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A22).withOpacity(0.82),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: _players.map((p) {
+          final isSelected = _selectedVoteTargetId == p.id;
+          return GestureDetector(
+            onTap: () {
+              if (_phase == GamePhase.voting && p.isAlive) {
+                setState(() {
+                  _selectedVoteTargetId = p.id;
+                });
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.redAccent.withOpacity(0.3)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: isSelected
+                      ? Border.all(color: Colors.redAccent)
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 4,
+                      backgroundColor: p.isAlive ? p.avatarColor : Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        p.name,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.yellow
+                              : (p.isAlive ? Colors.white : Colors.white30),
+                          fontSize: 11,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildBottomControls() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (_phase == GamePhase.night)
+          ElevatedButton(
+            onPressed: _startDay,
+            child: const Text('GÜNDÜZÜ BAŞLAT'),
+          ),
+        if (_phase == GamePhase.dayDiscussion)
+          ElevatedButton(
+            onPressed: _startVoting,
+            child: const Text('OYLAMAYI BAŞLAT'),
+          ),
+        if (_phase == GamePhase.voting)
+          ElevatedButton(
+            onPressed: _selectedVoteTargetId != null ? _submitVote : null,
+            child: Text(
+              _selectedVoteTargetId != null ? 'OYU GÖNDER' : 'KİŞİ SEÇİN',
+            ),
+          ),
+      ],
+    );
   }
 }
