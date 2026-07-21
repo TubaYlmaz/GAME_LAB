@@ -93,6 +93,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         id: 'p$i',
         name: names[i],
         avatarColor: colors[i],
+        gender: i % 2 == 0 ? Gender.male : Gender.female, // Kanka eklenen 1
+        role: (i == 0 || i == 3)
+            ? 'Vampir 🧛'
+            : 'Köylü 🧑‍🌾', // Kanka eklenen 2
         isVampire: i == 0 || i == 3,
       ),
     );
@@ -172,7 +176,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     setState(() {
       _phase = GamePhase.voting;
       _logs.add(
-        'Sistem: Oylama evresi başladı. Şüphelendiğiniz kişiyi seçin...',
+        'Sistem: Oylama evresi başladı. Şüphelendiğiniz kişiye tıklayın...',
       );
     });
   }
@@ -318,6 +322,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       ty = hy + (houseHeight / 5);
     }
 
+    final isSelected = _selectedVoteTargetId == player.id;
+
     return Stack(
       children: [
         Positioned(
@@ -351,45 +357,61 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           left: tx,
           top: ty,
           child: player.isAlive
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF090919).withValues(alpha: 0.85),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: player.avatarColor.withValues(alpha: 0.6),
+              ? GestureDetector(
+                  onTap: () {
+                    if (_phase == GamePhase.voting) {
+                      setState(() {
+                        _selectedVoteTargetId = player.id;
+                      });
+                    }
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.redAccent.withValues(alpha: 0.9)
+                              : const Color(0xFF090919).withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.yellow
+                                : player.avatarColor.withValues(alpha: 0.6),
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Text(
+                          player.name,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : player.avatarColor,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      child: Text(
-                        player.name,
-                        style: TextStyle(
-                          color: player.avatarColor,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      const SizedBox(height: 2),
+                      Image.asset(
+                        'assets/images/karakter.png',
+                        width: 26,
+                        height: 30,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.accessibility_new_rounded,
+                            size: 20,
+                            color: player.avatarColor,
+                          );
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Image.asset(
-                      'assets/images/karakter.png',
-                      width: 26,
-                      height: 30,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.accessibility_new_rounded,
-                          size: 20,
-                          color: player.avatarColor,
-                        );
-                      },
-                    ),
-                  ],
+                    ],
+                  ),
                 )
               : const SizedBox.shrink(),
         ),
@@ -423,9 +445,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         if (_phase == GamePhase.voting) ...[
           const SizedBox(height: 6),
           NeonButton(
-            label: 'OYU ONAYLA',
+            label: _selectedVoteTargetId != null
+                ? 'OYU ONAYLA'
+                : 'OYUNCU SEÇİN',
             icon: Icons.gavel_rounded,
-            color: const Color(0xFF00D2FF),
+            color: _selectedVoteTargetId != null
+                ? const Color(0xFFE74C3C)
+                : const Color(0xFF00D2FF),
             enabled: _selectedVoteTargetId != null,
             onPressed: _submitVote,
             large: true,

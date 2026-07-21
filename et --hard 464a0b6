@@ -1,0 +1,39 @@
+[33m24e8ea1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/ui-redesign[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: reset: moving to origin/main
+[33m464a0b6[m HEAD@{1}: rebase (abort): returning to refs/heads/feature/ui-redesign
+[33m24e8ea1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/ui-redesign[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{2}: pull origin main --rebase (start): checkout 24e8ea1eb36bf8a988a55029385f838afaa7b952
+[33m464a0b6[m HEAD@{3}: commit (merge): fix: proje yapisi ve build dosyaları güncellendi
+[33me6806ab[m HEAD@{4}: commit: feat: modernize UI and divide code into structure
+[33m799ec5a[m[33m ([m[1;31morigin/feature/oyun_arayüzü[m[33m, [m[1;32mfeature/oyun_arayüzü[m[33m)[m HEAD@{5}: checkout: moving from feature/oyun_arayüzü to feature/ui-redesign
+[33m799ec5a[m[33m ([m[1;31morigin/feature/oyun_arayüzü[m[33m, [m[1;32mfeature/oyun_arayüzü[m[33m)[m HEAD@{6}: commit: harita tasarimi oluşturuldu, ev yerlesimleri dinamik ve cakismasiz hale getirildi
+[33maf690a0[m[33m ([m[1;32mmain[m[33m)[m HEAD@{7}: checkout: moving from main to feature/oyun_arayüzü
+[33maf690a0[m[33m ([m[1;32mmain[m[33m)[m HEAD@{8}: commit: Nihai lobi cekmecesi ve klasik mod duzeltmeleri
+[33ma5e2e4f[m HEAD@{9}: commit: Lobi ici dinamik ayar paneli ve kalici kategori korumasi entegre edildi
+[33m7470f35[m HEAD@{10}: commit: Kategori sabitleme ve mukerrer soket paketleri nihai olarak giderildi
+[33m3f92a69[m HEAD@{11}: commit: Sunucu ilk acilis lobi çökme hatası giderildi
+[33m9179c3f[m HEAD@{12}: pull origin main --rebase (finish): returning to refs/heads/main
+[33m9179c3f[m HEAD@{13}: pull origin main --rebase (pick): Lobi geri donus senkronizasyonu ve kilitler mühürlendi
+[33m8770890[m HEAD@{14}: pull origin main --rebase (start): checkout 8770890c908d61bcf9de08b49216b49c7b9a558a
+[33m5ffee5e[m HEAD@{15}: commit: Lobi geri donus senkronizasyonu ve kilitler mühürlendi
+[33m49acf2d[m HEAD@{16}: commit: Lobi turlarinda kategori, mod koruma ve yakin kelime uretim hatasi giderildi
+[33ma23ad77[m HEAD@{17}: pull origin main: Fast-forward
+[33m85c5e54[m HEAD@{18}: pull origin main --rebase (finish): returning to refs/heads/main
+[33m85c5e54[m HEAD@{19}: pull origin main --rebase (pick): yakın kelime düzeltme
+[33m24c439f[m HEAD@{20}: pull origin main --rebase (start): checkout 24c439f310b4b387660bfb13f49c0d52982cf4ce
+[33m609c540[m[33m ([m[1;31morigin/oylama-sayaci-ve-geri-butonu[m[33m, [m[1;32moylama-sayaci-ve-geri-butonu[m[33m)[m HEAD@{21}: merge oylama-sayaci-ve-geri-butonu: Fast-forward
+[33m83cef0b[m HEAD@{22}: checkout: moving from oylama-sayaci-ve-geri-butonu to main
+[33m609c540[m[33m ([m[1;31morigin/oylama-sayaci-ve-geri-butonu[m[33m, [m[1;32moylama-sayaci-ve-geri-butonu[m[33m)[m HEAD@{23}: commit: yakın kelime düzeltme
+[33madc97d2[m HEAD@{24}: commit: yakın kelime iyileştirmesi
+[33m183357d[m HEAD@{25}: pull origin main: Fast-forward
+[33m008ceec[m HEAD@{26}: commit: voting ekran düzeltmeleri
+[33m83cef0b[m HEAD@{27}: checkout: moving from main to oylama-sayaci-ve-geri-butonu
+[33m83cef0b[m HEAD@{28}: commit: canlı demo testi
+[33md8ffe12[m HEAD@{29}: pull origin main: Fast-forward
+[33m0cd78db[m HEAD@{30}: commit: oylama sonuç ekranı eklendi.
+[33mc131d77[m HEAD@{31}: pull origin main: Fast-forward
+[33m413c057[m HEAD@{32}: pull origin main: Fast-forward
+[33m01429a0[m HEAD@{33}: commit: Kurtarma - Tüm proje dosyaları yeniden hafızaya alındı
+[33m7eb42c0[m HEAD@{34}: commit: Kök dizine .gitignore dosyası eklendi
+[33md8910c4[m HEAD@{35}: Branch: renamed refs/heads/mai to refs/heads/main
+[33md8910c4[m HEAD@{37}: commit: İlk Commit - Oyun Launcher ve Tüm Oyun Dosyaları Birleştirildi
+[33mbeb9fca[m HEAD@{38}: Branch: renamed refs/heads/master to refs/heads/mai
+[33mbeb9fca[m HEAD@{40}: commit (initial): İlk Commit - Oyun Launcher ve Impostor Game Birleştirildi
