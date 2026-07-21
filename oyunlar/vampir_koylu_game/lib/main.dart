@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'player_model.dart';
 import 'widgets.dart';
+import 'screens/entry_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +30,7 @@ class VampireVillagerApp extends StatelessWidget {
           surface: Color(0xFF13132B),
         ),
       ),
-      home: const GameScreen(),
+      home: const EntryScreen(), // Uzaktan gelen giriş ekranı korundu
     );
   }
 }
@@ -46,7 +47,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   int _round = 1;
   String? _selectedVoteTargetId;
 
-  // 🇹🇷 Türkçe Sistem Logları
   final List<String> _logs = [
     'Sistem: Vampir Köylü oyununa hoş geldiniz!',
     'Sistem: Köye gece çöküyor...',
@@ -63,7 +63,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _players = _buildPlayers();
-    _players[5].isAlive = false; // Test amaçlı 1 oyuncu elenmiş başlatılıyor
+    _players[5].isAlive = false;
   }
 
   List<PlayerModel> _buildPlayers() {
@@ -206,7 +206,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
             return Stack(
               children: [
-                // 🔍 ZOOM KATMANI (Harita)
                 InteractiveViewer(
                   transformationController: _transformationController,
                   minScale: 1.0,
@@ -238,19 +237,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-
-                // 📱 MODERN HUD KATMANLARI
                 Align(
                   alignment: Alignment.topCenter,
                   child: TopBar(phase: _phase, round: _round),
                 ),
-
                 Positioned(
                   left: 12,
                   bottom: 12,
                   child: GameLogPanel(logs: _logs, screenSize: size),
                 ),
-
                 Positioned(
                   right: 12,
                   bottom: 12,
@@ -262,7 +257,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         setState(() => _selectedVoteTargetId = id),
                   ),
                 ),
-
                 Positioned(
                   bottom: 16,
                   left: 0,

@@ -32,7 +32,7 @@ class _StarPainter extends CustomPainter {
   bool shouldRepaint(_) => false;
 }
 
-// ─── 2. Modern Cam Efektli (Glassmorphism) Buton ─────────────────────────────
+// ─── 2. Glassmorphism Neon Buton ──────────────────────────────────────────────
 class NeonButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -104,7 +104,7 @@ class NeonButton extends StatelessWidget {
   }
 }
 
-// ─── 3. Üst Bar (Modern Minimalist HUD) ──────────────────────────────────────
+// ─── 3. Üst Bar (HUD) ──────────────────────────────────────────────────────────
 class TopBar extends StatelessWidget {
   final GamePhase phase;
   final int round;
@@ -138,15 +138,15 @@ class TopBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.shield_moon_outlined,
                 color: Color(0xFF00D2FF),
                 size: 18,
               ),
-              const SizedBox(width: 8),
-              const Text(
+              SizedBox(width: 8),
+              Text(
                 'Vampir Köylü',
                 style: TextStyle(
                   color: Colors.white,
@@ -188,7 +188,7 @@ class TopBar extends StatelessWidget {
   }
 }
 
-// ─── 4. Şık Oyun Günlüğü (Game Log) ──────────────────────────────────────────
+// ─── 4. Oyun Günlüğü (Game Log) ────────────────────────────────────────────────
 class GameLogPanel extends StatelessWidget {
   final List<String> logs;
   final Size screenSize;
@@ -259,7 +259,7 @@ class GameLogPanel extends StatelessWidget {
   }
 }
 
-// ─── 5. Modern Oyuncu Listesi Paneli ─────────────────────────────────────────
+// ─── 5. Oyuncu Listesi Paneli ──────────────────────────────────────────────────
 class PlayerStatusPanel extends StatelessWidget {
   final List<PlayerModel> players;
   final GamePhase phase;
