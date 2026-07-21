@@ -36,6 +36,15 @@ class _EntryScreenState extends State<EntryScreen>
     _tabController = TabController(length: 2, vsync: this);
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _hostNameController.dispose();
+    _joinNameController.dispose();
+    _roomCodeController.dispose();
+    super.dispose();
+  }
+
   String _generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rand = Random();
@@ -204,8 +213,9 @@ class _EntryScreenState extends State<EntryScreen>
                           ),
                         ),
 
+                        // Hata Çözümü: Expanded yerine SizedBox verilerek yükseklik sabitlendi
                         SizedBox(
-                          height: 500,
+                          height: 440,
                           child: TabBarView(
                             controller: _tabController,
                             children: [

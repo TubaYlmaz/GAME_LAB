@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/entry_screen.dart'; // Gender enum'ı buradan geliyor
+import 'screens/game_screen.dart';
 
 enum GamePhase { night, dayDiscussion, voting }
 
