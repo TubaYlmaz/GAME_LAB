@@ -1,32 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'screens/entry_screen.dart';
-
-void main() {
-  runApp(const VampireVillagerApp());
-}
-
-class VampireVillagerApp extends StatelessWidget {
-  const VampireVillagerApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Vampire Villager',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF13132B),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00D2FF),
-          surface: Color(0xFF1A1A3E),
-        ),
-      ),
-      home: const EntryScreen(),
-    );
-  }
-}
-
-// ─── Data Models ──────────────────────────────────────────────────────────────
+import 'entry_screen.dart'; // Gender enum'u için
 
 enum GamePhase { night, dayDiscussion, voting }
 
@@ -34,10 +8,10 @@ class PlayerModel {
   final String id;
   final String name;
   final Color avatarColor;
+  final Gender gender;
   bool isAlive;
   bool isVampire;
 
-  // 🏡 Her oyuncunun tamamen rastgele, çakışmasız sabit koordinatları
   double? posX;
   double? posY;
 
@@ -45,15 +19,27 @@ class PlayerModel {
     required this.id,
     required this.name,
     required this.avatarColor,
+    required this.gender,
     this.isAlive = true,
     this.isVampire = false,
   });
 }
 
-// ─── Game Screen ──────────────────────────────────────────────────────────────
-
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final String roomCode;
+  final String playerName;
+  final Gender gender;
+  final bool isHost;
+  final int vampireCount;
+
+  const GameScreen({
+    super.key,
+    required this.roomCode,
+    required this.playerName,
+    required this.gender,
+    required this.isHost,
+    required this.vampireCount,
+  });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -64,13 +50,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   int _round = 1;
   String? _selectedVoteTargetId;
 
-  final List<String> _logs = [
-    'System: Welcome to Vampire Villager!',
-    'System: Night falls upon the village...',
-    'System: Vampires are awakening...',
-    'System: Villagers, stay vigilant.',
-  ];
-
+  late List<String> _logs;
   late List<PlayerModel> _players;
   late AnimationController _phaseAnimController;
   bool _positionsCalculated = false;
@@ -78,16 +58,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _logs = [
+      'System: ${widget.playerName} köye katıldı (${widget.gender == Gender.male ? "Erkek" : "Kadın"}).',
+      'System: Köy Kodu: ${widget.roomCode}',
+      'System: Vampirler uyandı...',
+    ];
     _players = _buildPlayers();
     _phaseAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _players[5].isAlive = false;
   }
 
   List<PlayerModel> _buildPlayers() {
     final names = [
+      widget.playerName,
       'Aldric',
       'Brenna',
       'Corvus',
@@ -95,40 +80,37 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       'Enzo',
       'Fiora',
       'Gareth',
-      'Helia',
     ];
     final colors = [
+      const Color(0xFF00D2FF),
       const Color(0xFFE74C3C),
       const Color(0xFF9B59B6),
       const Color(0xFF3498DB),
       const Color(0xFF2ECC71),
       const Color(0xFFF39C12),
       const Color(0xFF1ABC9C),
-      const Color(0xFFE67E22),
       const Color(0xFFEC407A),
     ];
-    return List.generate(
-      8,
-      (i) => PlayerModel(
+
+    return List.generate(8, (i) {
+      return PlayerModel(
         id: 'p$i',
         name: names[i],
         avatarColor: colors[i],
-        isVampire: i == 0 || i == 3,
-      ),
-    );
+        gender: i == 0
+            ? widget.gender
+            : (i % 2 == 0 ? Gender.male : Gender.female),
+        isVampire: i < widget.vampireCount,
+      );
+    });
   }
 
-  // 🧠 ASLA ÇAKIŞMAYAN VE RESMİN ORTASINDAKİ MEYDANI BOŞ BIRAKAN RASTGELE YERLEŞİM MOTORU
   void _calculatePlayerPositions(Size size) {
     if (_positionsCalculated) return;
 
     final cx = size.width / 2;
     final cy = size.height / 2 + 28;
-
-    // Görselindeki taş meydanın tahmini kapladığı alan (Burası boş kalacak kanka)
     final double squareRadius = min(size.width, size.height) * 0.22;
-
-    // Taşmayı önlemek için ekrandaki güvenli sınırlar
     final double minX = size.width * 0.10;
     final double maxX = size.width * 0.90;
     final double minY = size.height * 0.15;
@@ -150,14 +132,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         x = minX + rand.nextDouble() * (maxX - minX);
         y = minY + rand.nextDouble() * (maxY - minY);
 
-        // 1. KONTROL: Resmin ortasındaki taş meydana denk geliyor mu? (Meydanı boş bırakır)
         final distanceToCenter = sqrt(pow(x - cx, 2) + pow(y - cy, 2));
         if (distanceToCenter <
             (squareRadius + max(currentW, currentH) / 2 + 20)) {
           continue;
         }
 
-        // 2. KONTROL: Diğer yerleşen evlerle çakışıyor mu? (ASLA ÇAKIŞMAZ! 🚀)
         bool overlaps = false;
         for (int j = 0; j < i; j++) {
           final other = _players[j];
@@ -177,9 +157,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           }
         }
 
-        if (!overlaps) {
-          validPosition = true;
-        }
+        if (!overlaps) validPosition = true;
       }
 
       _players[i].posX = x;
@@ -192,14 +170,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void _startDay() {
     setState(() {
       _phase = GamePhase.dayDiscussion;
-      _logs.add('System: Dawn breaks — citizens gather in the square!');
+      _logs.add('System: Gün doğdu — Köylüler meydanda toplandı!');
     });
   }
 
   void _startVoting() {
     setState(() {
       _phase = GamePhase.voting;
-      _logs.add('System: Voting phase begins. Choose wisely...');
+      _logs.add('System: Oylama başladı. Seçiminizi yapın...');
     });
   }
 
@@ -209,13 +187,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     setState(() {
       target.isAlive = false;
       _logs.add(
-        'System: ${target.name} was voted out! '
-        '${target.isVampire ? "🧛 A Vampire revealed!" : "🪦 An innocent soul..."}',
+        'System: ${target.name} elendi! '
+        '${target.isVampire ? "🧛 Vampir ortaya çıktı!" : "🪦 Masum bir köylü..."}',
       );
       _selectedVoteTargetId = null;
       _round++;
       _phase = GamePhase.night;
-      _logs.add('System: Night falls again... Round $_round begins.');
+      _logs.add('System: Gece çöktü... Round $_round başladı.');
     });
   }
 
@@ -229,39 +207,30 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return Scaffold(
       body: Stack(
         children: [
-          // 🪨 ARKA PLAN GÖRSELİ
           Image.asset(
             'assets/images/arkaplan.png',
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
+            errorBuilder: (_, __, ___) =>
+                Container(color: const Color(0xFF13132B)),
           ),
 
-          // Geceleri parıldayan yıldızlar efekti
           if (isNight) const _StarField(),
 
-          // Gelişmiş Gece Işık Overlay'i
           AnimatedOpacity(
             opacity: isNight ? 0.45 : 0.0,
             duration: const Duration(milliseconds: 800),
-            child: Container(
-              color: const Color(0xFF07071F).withValues(alpha: 0.8),
-            ),
+            child: Container(color: const Color(0xFF07071F).withOpacity(0.8)),
           ),
 
-          // Ana Harita Katmanı (Evler ve Piyonlar)
           _buildGameCanvas(size),
-
-          // Üst HUD Barı
           _buildTopBar(),
 
-          // Game log (Sol Alt)
           Positioned(left: 16, bottom: 16, child: _buildGameLog(size)),
 
-          // Oyuncu Listesi (Sağ Alt)
           Positioned(right: 16, bottom: 16, child: _buildPlayerStatusPanel()),
 
-          // Orta Alt Kontrol Butonları
           Positioned(
             bottom: 24,
             left: 0,
@@ -275,9 +244,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Widget _buildTopBar() {
     final phaseLabel = switch (_phase) {
-      GamePhase.night => '🌑  Night Phase',
-      GamePhase.dayDiscussion => '☀️  Day Discussion',
-      GamePhase.voting => '🗳️  Voting Phase',
+      GamePhase.night => '🌑  Gece Fazı',
+      GamePhase.dayDiscussion => '☀️  Gündüz Tartışması',
+      GamePhase.voting => '🗳️  Oylama Fazı',
     };
     final phaseColor = switch (_phase) {
       GamePhase.night => const Color(0xFF9B59B6),
@@ -287,7 +256,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        color: const Color(0xFF0D0D2A).withValues(alpha: 0.9),
+        color: const Color(0xFF0D0D2A).withOpacity(0.9),
         border: const Border(
           bottom: BorderSide(color: Color(0xFF00D2FF), width: 1),
         ),
@@ -295,20 +264,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          const Text(
-            'VAMPIRE  VILLAGER',
-            style: TextStyle(
+          Text(
+            'KÖY KODU: ${widget.roomCode}',
+            style: const TextStyle(
               color: Color(0xFF00D2FF),
-              fontSize: 20,
+              fontSize: 16,
               fontWeight: FontWeight.w900,
-              letterSpacing: 4,
+              letterSpacing: 2,
             ),
           ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: phaseColor.withValues(alpha: 0.15),
+              color: phaseColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: phaseColor, width: 1),
             ),
@@ -324,7 +293,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 24),
           Text(
-            'Round  $_round',
+            'Tur $_round',
             style: const TextStyle(
               color: Color(0xFF8888BB),
               fontSize: 13,
@@ -344,9 +313,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     return Stack(
       children: [
-        // 🛑 BURADAKİ ESKİ YAZILI VE HİLALLİ _VillageSquare KATMANI TAMAMEN SİLİNDİ KANKA!
-
-        // Tamamen rastgele, çakışmasız dağıtılan evler ve piyonlar
         for (int i = 0; i < _players.length; i++)
           _buildPlayerSlot(
             player: _players[i],
@@ -388,7 +354,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     return Stack(
       children: [
-        // 🏡 ASLA ÇAKIŞMAYAN RANDOM EVLER
         Positioned(
           left: hx - (houseWidth / 2),
           top: hy - (houseHeight / 2),
@@ -399,18 +364,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             width: houseWidth,
             height: houseHeight,
             fit: BoxFit.contain,
-            filterQuality: FilterQuality.none,
-            errorBuilder: (context, error, stackTrace) {
-              return Icon(
-                player.isAlive ? Icons.home : Icons.gite_outlined,
-                size: 60,
-                color: player.isAlive ? player.avatarColor : Colors.grey,
-              );
-            },
+            errorBuilder: (_, __, ___) => Icon(
+              player.isAlive ? Icons.home : Icons.gite_outlined,
+              size: 60,
+              color: player.isAlive ? player.avatarColor : Colors.grey,
+            ),
           ),
         ),
 
-        // Mezar Taşı
         if (!player.isAlive)
           Positioned(
             left: hx - 10,
@@ -418,7 +379,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             child: const Text('🪦', style: TextStyle(fontSize: 16)),
           ),
 
-        // 🏃‍♂️ PÜRÜZSÜZ AVATARLAR
         AnimatedPositioned(
           duration: const Duration(milliseconds: 1500),
           curve: Curves.easeInOutCubic,
@@ -434,14 +394,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A0A22).withValues(alpha: 0.85),
+                        color: const Color(0xFF0A0A22).withOpacity(0.85),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: player.avatarColor.withValues(alpha: 0.5),
+                          color: player.avatarColor.withOpacity(0.5),
                         ),
                       ),
                       child: Text(
-                        player.name,
+                        '${player.name} ${player.gender == Gender.male ? "👨" : "👩"}',
                         style: TextStyle(
                           color: player.avatarColor,
                           fontSize: 9,
@@ -455,14 +415,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       width: 36,
                       height: 40,
                       fit: BoxFit.contain,
-                      filterQuality: FilterQuality.none,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Icon(
-                          Icons.accessibility_new,
-                          size: 26,
-                          color: player.avatarColor,
-                        );
-                      },
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.accessibility_new,
+                        size: 26,
+                        color: player.avatarColor,
+                      ),
                     ),
                   ],
                 )
@@ -478,11 +435,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       width: w,
       height: 200,
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0A22).withValues(alpha: 0.82),
+        color: const Color(0xFF0A0A22).withOpacity(0.82),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -492,7 +447,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: const Color(0xFF00D2FF).withValues(alpha: 0.25),
+                  color: const Color(0xFF00D2FF).withOpacity(0.25),
                 ),
               ),
             ),
@@ -528,7 +483,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   child: Text(
                     log,
                     style: TextStyle(
-                      color: const Color(0xFFCCCCDD).withValues(alpha: 0.85),
+                      color: const Color(0xFFCCCCDD).withOpacity(0.85),
                       fontSize: 11,
                       height: 1.4,
                     ),
@@ -546,11 +501,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return Container(
       width: 200,
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0A22).withValues(alpha: 0.82),
+        color: const Color(0xFF0A0A22).withOpacity(0.82),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -561,7 +514,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: const Color(0xFF00D2FF).withValues(alpha: 0.25),
+                  color: const Color(0xFF00D2FF).withOpacity(0.25),
                 ),
               ),
             ),
@@ -602,7 +555,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: isVoteTarget
-              ? const Color(0xFF00D2FF).withValues(alpha: 0.15)
+              ? const Color(0xFF00D2FF).withOpacity(0.15)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
@@ -643,7 +596,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               Icon(
                 Icons.how_to_vote_outlined,
                 size: 13,
-                color: const Color(0xFF00D2FF).withValues(alpha: 0.5),
+                color: const Color(0xFF00D2FF).withOpacity(0.5),
               ),
           ],
         ),
@@ -659,15 +612,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_phase == GamePhase.night)
-              _NeonButton(
-                label: 'TEST: START DAY',
+              _GameNeonButton(
+                label: 'GÜNDÜZÜ BAŞLAT',
                 icon: Icons.wb_sunny_outlined,
                 color: const Color(0xFFF39C12),
                 onPressed: _startDay,
               ),
             if (_phase == GamePhase.dayDiscussion)
-              _NeonButton(
-                label: 'START VOTING',
+              _GameNeonButton(
+                label: 'OYLAMAYI BAŞLAT',
                 icon: Icons.how_to_vote_outlined,
                 color: const Color(0xFF00D2FF),
                 onPressed: _startVoting,
@@ -675,8 +628,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ],
         ),
         const SizedBox(height: 10),
-        _NeonButton(
-          label: 'SUBMIT VOTE',
+        _GameNeonButton(
+          label: 'OYU GÖNDER',
           icon: Icons.gavel,
           color: const Color(0xFF00D2FF),
           enabled: _phase == GamePhase.voting && _selectedVoteTargetId != null,
@@ -694,8 +647,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 }
-
-// ─── Yıldızlar Efekti ──────────────────────────────────────────────────────────
 
 class _StarField extends StatelessWidget {
   const _StarField();
@@ -715,9 +666,7 @@ class _StarPainter extends CustomPainter {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;
       final r = rng.nextDouble() * 1.0 + 0.3;
-      paint.color = Colors.white.withValues(
-        alpha: rng.nextDouble() * 0.4 + 0.1,
-      );
+      paint.color = Colors.white.withOpacity(rng.nextDouble() * 0.4 + 0.1);
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
@@ -726,9 +675,7 @@ class _StarPainter extends CustomPainter {
   bool shouldRepaint(_) => false;
 }
 
-// ─── Neon Button ──────────────────────────────────────────────────────────────
-
-class _NeonButton extends StatelessWidget {
+class _GameNeonButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color color;
@@ -736,7 +683,7 @@ class _NeonButton extends StatelessWidget {
   final bool enabled;
   final bool large;
 
-  const _NeonButton({
+  const _GameNeonButton({
     required this.label,
     required this.icon,
     required this.color,
@@ -747,7 +694,7 @@ class _NeonButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = enabled ? color : color.withValues(alpha: 0.25);
+    final effectiveColor = enabled ? color : color.withOpacity(0.25);
     return GestureDetector(
       onTap: enabled ? onPressed : null,
       child: AnimatedContainer(
@@ -757,13 +704,13 @@ class _NeonButton extends StatelessWidget {
           vertical: large ? 14 : 10,
         ),
         decoration: BoxDecoration(
-          color: effectiveColor.withValues(alpha: enabled ? 0.12 : 0.05),
+          color: effectiveColor.withOpacity(enabled ? 0.12 : 0.05),
           borderRadius: BorderRadius.circular(large ? 14 : 10),
           border: Border.all(color: effectiveColor, width: large ? 1.5 : 1),
           boxShadow: enabled
               ? [
                   BoxShadow(
-                    color: effectiveColor.withValues(alpha: 0.35),
+                    color: effectiveColor.withOpacity(0.35),
                     blurRadius: 18,
                     spreadRadius: 1,
                   ),
@@ -772,6 +719,7 @@ class _NeonButton extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: effectiveColor, size: large ? 18 : 15),
             const SizedBox(width: 8),
