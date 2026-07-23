@@ -1,14 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-// Modeller ve Ekranlar
 import 'entry_screen.dart';
 import '../player_model.dart';
 
-// Widget Parçaları
 import '../widgets/game_map.dart';
 import '../widgets/game_hud.dart';
-import '../widgets/mobile_hud.dart';
 import '../widgets/game_dialogs.dart';
 
 class GameScreen extends StatefulWidget {
@@ -39,9 +36,11 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
-  GamePhase _phase = GamePhase.night;
+  // Koşulsuz şartsız İlk Açılış GÜNDÜZ (Tur 1)
+  GamePhase _phase = GamePhase.dayDiscussion;
   int _round = 1;
   String? _selectedVoteTargetId;
+  bool _hasVotedInCurrentRound = false; // Oy kullanıldı mı kontrolü
 
   late List<String> _logs;
   late List<PlayerModel> _players;
@@ -54,14 +53,27 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     super.initState();
     _logs = [
       'System: Köy kuruldu (${widget.roomCode}).',
-      'System: Roller rastgele dağıtıldı ve gece başladı...',
+      'System: Herkes köye hoş geldi! Gece çökmeden önce tanışın.',
+      'Oyuncu 2: Selamlar millet!',
+      'Oyuncu 3: Herkese iyi şanslar 👋',
+      'Oyuncu 4: Gece ilk kimi yesek acaba? 👀',
     ];
 
     _players = _generateAndDistributeRoles();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       GameDialogs.showRoleDistributionDebug(context, _players);
+      _centerCameraOnMap();
     });
+  }
+
+  void _centerCameraOnMap() {
+    final screenSize = MediaQuery.of(context).size;
+    final double xOffset = (GameMap.worldSize.width - screenSize.width) / 2;
+    final double yOffset = (GameMap.worldSize.height - screenSize.height) / 2;
+
+    _transformationController.value = Matrix4.identity()
+      ..translate(-xOffset, -yOffset);
   }
 
   @override
@@ -109,22 +121,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return generatedPlayers;
   }
 
-  void _calculatePlayerPositions(Size size) {
+  void _calculatePlayerPositions() {
     if (_positionsCalculated) return;
 
-    final cx = size.width / 2;
-    final cy = size.height / 2 + 28;
+    final double worldW = GameMap.worldSize.width;
+    final double worldH = GameMap.worldSize.height;
 
-    // --- ORTA MEYDAN / DİSK KORUMASI ---
-    // Mobilde genişlik dar olsa dahi meydan yarıçapının min 120px olmasını sağladık
-    final double calculatedRadius = min(size.width, size.height) * 0.22;
-    final double squareRadius = max(calculatedRadius, 120.0);
+    final cx = worldW / 2;
+    final cy = worldH / 2 + 28;
 
-    // Evlerin serpilebileceği sınırlar
-    final double minX = size.width * 0.06;
-    final double maxX = size.width * 0.94;
-    final double minY = size.height * 0.10;
-    final double maxY = size.height * 0.88;
+    const double squareRadius = 180.0;
+
+    final double minX = worldW * 0.08;
+    final double maxX = worldW * 0.92;
+    final double minY = worldH * 0.10;
+    final double maxY = worldH * 0.88;
 
     final rand = Random();
 
@@ -142,23 +153,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         x = minX + rand.nextDouble() * (maxX - minX);
         y = minY + rand.nextDouble() * (maxY - minY);
 
-        // 1. KONTROL: Merkeze (Ortadaki daireye) olan mesafe kontrolü
         final distanceToCenter = sqrt(pow(x - cx, 2) + pow(y - cy, 2));
-        if (distanceToCenter < (squareRadius + max(currentW, currentH) / 2 + 15)) {
-          continue; // Dairenin içine kalıyorsa pas geç, tekrar dene
+        if (distanceToCenter < (squareRadius + max(currentW, currentH) / 2 + 20)) {
+          continue;
         }
 
-        // 2. KONTROL: Evlerin üst üste binmeme (Overlap) kontrolü
         bool overlaps = false;
         for (int j = 0; j < i; j++) {
           final other = _players[j];
           final double otherW = other.isAlive ? 180.0 : 110.0;
           final double otherH = other.isAlive ? 150.0 : 90.0;
 
-          final bool xOverlap = (x - currentW / 2 < other.posX! + otherW / 2 + 10) &&
-              (x + currentW / 2 > other.posX! - otherW / 2 - 10);
-          final bool yOverlap = (y - currentH / 2 < other.posY! + otherH / 2 + 10) &&
-              (y + currentH / 2 > other.posY! - otherH / 2 - 10);
+          final bool xOverlap = (x - currentW / 2 < other.posX! + otherW / 2 + 15) &&
+              (x + currentW / 2 > other.posX! - otherW / 2 - 15);
+          final bool yOverlap = (y - currentH / 2 < other.posY! + otherH / 2 + 15) &&
+              (y + currentH / 2 > other.posY! - otherH / 2 - 15);
 
           if (xOverlap && yOverlap) {
             overlaps = true;
@@ -176,86 +185,84 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _positionsCalculated = true;
   }
 
-  void _startDay() {
+  // --- FAZ VE DÖNGÜ YÖNETİMİ ---
+
+  // 1. Geceyi Başlat (Manuel Buton Basışı ile)
+  void _startNight() {
     setState(() {
-      _phase = GamePhase.dayDiscussion;
-      _logs.add('System: Gün doğdu — Köylüler meydanda toplandı!');
+      _phase = GamePhase.night;
+      _hasVotedInCurrentRound = false; // Yeni faz için sıfırla
+      _logs.add('System: Tur $_round - Gece çöktü... Herkes evlerine çekildi. 🌙');
     });
   }
 
+  // 2. Gündüzü Başlat (Tur Sayısını Artırır)
+  void _startDay() {
+    setState(() {
+      _round++; // Yeni tur başlar
+      _phase = GamePhase.dayDiscussion;
+      _logs.add('System: Tur $_round - Gün doğdu! Köylüler meydanda toplandı. ☀️');
+    });
+  }
+
+  // 3. Oylama Moduna Geç
   void _startVoting() {
     setState(() {
       _phase = GamePhase.voting;
-      _logs.add('System: Oylama başladı. Sağdaki listeden isim seçin...');
+      _logs.add('System: Tur $_round - Oylama başladı. Oy vermek istediğiniz kişiyi seçin... 🗳️');
     });
   }
 
+  // 4. Oy Kullanılınca Çalışır (GECEYE ATMAZ, SADECE ELEME YAPAR)
   void _submitVote() {
     if (_selectedVoteTargetId == null) return;
     final target = _players.firstWhere((p) => p.id == _selectedVoteTargetId);
+
     setState(() {
       target.isAlive = false;
       _logs.add('System: ${target.name} elendi! Rolü: [${target.role}]');
       _selectedVoteTargetId = null;
-      _round++;
-      _phase = GamePhase.night;
-      _logs.add('System: Gece çöktü... Tur $_round başladı.');
+      _hasVotedInCurrentRound = true; // Oy verildi! Buton 'GECEYE GEÇ' olacak.
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isMobile = size.width < 700; // Genişlik 700px altındaysa mobil HUD
 
-    _calculatePlayerPositions(size);
+    _calculatePlayerPositions();
 
     return Scaffold(
       backgroundColor: const Color(0xFF13132B),
       body: Stack(
         children: [
-          // 1. ZOOM EDİLEBİLİR HARİTA
+          // 1. HARİTA
           GameMap(
-            size: size,
+            screenSize: size,
             isNight: _phase == GamePhase.night,
             phase: _phase,
             players: _players,
             transformationController: _transformationController,
           ),
 
-          // 2. EKRAN BOYUTUNA GÖRE ARAYÜZ (Mobil vs Masaüstü)
-          if (isMobile)
-            MobileHud(
-              screenSize: size,
-              roomCode: widget.roomCode,
-              round: _round,
-              phase: _phase,
-              logs: _logs,
-              players: _players,
-              selectedVoteTargetId: _selectedVoteTargetId,
-              onShowRoleCard: () => GameDialogs.showMyRoleCard(context, _players[0]),
-              onShowDebugDialog: () => GameDialogs.showRoleDistributionDebug(context, _players),
-              onSelectPlayer: (id) => setState(() => _selectedVoteTargetId = id),
-              onStartDay: _startDay,
-              onStartVoting: _startVoting,
-              onSubmitVote: _submitVote,
-            )
-          else
-            GameHud(
-              screenSize: size,
-              roomCode: widget.roomCode,
-              round: _round,
-              phase: _phase,
-              logs: _logs,
-              players: _players,
-              selectedVoteTargetId: _selectedVoteTargetId,
-              onShowRoleCard: () => GameDialogs.showMyRoleCard(context, _players[0]),
-              onShowDebugDialog: () => GameDialogs.showRoleDistributionDebug(context, _players),
-              onSelectPlayer: (id) => setState(() => _selectedVoteTargetId = id),
-              onStartDay: _startDay,
-              onStartVoting: _startVoting,
-              onSubmitVote: _submitVote,
-            ),
+          // 2. TEK ALT BİRLEŞİK ARAYÜZ (GameHud)
+          GameHud(
+            screenSize: size,
+            round: _round,
+            phase: _phase,
+            logs: _logs,
+            players: _players,
+            selectedVoteTargetId: _selectedVoteTargetId,
+            myPlayer: _players[0],
+            hasVotedInCurrentRound: _hasVotedInCurrentRound, // Yeni Eklendi
+            onShowRoleCard: () => GameDialogs.showMyRoleCard(context, _players[0]),
+            onShowDebugDialog: () => GameDialogs.showRoleDistributionDebug(context, _players),
+            onSelectPlayer: (id) => setState(() => _selectedVoteTargetId = id),
+            onStartNight: _startNight,
+            onStartDay: _startDay,
+            onStartVoting: _startVoting,
+            onSubmitVote: _submitVote,
+          ),
         ],
       ),
     );
