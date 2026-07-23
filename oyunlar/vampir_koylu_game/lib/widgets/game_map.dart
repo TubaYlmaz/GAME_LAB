@@ -1,18 +1,22 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+
 import '../screens/entry_screen.dart';
 import '../player_model.dart';
 
 class GameMap extends StatelessWidget {
-  final Size size;
+  final Size screenSize; // Telefon ekran boyutu
   final bool isNight;
   final GamePhase phase;
   final List<PlayerModel> players;
   final TransformationController transformationController;
 
+  // Haritanın kendi gerçek, devasa boyutu (Telefon ekranından bağımsız)
+  static const Size worldSize = Size(1800.0, 1200.0);
+
   const GameMap({
     super.key,
-    required this.size,
+    required this.screenSize,
     required this.isNight,
     required this.phase,
     required this.players,
@@ -23,27 +27,34 @@ class GameMap extends StatelessWidget {
   Widget build(BuildContext context) {
     return InteractiveViewer(
       transformationController: transformationController,
-      minScale: 1.0,
-      maxScale: 3.5,
-      boundaryMargin: EdgeInsets.zero,
+      // constrained: false sayesinde harita ekrana sıkışmaz, kendi boyutunda (1800x1200) kalır.
+      constrained: false, 
+      minScale: 0.6,
+      maxScale: 2.5,
+      boundaryMargin: EdgeInsets.zero, // Sınırlarda esnek kaydırma payı
       child: SizedBox(
-        width: size.width,
-        height: size.height,
+        width: worldSize.width,
+        height: worldSize.height,
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // Arkaplan Görseli (Büzüşmeden, kendi boyutunda durur)
             Image.asset(
               'assets/images/arkaplan.png',
               fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
+              width: worldSize.width,
+              height: worldSize.height,
               errorBuilder: (_, __, ___) => Container(color: const Color(0xFF13132B)),
             ),
+            
+            // Gece Filtresi
             AnimatedOpacity(
               opacity: isNight ? 0.45 : 0.0,
               duration: const Duration(milliseconds: 800),
               child: Container(color: const Color(0xFF07071F).withOpacity(0.8)),
             ),
+            
+            // Evler ve Oyuncular
             _buildGameCanvas(),
           ],
         ),
@@ -52,8 +63,8 @@ class GameMap extends StatelessWidget {
   }
 
   Widget _buildGameCanvas() {
-    final cx = size.width / 2;
-    final cy = size.height / 2 + 28;
+    final cx = worldSize.width / 2;
+    final cy = worldSize.height / 2 + 28;
     final inSquare = phase == GamePhase.dayDiscussion || phase == GamePhase.voting;
 
     return Stack(
@@ -86,11 +97,12 @@ class GameMap extends StatelessWidget {
 
     final double tx;
     final double ty;
+
     if (inSquare && player.isAlive) {
-      final spread = 45.0;
+      final spread = 70.0; // Geniş haritada meydan daha büyük durabilir
       final innerAngle = (2 * pi * index / total);
-      tx = (cx - 30 ) + spread * cos(innerAngle) - 20;
-      ty = (cy - 6 ) + spread * sin(innerAngle) - 35;
+      tx = (cx - 30) + spread * cos(innerAngle) - 20;
+      ty = cy + spread * sin(innerAngle) - 35;
     } else {
       tx = hx - 20;
       ty = hy + (houseHeight / 4) - (player.isAlive ? 5 : -5);
@@ -137,7 +149,7 @@ class GameMap extends StatelessWidget {
                         player.name,
                         style: TextStyle(
                           color: player.avatarColor,
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
