@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+import '../config.dart';
 import 'entry_screen.dart';
 import 'game_screen.dart';
 import '../widgets/role_reveal_card.dart';
@@ -32,24 +34,55 @@ class LobbyScreen extends StatefulWidget {
 }
 
 class _LobbyScreenState extends State<LobbyScreen> {
-  late List<Map<String, dynamic>> _players;
-
-  // Oyun başlama moduna geçildi mi kontrolü
+  List<Map<String, dynamic>> _players = [];
+  io.Socket? _socket;
   bool _isGameStarting = false;
 
   @override
   void initState() {
     super.initState();
-    String hostGenderTag = widget.gender == Gender.male ? '(e)' : '(k)';
+    _initSocket();
+  }
 
-    _players = [
-      {
-        'name': '${widget.playerName} $hostGenderTag',
-        'isHost': widget.isHost,
-        'gender': widget.gender,
-      },
-      {'name': 'Esmanur (k)', 'isHost': false, 'gender': Gender.female},
-    ];
+  void _initSocket() {
+    _socket = io.io(
+      AppConfig.serverUrl,
+      io.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect()
+          .build(),
+    );
+    _socket?.connect();
+
+    _socket?.on('vk_players_updated', (data) {
+      if (mounted) {
+        setState(() {
+          _players = List<Map<String, dynamic>>.from(data);
+        });
+      }
+    });
+
+    _socket?.on('vk_game_started', (_) {
+      if (mounted) {
+        setState(() {
+          _isGameStarting = true;
+        });
+      }
+    });
+
+    if (!widget.isHost) {
+      _socket?.emit('vk_join_room', {
+        'roomCode': widget.roomCode,
+        'playerName': widget.playerName,
+        'gender': widget.gender.name,
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _socket?.disconnect();
+    super.dispose();
   }
 
   String _getAvatarAsset(Gender gender) {
@@ -76,12 +109,21 @@ class _LobbyScreenState extends State<LobbyScreen> {
     );
   }
 
+  void _startGame() {
+    if (widget.isHost) {
+      _socket?.emit('vk_start_game', {'roomCode': widget.roomCode});
+    } else {
+      setState(() {
+        _isGameStarting = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. LOBİ ARKA PLANI (Her zaman sabit kalır)
           Image.asset(
             'assets/images/arkaplan.png',
             fit: BoxFit.cover,
@@ -93,23 +135,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
           const _StarField(),
           Container(color: const Color(0xFF0D0D2A).withOpacity(0.75)),
 
-          // 2. LOBİ ARAYÜZÜ (Sadece kart açılmadığı sürece görünür)
           if (!_isGameStarting)
             SafeArea(
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back_ios_new,
-                            color: Colors.white,
-                          ),
+                          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
@@ -117,18 +152,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   ),
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       child: Column(
                         children: [
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 24,
-                              horizontal: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1A1A3E).withOpacity(0.9),
                               borderRadius: BorderRadius.circular(20),
@@ -136,15 +165,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 color: const Color(0xFF00D2FF).withOpacity(0.4),
                                 width: 1.5,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF00D2FF,
-                                  ).withOpacity(0.15),
-                                  blurRadius: 15,
-                                  spreadRadius: 1,
-                                ),
-                              ],
                             ),
                             child: Column(
                               children: [
@@ -154,7 +174,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                     color: Colors.white.withOpacity(0.6),
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.5,
                                   ),
                                 ),
                                 const SizedBox(height: 10),
@@ -165,12 +184,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                     fontSize: 34,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 4,
-                                    shadows: [
-                                      Shadow(
-                                        color: Color(0xFF00D2FF),
-                                        blurRadius: 16,
-                                      ),
-                                    ],
                                   ),
                                 ),
                               ],
@@ -182,35 +195,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             children: [
                               const Text(
                                 'Katılan Oyuncular',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF00D2FF,
-                                  ).withOpacity(0.15),
+                                  color: const Color(0xFF00D2FF).withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF00D2FF,
-                                    ).withOpacity(0.5),
-                                  ),
+                                  border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.5)),
                                 ),
                                 child: Text(
                                   '${_players.length} Oyuncu',
-                                  style: const TextStyle(
-                                    color: Color(0xFF00D2FF),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                  style: const TextStyle(color: Color(0xFF00D2FF), fontSize: 12, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],
@@ -223,28 +219,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             itemBuilder: (context, index) {
                               final player = _players[index];
                               final bool isHost = player['isHost'] ?? false;
-                              final Gender pGender =
-                                  player['gender'] as Gender? ?? Gender.male;
-                              final String avatarPath = _getAvatarAsset(
-                                pGender,
-                              );
+                              final Gender pGender = player['gender'] is Gender
+                                  ? player['gender']
+                                  : (player['gender'] == 'female' ? Gender.female : Gender.male);
+                              final String avatarPath = _getAvatarAsset(pGender);
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF1A1A3E,
-                                  ).withOpacity(0.85),
+                                  color: const Color(0xFF1A1A3E).withOpacity(0.85),
                                   borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF00D2FF,
-                                    ).withOpacity(0.2),
-                                  ),
+                                  border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.2)),
                                 ),
                                 child: Row(
                                   children: [
@@ -253,61 +239,29 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                       height: 38,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: const Color(0xFF00D2FF),
-                                          width: 1.5,
-                                        ),
-                                        image: DecorationImage(
-                                          image: AssetImage(avatarPath),
-                                          fit: BoxFit.cover,
-                                          onError: (_, __) {},
-                                        ),
+                                        border: Border.all(color: const Color(0xFF00D2FF), width: 1.5),
+                                        image: DecorationImage(image: AssetImage(avatarPath), fit: BoxFit.cover),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
                                     Text(
-                                      player['name'],
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                      player['name'] ?? 'Oyuncu',
+                                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
                                     ),
                                     if (isHost) ...[
                                       const SizedBox(width: 8),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xFF00D2FF,
-                                          ).withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          border: Border.all(
-                                            color: const Color(0xFF00D2FF),
-                                            width: 0.8,
-                                          ),
+                                          color: const Color(0xFF00D2FF).withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: const Color(0xFF00D2FF), width: 0.8),
                                         ),
-                                        child: const Text(
-                                          'MUHTAR',
-                                          style: TextStyle(
-                                            color: Color(0xFF00D2FF),
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                        child: const Text('MUHTAR', style: TextStyle(color: Color(0xFF00D2FF), fontSize: 10, fontWeight: FontWeight.bold)),
                                       ),
                                     ],
                                     const Spacer(),
-                                    const Icon(
-                                      Icons.check_circle,
-                                      color: Color(0xFF00D2FF),
-                                      size: 20,
-                                    ),
+                                    const Icon(Icons.check_circle, color: Color(0xFF00D2FF), size: 20),
                                   ],
                                 ),
                               );
@@ -320,32 +274,25 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: _NeonButton(
-                      label: 'OYUNU BAŞLAT',
+                      label: widget.isHost ? 'OYUNU BAŞLAT' : 'MUHTAR BEKLENİYOR...',
                       icon: Icons.play_arrow_rounded,
                       color: const Color(0xFF00D2FF),
+                      enabled: widget.isHost,
                       large: true,
-                      onPressed: () {
-                        setState(() {
-                          _isGameStarting = true;
-                        });
-                      },
+                      onPressed: _startGame,
                     ),
                   ),
                 ],
               ),
             ),
 
-          // 3. SADECE KART
           if (_isGameStarting)
             Center(
               child: RoleRevealCard(
                 roleName: "Vampir 🧛",
-                roleDescription:
-                    "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!",
+                roleDescription: "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!",
                 roleColor: const Color(0xFFE74C3C),
-                onDismiss: () {
-                  _navigateToGameScreen();
-                },
+                onDismiss: _navigateToGameScreen,
               ),
             ),
         ],
@@ -356,7 +303,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
 class _StarField extends StatelessWidget {
   const _StarField();
-
   @override
   Widget build(BuildContext context) {
     return CustomPaint(painter: _StarPainter(), child: const SizedBox.expand());
@@ -376,7 +322,6 @@ class _StarPainter extends CustomPainter {
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
-
   @override
   bool shouldRepaint(_) => false;
 }
@@ -401,28 +346,15 @@ class _NeonButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveColor = enabled ? color : color.withOpacity(0.25);
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(large ? 14 : 10),
-        splashColor: effectiveColor.withOpacity(0.3),
-        highlightColor: effectiveColor.withOpacity(0.1),
         child: Ink(
           decoration: BoxDecoration(
             color: effectiveColor.withOpacity(enabled ? 0.18 : 0.05),
             borderRadius: BorderRadius.circular(large ? 14 : 10),
             border: Border.all(color: effectiveColor, width: large ? 1.5 : 1),
-            boxShadow: enabled
-                ? [
-                    BoxShadow(
-                      color: effectiveColor.withOpacity(0.35),
-                      blurRadius: 18,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : [],
           ),
           child: Container(
             width: double.infinity,
@@ -432,15 +364,7 @@ class _NeonButton extends StatelessWidget {
               children: [
                 Icon(icon, color: effectiveColor, size: large ? 20 : 16),
                 const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: effectiveColor,
-                    fontSize: large ? 15 : 13,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                  ),
-                ),
+                Text(label, style: TextStyle(color: effectiveColor, fontSize: large ? 15 : 13, fontWeight: FontWeight.bold)),
               ],
             ),
           ),

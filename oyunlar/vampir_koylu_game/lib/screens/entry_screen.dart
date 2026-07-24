@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+import '../config.dart';
 import 'lobby_screen.dart';
 
 enum Gender { male, female }
@@ -14,6 +16,7 @@ class EntryScreen extends StatefulWidget {
 class _EntryScreenState extends State<EntryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  io.Socket? _socket;
 
   // Form Controller & State (Köy Kur)
   final TextEditingController _hostNameController = TextEditingController();
@@ -34,6 +37,30 @@ class _EntryScreenState extends State<EntryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _initSocket();
+  }
+
+  void _initSocket() {
+    _socket = io.io(
+      AppConfig.serverUrl,
+      io.OptionBuilder()
+          .setTransports(['websocket'])
+          .disableAutoConnect()
+          .build(),
+    );
+    _socket?.connect();
+
+    _socket?.on('error_message', (data) {
+      if (mounted) {
+        _showError(data['message'] ?? 'Bir hata oluştu!');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   String _generateRoomCode() {
@@ -53,12 +80,24 @@ class _EntryScreenState extends State<EntryScreen>
     }
 
     final roomCode = _generateRoomCode();
+    final hostName = _hostNameController.text.trim();
+
+    // 🚀 Backend sunucusunda odayı kuruyoruz
+    _socket?.emit('vk_create_room', {
+      'roomCode': roomCode,
+      'hostName': hostName,
+      'gender': _hostGender.name,
+      'vampireCount': _vampireCount,
+      'doctorCount': _doctorCount,
+      'serialKillerCount': _serialKillerCount,
+      'villagerCount': _villagerCount,
+    });
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LobbyScreen(
           roomCode: roomCode,
-          playerName: _hostNameController.text.trim(),
+          playerName: hostName,
           gender: _hostGender,
           isHost: true,
           vampireCount: _vampireCount,
@@ -85,12 +124,22 @@ class _EntryScreenState extends State<EntryScreen>
         .toUpperCase()
         .replaceAll('VK-', '')
         .replaceAll('VK', '');
+    
+    final fullCode = 'VK-$cleanCode';
+    final joinName = _joinNameController.text.trim();
+
+    // 🚀 Backend sunucusunda var olan odaya katılıyoruz
+    _socket?.emit('vk_join_room', {
+      'roomCode': fullCode,
+      'playerName': joinName,
+      'gender': _joinGender.name,
+    });
 
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LobbyScreen(
-          roomCode: 'VK-$cleanCode',
-          playerName: _joinNameController.text.trim(),
+          roomCode: fullCode,
+          playerName: joinName,
           gender: _joinGender,
           isHost: false,
           vampireCount: 2,
