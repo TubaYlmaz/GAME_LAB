@@ -1,8 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as io;
+import '../services/socket_service.dart';
 
-import '../config.dart';
 import 'entry_screen.dart';
 import '../player_model.dart';
 
@@ -47,7 +46,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   List<PlayerModel> _players = [];
   bool _positionsCalculated = false;
 
-  io.Socket? _socket;
+  final SocketService _socketService = SocketService();
   final TransformationController _transformationController = TransformationController();
 
   @override
@@ -66,16 +65,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _initSocket() {
-    _socket = io.io(
-      AppConfig.serverUrl,
-      io.OptionBuilder()
-          .setTransports(['websocket'])
-          .disableAutoConnect()
-          .build(),
-    );
-    _socket?.connect();
+    _socketService.currentRoomCode = widget.roomCode;
+    _socketService.connect();
 
-    // 🎯 SUNUCUDAN GELEN CANLI OYUNCU LİSTESİYLE SADECE KATILAN GERÇEK KİŞİLERİ ÇİZER
+    // 🎯 Dinleyicileri temizle (üst üste binmeleri engeller)
+    _socketService.socket?.off('vk_players_updated');
+    _socketService.socket?.off('vk_vote_progress');
+    _socketService.socket?.off('vk_round_ended');
+    _socketService.socket?.off('vk_game_over');
+    _socketService.socket?.off('vk_phase_changed');
+
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
       final List serverPlayers = (data is Map ? data['players'] : data) ?? [];
@@ -88,25 +87,39 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       }
     }
 
-    _socket?.on('vk_game_started', updatePlayersFromData);
-    _socket?.on('vk_players_updated', updatePlayersFromData);
+    _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
 
-    _socket?.on('vk_round_ended', (data) {
+    _socketService.socket?.on('vk_vote_progress', (data) {
       if (!mounted) return;
-      final String eliminated = data['eliminatedPlayer'] ?? '';
-      final bool isVampire = data['isVampire'] ?? false;
-
+      final int voted = data['votedCount'] ?? 0;
+      final int total = data['totalAlive'] ?? 0;
       setState(() {
-        for (var p in _players) {
-          if (p.name == eliminated || p.name.contains(eliminated)) {
-            p.isAlive = false;
-          }
-        }
-        _logs.add('🗳️ Oylama Bitti! $eliminated ${isVampire ? 'bir VAMPİRDİ! 🧛' : 'masum bir KÖYLÜYDÜ... 🧑‍🌾'}');
+        _logs.add('System: Oylama devam ediyor... ($voted / $total oy kullanıldı)');
       });
     });
 
-    _socket?.on('vk_game_over', (data) {
+    _socketService.socket?.on('vk_round_ended', (data) {
+      if (!mounted) return;
+      final String? eliminated = data['eliminatedPlayer'];
+      final bool isTie = data['isTie'] ?? false;
+      final bool isVampire = data['isVampire'] ?? false;
+      final List serverPlayers = data['players'] ?? [];
+
+      setState(() {
+        if (serverPlayers.isNotEmpty) {
+          _players = _parseServerPlayers(serverPlayers);
+        }
+
+        if (isTie || eliminated == null) {
+          _logs.add('⚖️ Oylar eşit çıktı! Bu tur kimse elenmedi.');
+        } else {
+          _logs.add('🗳️ Oylama Bitti! $eliminated elendi. Rolü: ${isVampire ? 'VAMPİR 🧛' : 'KÖYLÜ 🧑‍🌾'}');
+        }
+        _hasVotedInCurrentRound = false;
+      });
+    });
+
+    _socketService.socket?.on('vk_game_over', (data) {
       if (!mounted) return;
       final String winner = data['winner'] ?? 'KÖYLÜLER';
       final String lastEliminated = data['eliminatedPlayer'] ?? 'Biri';
@@ -114,7 +127,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _showGameOverDialog(winner, lastEliminated);
     });
 
-    _socket?.on('vk_phase_changed', (data) {
+    _socketService.socket?.on('vk_phase_changed', (data) {
       if (!mounted) return;
       final String nextPhase = data['phase'];
       setState(() {
@@ -128,15 +141,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _logs.add('System: Tur $_round - Gün doğdu! ☀️');
         } else if (nextPhase == 'voting') {
           _phase = GamePhase.voting;
-          _logs.add('System: Tur $_round - Oylama başladı. 🗳️');
+          _logs.add('System: Tur $_round - Oylama başladı. Oyunuzu kullanın! 🗳️');
         }
       });
     });
 
-    _socket?.emit('vk_join_room', {
+    // 🚀 Soket kopmadan güvenli oyuncu verisi isteği
+    _socketService.socket?.emit('vk_get_players', {
       'roomCode': widget.roomCode,
-      'playerName': widget.playerName,
-      'gender': widget.gender.name,
     });
   }
 
@@ -181,7 +193,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _socket?.disconnect();
+    // 🎯 Soket kapatılmıyor, sadece abonelikler ve controller temizleniyor
+    _socketService.clearAllListeners();
     _transformationController.dispose();
     super.dispose();
   }
@@ -253,42 +266,39 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _startNight() {
-    _socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'night'});
-    setState(() {
-      _phase = GamePhase.night;
-      _hasVotedInCurrentRound = false;
-    });
+    if (!widget.isHost) return;
+    _socketService.socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'night'});
   }
 
   void _startDay() {
-    _socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'day'});
-    setState(() {
-      _round++;
-      _phase = GamePhase.dayDiscussion;
-    });
+    if (!widget.isHost) return;
+    _socketService.socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'day'});
   }
 
   void _startVoting() {
-    _socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'voting'});
-    setState(() {
-      _phase = GamePhase.voting;
-    });
+    if (!widget.isHost) return;
+    _socketService.socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'voting'});
   }
 
   void _submitVote() {
-    if (_selectedVoteTargetId == null) return;
+    if (_selectedVoteTargetId == null || _hasVotedInCurrentRound) return;
     final target = _players.firstWhere((p) => p.id == _selectedVoteTargetId);
 
-    _socket?.emit('vk_submit_vote', {
+    final myPlayerName = _players.firstWhere(
+      (p) => p.name.contains(widget.playerName),
+      orElse: () => _players.isNotEmpty ? _players[0] : PlayerModel(id: 'me', name: widget.playerName, avatarColor: Colors.blue, gender: widget.gender, role: 'Köylü'),
+    ).name;
+
+    _socketService.socket?.emit('vk_submit_vote', {
       'roomCode': widget.roomCode,
-      'votedPlayerName': target.name,
+      'voterName': myPlayerName,
+      'votedTargetName': target.name,
     });
 
     setState(() {
-      target.isAlive = false;
-      _logs.add('System: ${target.name} elendi!');
-      _selectedVoteTargetId = null;
       _hasVotedInCurrentRound = true;
+      _logs.add('System: Oyunuzu ${target.name} kişisine verdiniz. Diğerlerinin oyları bekleniyor...');
+      _selectedVoteTargetId = null;
     });
   }
 
