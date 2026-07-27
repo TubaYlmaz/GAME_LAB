@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as io;
-import '../config.dart';
+import '../services/socket_service.dart';
 import 'entry_screen.dart';
 import 'game_screen.dart';
 import '../widgets/role_reveal_card.dart';
@@ -35,7 +34,7 @@ class LobbyScreen extends StatefulWidget {
 
 class _LobbyScreenState extends State<LobbyScreen> {
   List<Map<String, dynamic>> _players = [];
-  io.Socket? _socket;
+  final SocketService _socketService = SocketService();
   bool _isGameStarting = false;
 
   @override
@@ -45,16 +44,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   void _initSocket() {
-    _socket = io.io(
-      AppConfig.serverUrl,
-      io.OptionBuilder()
-          .setTransports(['websocket'])
-          .disableAutoConnect()
-          .build(),
-    );
-    _socket?.connect();
+    _socketService.currentRoomCode = widget.roomCode;
+    _socketService.connect();
 
-    _socket?.on('vk_players_updated', (data) {
+    // Dinleyicileri temizleyip tekil socket aboneliği açıyoruz
+    _socketService.socket?.off('vk_players_updated');
+    _socketService.socket?.off('vk_game_started');
+
+    _socketService.socket?.on('vk_players_updated', (data) {
       if (mounted) {
         setState(() {
           _players = List<Map<String, dynamic>>.from(data);
@@ -62,7 +59,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       }
     });
 
-    _socket?.on('vk_game_started', (_) {
+    _socketService.socket?.on('vk_game_started', (_) {
       if (mounted) {
         setState(() {
           _isGameStarting = true;
@@ -71,17 +68,23 @@ class _LobbyScreenState extends State<LobbyScreen> {
     });
 
     if (!widget.isHost) {
-      _socket?.emit('vk_join_room', {
+      _socketService.socket?.emit('vk_join_room', {
         'roomCode': widget.roomCode,
         'playerName': widget.playerName,
         'gender': widget.gender.name,
+      });
+    } else {
+      // Host odayı kurduktan sonra güncel listeyi ceker
+      _socketService.socket?.emit('vk_get_players', {
+        'roomCode': widget.roomCode,
       });
     }
   }
 
   @override
   void dispose() {
-    _socket?.disconnect();
+    _socketService.socket?.off('vk_players_updated');
+    _socketService.socket?.off('vk_game_started');
     super.dispose();
   }
 
@@ -111,7 +114,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _startGame() {
     if (widget.isHost) {
-      _socket?.emit('vk_start_game', {'roomCode': widget.roomCode});
+      _socketService.socket?.emit('vk_start_game', {'roomCode': widget.roomCode});
     } else {
       setState(() {
         _isGameStarting = true;

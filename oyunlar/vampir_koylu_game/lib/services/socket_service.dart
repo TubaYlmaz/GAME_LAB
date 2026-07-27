@@ -7,27 +7,50 @@ class SocketService {
   SocketService._internal();
 
   io.Socket? socket;
+  String? currentRoomCode;
 
   void connect() {
     if (socket != null && socket!.connected) return;
 
+    if (socket != null && !socket!.connected) {
+      socket!.connect();
+      return;
+    }
+
     socket = io.io(
-      AppConfig.serverUrl, // config.dart içindeki IP'ye bağlanır
+      AppConfig.serverUrl,
       io.OptionBuilder()
-          .setTransports(['websocket'])
-          .disableAutoConnect()
+          .setTransports(['websocket', 'polling'])
+          .enableAutoConnect()
+          .enableReconnection()
+          .setReconnectionAttempts(20)
+          .setReconnectionDelay(500)
           .build(),
     );
 
     socket!.connect();
 
     socket!.onConnect((_) {
-      print('🟢 Sunucuya soket ile başarıyla bağlandı!');
+      print('🟢 Sunucuya soket ile başarıyla bağlandı! Socket ID: ${socket?.id}');
+      if (currentRoomCode != null && currentRoomCode!.isNotEmpty) {
+        socket?.emit('vk_get_players', {'roomCode': currentRoomCode});
+      }
     });
 
     socket!.onDisconnect((_) {
       print('🔴 Soket bağlantısı koptu.');
     });
+  }
+
+  void clearAllListeners() {
+    socket?.off('vk_game_started');
+    socket?.off('vk_players_updated');
+    socket?.off('vk_vote_progress');
+    socket?.off('vk_round_ended');
+    socket?.off('vk_game_over');
+    socket?.off('vk_phase_changed');
+    socket?.off('players_updated');
+    socket?.off('game_started');
   }
 
   void createRoom(Map<String, dynamic> roomData) {
@@ -49,4 +72,4 @@ class SocketService {
       onGameStarted(data);
     });
   }
-} 
+}
