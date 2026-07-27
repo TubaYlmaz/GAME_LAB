@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/socket_service.dart';
 import '../player_model.dart';
+import 'lobby_screen.dart';
+import 'entry_screen.dart';
 
 class VKVotingScreen extends StatefulWidget {
   final String roomCode;
@@ -30,6 +32,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
 
   bool isVotingClosed = false;
   bool hasLockedVote = false;
+  bool isDialogShown = false; // 🎯 Çift dialog açılmasını engelleyen kilit!
   int votedCount = 0;
 
   Map<String, int> playerVotes = {};
@@ -49,7 +52,13 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   }
 
   void setupSocketListeners() {
-    _socketService.socket?.on('vk_vote_progress', (data) {
+    // 🎯 Eski dinleyicileri temizle (Üst üste binmesin)
+    _socketService.socket?.off('vk_vote_status_updated');
+    _socketService.socket?.off('vk_voting_results');
+    _socketService.socket?.off('vk_round_ended');
+    _socketService.socket?.off('vk_game_over');
+
+    _socketService.socket?.on('vk_vote_status_updated', (data) {
       if (!mounted) return;
 
       setState(() {
@@ -68,11 +77,13 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       });
     });
 
-    _socketService.socket?.on('vk_round_ended', (data) {
-      if (!mounted) return;
+    void handleResults(dynamic data) {
+      if (!mounted || isDialogShown) return; // 🎯 Zaten dialog açıldıysa tekrar çalıştırma!
+      
       _timer?.cancel();
       setState(() {
         isVotingClosed = true;
+        isDialogShown = true;
       });
 
       String? eliminated = data['eliminatedPlayer'];
@@ -80,7 +91,11 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       bool isVampire = data['isVampire'] ?? false;
 
       showRoundResultsDialog(eliminated, isTie, isVampire);
-    });
+    }
+
+    // 🎯 Sadece tek bir ana sonuç dinleyicisi bağlıyoruz
+    _socketService.socket?.on('vk_voting_results', handleResults);
+    _socketService.socket?.on('vk_round_ended', handleResults);
 
     _socketService.socket?.on('vk_game_over', (data) {
       if (!mounted) return;
@@ -97,9 +112,11 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   }
 
   void startTimer() {
-    const int totalDuration = 20; // 20 saniyelik oylama süresi
+    const int totalDuration = 20;
     const int milliseconds = 100;
     final double increment = milliseconds / (totalDuration * 1000);
+
+    final bool amIAlive = _isMyPlayerAlive();
 
     _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (timer) {
       if (!mounted) return;
@@ -109,7 +126,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
         } else {
           progress = 1.0;
           timer.cancel();
-          if (!hasLockedVote) {
+          if (!hasLockedVote && amIAlive) {
             submitVote(selectedPlayer ?? 'skip', lockIt: true);
           }
         }
@@ -117,7 +134,16 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     });
   }
 
+  bool _isMyPlayerAlive() {
+    return widget.players.firstWhere(
+      (p) => p.name.contains(widget.myName),
+      orElse: () => widget.players.isNotEmpty ? widget.players[0] : PlayerModel(id: 'me', name: widget.myName, avatarColor: Colors.blue, gender: Gender.female, role: 'Köylü'),
+    ).isAlive;
+  }
+
   void submitVote(String targetPlayer, {required bool lockIt}) {
+    if (!_isMyPlayerAlive()) return;
+
     HapticFeedback.selectionClick();
 
     setState(() {
@@ -135,22 +161,36 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     });
   }
 
-  void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire) {
+void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire) {
     String title = "";
     String subtitle = "";
 
     if (isTie || eliminatedPlayer == null) {
       title = "BERABERLİK! ⚖️";
-      subtitle = "Oylamada eşitlik çıktı, bu tur kimse elenmedi! Kan emiciler aramızda sinsi sinsi dolaşmaya devam ediyor.";
+      subtitle = "Oylamada eşitlik çıktı, bu tur kimse elenmedi!";
     } else {
       title = "OYLAMA BİTTİ! 🗳️";
       subtitle = "$eliminatedPlayer köy kararıyla elendi. Rolü: ${isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾'}";
     }
 
+    // 🎯 3 Saniye sonra sadece Dialog ve Oylama Ekranını kapatır, HARİTADA kalırsınız!
+    Timer(const Duration(milliseconds: 3000), () {
+      if (mounted) {
+        // 1. Önce üstteki Dialog'u güvenle kapat
+        if (Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+        // 2. Hemen ardından Oylama Ekranından (VKVotingScreen) çık -> Arka plandaki GameScreen (Harita) görünür!
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+    });
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: const Color(0xFF151528),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -165,25 +205,11 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                   color: isTie ? Colors.amber : (isVampire ? Colors.redAccent : Colors.lightBlueAccent),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
-                ),
+                Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
                 const SizedBox(height: 15),
                 Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: Colors.white70)),
-                const SizedBox(height: 25),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00D2FF),
-                    minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Dialog'u kapat
-                    Navigator.of(context).pop(); // Oylama ekranını kapatıp Haritaya dön
-                  },
-                  child: const Text("HARİTAYA DÖN 🗺️", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                ),
+                const SizedBox(height: 20),
+                const Text("3 saniye sonra otomatik haritaya dönülüyor...", style: TextStyle(color: Colors.white38, fontSize: 12)),
               ],
             ),
           ),
@@ -198,7 +224,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: const Color(0xFF0D0D2A),
           shape: RoundedRectangleBorder(
@@ -241,8 +267,21 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
+                    Navigator.of(dialogContext).pop();
+                    
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LobbyScreen(
+                          roomCode: widget.roomCode,
+                          playerName: widget.myName,
+                          gender: Gender.female,
+                          isHost: false,
+                          vampireCount: 1,
+                        ),
+                      ),
+                      (route) => route.isFirst,
+                    );
                   },
                   child: const Text('LOBİYE DÖN 🏠', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                 ),
@@ -257,7 +296,8 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    _socketService.socket?.off('vk_vote_progress');
+    _socketService.socket?.off('vk_vote_status_updated');
+    _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_round_ended');
     _socketService.socket?.off('vk_game_over');
     super.dispose();
@@ -266,6 +306,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   @override
   Widget build(BuildContext context) {
     final alivePlayers = widget.players.where((p) => p.isAlive).toList();
+    final bool amIAlive = _isMyPlayerAlive();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0B1A),
@@ -281,7 +322,6 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       ),
       body: Column(
         children: [
-          // SÜRE ÇUBUĞU
           Container(
             width: double.infinity,
             height: 4,
@@ -313,7 +353,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                 final currentVotes = playerVotes[player.name] ?? 0;
 
                 return GestureDetector(
-                  onTap: (hasLockedVote || isVotingClosed) ? null : () {
+                  onTap: (!amIAlive || hasLockedVote || isVotingClosed) ? null : () {
                     setState(() { selectedPlayer = player.name; });
                     submitVote(player.name, lockIt: false);
                   },
@@ -354,21 +394,25 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: GestureDetector(
-              onTap: (hasLockedVote || isVotingClosed) ? null : () {
+              onTap: (!amIAlive || hasLockedVote || isVotingClosed) ? null : () {
                 submitVote(selectedPlayer ?? 'skip', lockIt: true);
               },
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
-                  color: hasLockedVote
-                      ? const Color(0xFF2E2E5C).withOpacity(0.5)
-                      : (selectedPlayer == null ? const Color(0xFF2E2E5C) : const Color(0xFF4CAF50)),
+                  color: !amIAlive
+                      ? const Color(0xFF2E2E5C).withOpacity(0.3)
+                      : (hasLockedVote
+                          ? const Color(0xFF2E2E5C).withOpacity(0.5)
+                          : (selectedPlayer == null ? const Color(0xFF2E2E5C) : const Color(0xFF4CAF50))),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
                   child: Text(
-                    hasLockedVote ? "OYUN KİLİTLENDİ 🔒" : (selectedPlayer == null ? "PAS GEÇ VE KİLİTLE 🔒" : "OYU KİLİTLE 🔒"),
+                    !amIAlive
+                        ? "ÖLDÜNÜZ (İZLEYİCİ MODU) 👻"
+                        : (hasLockedVote ? "OYUN KİLİTLENDİ 🔒" : (selectedPlayer == null ? "PAS GEÇ VE KİLİTLE 🔒" : "OYU KİLİTLE 🔒")),
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
                   ),
                 ),
