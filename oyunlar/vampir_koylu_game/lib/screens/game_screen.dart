@@ -8,6 +8,8 @@ import '../player_model.dart';
 import '../widgets/game_map.dart';
 import '../widgets/game_hud.dart';
 import '../widgets/game_dialogs.dart';
+import 'vk_voting_screen.dart';
+import 'lobby_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String roomCode;
@@ -38,6 +40,7 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   GamePhase _phase = GamePhase.dayDiscussion;
+  bool _isAfterNight = false; // 🎯 Geceden sonraki gündüzde miyiz takibi
   int _round = 1;
   String? _selectedVoteTargetId;
   bool _hasVotedInCurrentRound = false;
@@ -68,12 +71,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.currentRoomCode = widget.roomCode;
     _socketService.connect();
 
-    // 🎯 Dinleyicileri temizle (üst üste binmeleri engeller)
     _socketService.socket?.off('vk_players_updated');
     _socketService.socket?.off('vk_vote_progress');
     _socketService.socket?.off('vk_round_ended');
+    _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_game_over');
     _socketService.socket?.off('vk_phase_changed');
+    _socketService.socket?.off('vk_navigate_to_voting');
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -98,7 +102,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       });
     });
 
-    _socketService.socket?.on('vk_round_ended', (data) {
+    // 🎯 OYLAMA BİTTİĞİNDE OTOMATİK GÜNDÜZE DÖNER (GECEYE GEÇ BUTONU ÇIKAR)
+    void handleRoundEnded(dynamic data) {
       if (!mounted) return;
       final String? eliminated = data['eliminatedPlayer'];
       final bool isTie = data['isTie'] ?? false;
@@ -108,16 +113,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       setState(() {
         if (serverPlayers.isNotEmpty) {
           _players = _parseServerPlayers(serverPlayers);
+          _positionsCalculated = false; // Elenen oyuncuyu haritadan siler
         }
 
-        if (isTie || eliminated == null) {
-          _logs.add('⚖️ Oylar eşit çıktı! Bu tur kimse elenmedi.');
-        } else {
-          _logs.add('🗳️ Oylama Bitti! $eliminated elendi. Rolü: ${isVampire ? 'VAMPİR 🧛' : 'KÖYLÜ 🧑‍🌾'}');
-        }
+        _phase = GamePhase.dayDiscussion; 
+        _isAfterNight = false; // 🎯 Oylama sonrası gündüz -> Sırada gece var!
         _hasVotedInCurrentRound = false;
+        _selectedVoteTargetId = null;
+
+        if (isTie || eliminated == null) {
+          _logs.add('⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Gün doğdu! ☀️');
+        } else {
+          _logs.add('🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Gün doğdu! ☀️');
+        }
       });
-    });
+    }
+
+    _socketService.socket?.on('vk_round_ended', handleRoundEnded);
+    _socketService.socket?.on('vk_voting_results', handleRoundEnded);
 
     _socketService.socket?.on('vk_game_over', (data) {
       if (!mounted) return;
@@ -138,6 +151,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         } else if (nextPhase == 'day') {
           _round++;
           _phase = GamePhase.dayDiscussion;
+          _isAfterNight = true; // 🎯 Gece sonrası gündüz -> Sırada oylama var!
           _logs.add('System: Tur $_round - Gün doğdu! ☀️');
         } else if (nextPhase == 'voting') {
           _phase = GamePhase.voting;
@@ -146,7 +160,35 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       });
     });
 
-    // 🚀 Soket kopmadan güvenli oyuncu verisi isteği
+    _socketService.socket?.on('vk_navigate_to_voting', (_) {
+      if (!mounted) return;
+
+      final myPlayer = _players.firstWhere(
+        (p) => p.name.contains(widget.playerName),
+        orElse: () => _players.isNotEmpty
+            ? _players[0]
+            : PlayerModel(
+                id: 'me',
+                name: widget.playerName,
+                avatarColor: Colors.blue,
+                gender: widget.gender,
+                role: 'Köylü',
+              ),
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VKVotingScreen(
+            roomCode: widget.roomCode,
+            myName: widget.playerName,
+            players: _players,
+            amIVampire: myPlayer.isVampire,
+          ),
+        ),
+      );
+    });
+
     _socketService.socket?.emit('vk_get_players', {
       'roomCode': widget.roomCode,
     });
@@ -193,8 +235,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    // 🎯 Soket kapatılmıyor, sadece abonelikler ve controller temizleniyor
     _socketService.clearAllListeners();
+    _socketService.socket?.off('vk_navigate_to_voting');
     _transformationController.dispose();
     super.dispose();
   }
@@ -293,6 +335,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       'roomCode': widget.roomCode,
       'voterName': myPlayerName,
       'votedTargetName': target.name,
+      'isLocking': true,
     });
 
     setState(() {
@@ -346,7 +389,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00D2FF)),
               onPressed: () {
                 Navigator.of(ctx).pop();
-                Navigator.of(context).pop();
+
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => LobbyScreen(
+                      roomCode: widget.roomCode,
+                      playerName: widget.playerName,
+                      gender: widget.gender,
+                      isHost: widget.isHost,
+                      vampireCount: widget.vampireCount,
+                    ),
+                  ),
+                  (route) => route.isFirst,
+                );
               },
               child: const Text('LOBİYE DÖN', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
             ),
@@ -391,6 +447,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               screenSize: size,
               round: _round,
               phase: _phase,
+              isAfterNight: _isAfterNight, // 🎯 Pas ediliyor
               logs: _logs,
               players: _players,
               selectedVoteTargetId: _selectedVoteTargetId,
