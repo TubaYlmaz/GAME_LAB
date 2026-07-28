@@ -60,11 +60,12 @@ class _EntryScreenState extends State<EntryScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _socket?.dispose();
     super.dispose();
   }
 
   String _generateRoomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const chars = '1234567890';
     final rand = Random();
     final code = List.generate(
       6,
@@ -82,7 +83,6 @@ class _EntryScreenState extends State<EntryScreen>
     final roomCode = _generateRoomCode();
     final hostName = _hostNameController.text.trim();
 
-    // 🚀 Backend sunucusunda odayı kuruyoruz
     _socket?.emit('vk_create_room', {
       'roomCode': roomCode,
       'hostName': hostName,
@@ -124,11 +124,10 @@ class _EntryScreenState extends State<EntryScreen>
         .toUpperCase()
         .replaceAll('VK-', '')
         .replaceAll('VK', '');
-    
+
     final fullCode = 'VK-$cleanCode';
     final joinName = _joinNameController.text.trim();
 
-    // 🚀 Backend sunucusunda var olan odaya katılıyoruz
     _socket?.emit('vk_join_room', {
       'roomCode': fullCode,
       'playerName': joinName,
@@ -329,7 +328,6 @@ class _EntryScreenState extends State<EntryScreen>
               : null,
           onIncrement: () => setState(() => _vampireCount++),
         ),
-
         _buildRoleCounter(
           title: '🩺 Doktor Sayısı:',
           count: _doctorCount,
@@ -339,7 +337,6 @@ class _EntryScreenState extends State<EntryScreen>
               : null,
           onIncrement: () => setState(() => _doctorCount++),
         ),
-
         _buildRoleCounter(
           title: '🔪 Seri Katil Sayısı:',
           count: _serialKillerCount,
@@ -349,7 +346,6 @@ class _EntryScreenState extends State<EntryScreen>
               : null,
           onIncrement: () => setState(() => _serialKillerCount++),
         ),
-
         _buildRoleCounter(
           title: '🧑‍🌾 Köylü Sayısı:',
           count: _villagerCount,
@@ -384,7 +380,10 @@ class _EntryScreenState extends State<EntryScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: const TextStyle(fontSize: 14)),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 14, color: Colors.white),
+          ),
           Row(
             children: [
               IconButton(
@@ -514,7 +513,10 @@ class _EntryScreenState extends State<EntryScreen>
                     children: [
                       Text(
                         '👨 Erkek',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -544,7 +546,10 @@ class _EntryScreenState extends State<EntryScreen>
                     children: [
                       Text(
                         '👩 Kadın',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),

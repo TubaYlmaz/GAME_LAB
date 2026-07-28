@@ -3,7 +3,10 @@ import '../player_model.dart';
 
 class GameDialogs {
   // Debug / Algoritma Çıktı Dialogu
-  static void showRoleDistributionDebug(BuildContext context, List<PlayerModel> players) {
+  static void showRoleDistributionDebug(
+    BuildContext context,
+    List<PlayerModel> players,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -37,7 +40,10 @@ class GameDialogs {
                 final p = players[index];
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 3),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0D0D2A),
                     borderRadius: BorderRadius.circular(8),
@@ -76,7 +82,10 @@ class GameDialogs {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text(
                 'ANLADIM, OYUNA GEÇ',
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
