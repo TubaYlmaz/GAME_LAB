@@ -1,13 +1,12 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../services/socket_service.dart';
-
 import 'entry_screen.dart';
 import '../player_model.dart';
-
 import '../widgets/game_map.dart';
 import '../widgets/game_hud.dart';
 import '../widgets/game_dialogs.dart';
+import '../widgets/night_action_dialog.dart';
 import 'vk_voting_screen.dart';
 import 'lobby_screen.dart';
 
@@ -40,17 +39,19 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   GamePhase _phase = GamePhase.dayDiscussion;
-  bool _isAfterNight = false; // 🎯 Geceden sonraki gündüzde miyiz takibi
+  bool _isAfterNight = false;
   int _round = 1;
   String? _selectedVoteTargetId;
   bool _hasVotedInCurrentRound = false;
+  bool _hasActedAtNight = false;
 
   late List<String> _logs;
   List<PlayerModel> _players = [];
   bool _positionsCalculated = false;
 
   final SocketService _socketService = SocketService();
-  final TransformationController _transformationController = TransformationController();
+  final TransformationController _transformationController =
+      TransformationController();
 
   @override
   void initState() {
@@ -72,12 +73,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.connect();
 
     _socketService.socket?.off('vk_players_updated');
+    _socketService.socket?.off('vk_game_started');
     _socketService.socket?.off('vk_vote_progress');
     _socketService.socket?.off('vk_round_ended');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_game_over');
     _socketService.socket?.off('vk_phase_changed');
     _socketService.socket?.off('vk_navigate_to_voting');
+    _socketService.socket?.off('night_results');
+    _socketService.socket?.off('night_action_error');
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -92,17 +96,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
 
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
+    _socketService.socket?.on('vk_game_started', updatePlayersFromData);
 
     _socketService.socket?.on('vk_vote_progress', (data) {
       if (!mounted) return;
       final int voted = data['votedCount'] ?? 0;
       final int total = data['totalAlive'] ?? 0;
       setState(() {
-        _logs.add('System: Oylama devam ediyor... ($voted / $total oy kullanıldı)');
+        _logs.add(
+          'System: Oylama devam ediyor... ($voted / $total oy kullanıldı)',
+        );
       });
     });
 
-    // 🎯 OYLAMA BİTTİĞİNDE OTOMATİK GÜNDÜZE DÖNER (GECEYE GEÇ BUTONU ÇIKAR)
     void handleRoundEnded(dynamic data) {
       if (!mounted) return;
       final String? eliminated = data['eliminatedPlayer'];
@@ -113,18 +119,22 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       setState(() {
         if (serverPlayers.isNotEmpty) {
           _players = _parseServerPlayers(serverPlayers);
-          _positionsCalculated = false; // Elenen oyuncuyu haritadan siler
+          _positionsCalculated = false;
         }
 
-        _phase = GamePhase.dayDiscussion; 
-        _isAfterNight = false; // 🎯 Oylama sonrası gündüz -> Sırada gece var!
+        _phase = GamePhase.dayDiscussion;
+        _isAfterNight = false;
         _hasVotedInCurrentRound = false;
         _selectedVoteTargetId = null;
 
         if (isTie || eliminated == null) {
-          _logs.add('⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Gün doğdu! ☀️');
+          _logs.add(
+            '⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Gün doğdu! ☀️',
+          );
         } else {
-          _logs.add('🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Gün doğdu! ☀️');
+          _logs.add(
+            '🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Gün doğdu! ☀️',
+          );
         }
       });
     }
@@ -147,34 +157,59 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         if (nextPhase == 'night') {
           _phase = GamePhase.night;
           _hasVotedInCurrentRound = false;
+          _hasActedAtNight = false;
           _logs.add('System: Tur $_round - Gece çöktü... 🌙');
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _checkAndShowNightDialog();
+          });
         } else if (nextPhase == 'day') {
           _round++;
           _phase = GamePhase.dayDiscussion;
-          _isAfterNight = true; // 🎯 Gece sonrası gündüz -> Sırada oylama var!
+          _isAfterNight = true;
           _logs.add('System: Tur $_round - Gün doğdu! ☀️');
         } else if (nextPhase == 'voting') {
           _phase = GamePhase.voting;
-          _logs.add('System: Tur $_round - Oylama başladı. Oyunuzu kullanın! 🗳️');
+          _logs.add(
+            'System: Tur $_round - Oylama başladı. Oyunuzu kullanın! 🗳️',
+          );
         }
       });
     });
 
+    _socketService.socket?.on('night_results', (data) {
+      if (!mounted) return;
+      final List deadPlayers = data['deadPlayers'] ?? [];
+      final String msg = data['message'] ?? 'Gece sona erdi.';
+
+      setState(() {
+        _logs.add('System: $msg');
+        for (var p in _players) {
+          if (deadPlayers.contains(p.name)) {
+            p.isAlive = false;
+          }
+        }
+      });
+    });
+
+    _socketService.socket?.on('night_action_error', (data) {
+      if (!mounted) return;
+      final String message = data['message'] ?? 'Anlaşmazlık çıktı!';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade800,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      setState(() {
+        _hasActedAtNight = false;
+      });
+      _checkAndShowNightDialog();
+    });
+
     _socketService.socket?.on('vk_navigate_to_voting', (_) {
       if (!mounted) return;
-
-      final myPlayer = _players.firstWhere(
-        (p) => p.name.contains(widget.playerName),
-        orElse: () => _players.isNotEmpty
-            ? _players[0]
-            : PlayerModel(
-                id: 'me',
-                name: widget.playerName,
-                avatarColor: Colors.blue,
-                gender: widget.gender,
-                role: 'Köylü',
-              ),
-      );
 
       Navigator.push(
         context,
@@ -183,7 +218,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             roomCode: widget.roomCode,
             myName: widget.playerName,
             players: _players,
-            amIVampire: myPlayer.isVampire,
+            amIVampire: _getMyPlayer().isVampire,
           ),
         ),
       );
@@ -194,30 +229,103 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     });
   }
 
+  PlayerModel _getMyPlayer() {
+    return _players.firstWhere(
+      (p) => p.name.trim() == widget.playerName.trim(),
+      orElse: () => _players.isNotEmpty
+          ? _players[0]
+          : PlayerModel(
+              id: 'me',
+              name: widget.playerName,
+              avatarColor: Colors.blue,
+              gender: widget.gender,
+              role: 'Köylü 🧑‍🌾',
+            ),
+    );
+  }
+
+  void _checkAndShowNightDialog() {
+    final myPlayer = _getMyPlayer();
+    if (myPlayer.isAlive && !_hasActedAtNight && _phase == GamePhase.night) {
+      _showNightActionModal(myPlayer);
+    }
+  }
+
+  void _showNightActionModal(PlayerModel myPlayer) {
+    final aliveTargets = _players
+        .where((p) => p.isAlive)
+        .map((p) => {'id': p.name, 'name': p.name})
+        .toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return NightActionDialog(
+          myRole: myPlayer.role,
+          alivePlayers: aliveTargets,
+          onActionSubmitted: (target) {
+            setState(() {
+              _hasActedAtNight = true;
+            });
+
+            _socketService.socket?.emit('submit_night_action', {
+              'roomCode': widget.roomCode,
+              'playerName': widget.playerName,
+              'role': myPlayer.role,
+              'target': target,
+            });
+
+            Navigator.pop(context);
+          },
+        );
+      },
+    );
+  }
+
   List<PlayerModel> _parseServerPlayers(List serverPlayers) {
     final colors = [
-      const Color(0xFF00D2FF), const Color(0xFFE74C3C), const Color(0xFF9B59B6),
-      const Color(0xFF3498DB), const Color(0xFF2ECC71), const Color(0xFFF39C12),
-      const Color(0xFF1ABC9C), const Color(0xFFEC407A), const Color(0xFFE67E22),
+      const Color(0xFF00D2FF),
+      const Color(0xFFE74C3C),
+      const Color(0xFF9B59B6),
+      const Color(0xFF3498DB),
+      const Color(0xFF2ECC71),
+      const Color(0xFFF39C12),
+      const Color(0xFF1ABC9C),
+      const Color(0xFFEC407A),
+      const Color(0xFFE67E22),
     ];
 
     List<PlayerModel> list = [];
     for (int i = 0; i < serverPlayers.length; i++) {
       final p = serverPlayers[i];
-      final String name = p['name'] ?? 'Oyuncu ${i + 1}';
-      final bool isVampire = p['isVampire'] ?? false;
-      final String roleStr = p['role'] ?? (isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾');
-      final Gender gender = p['gender'] == 'female' ? Gender.female : Gender.male;
+      final String name =
+          (p is Map ? p['name'] : p.toString()) ?? 'Oyuncu ${i + 1}';
+
+      final String rawRole =
+          (p is Map ? (p['role'] ?? p['roleName'] ?? '') : '').toString();
+      final bool isVampire =
+          (p is Map && p['isVampire'] == true) ||
+          rawRole.toLowerCase().contains('vampir');
+
+      String roleStr = rawRole;
+      if (roleStr.isEmpty) {
+        roleStr = isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾';
+      }
+
+      final Gender gender = (p is Map && p['gender'] == 'female')
+          ? Gender.female
+          : Gender.male;
 
       list.add(
         PlayerModel(
-          id: 'p_$i',
+          id: (p is Map ? p['id']?.toString() : null) ?? 'p_$i',
           name: name,
           avatarColor: colors[i % colors.length],
           gender: gender,
           role: roleStr,
           isVampire: isVampire,
-          isAlive: p['isAlive'] ?? true,
+          isAlive: (p is Map && p['isAlive'] != null) ? p['isAlive'] : true,
         ),
       );
     }
@@ -236,7 +344,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _socketService.clearAllListeners();
-    _socketService.socket?.off('vk_navigate_to_voting');
     _transformationController.dispose();
     super.dispose();
   }
@@ -274,7 +381,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         y = minY + rand.nextDouble() * (maxY - minY);
 
         final distanceToCenter = sqrt(pow(x - cx, 2) + pow(y - cy, 2));
-        if (distanceToCenter < (squareRadius + max(currentW, currentH) / 2 + 20)) {
+        if (distanceToCenter <
+            (squareRadius + max(currentW, currentH) / 2 + 20)) {
           continue;
         }
 
@@ -286,9 +394,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           final double otherW = other.isAlive ? 180.0 : 110.0;
           final double otherH = other.isAlive ? 150.0 : 90.0;
 
-          final bool xOverlap = (x - currentW / 2 < other.posX! + otherW / 2 + 15) &&
+          final bool xOverlap =
+              (x - currentW / 2 < other.posX! + otherW / 2 + 15) &&
               (x + currentW / 2 > other.posX! - otherW / 2 - 15);
-          final bool yOverlap = (y - currentH / 2 < other.posY! + otherH / 2 + 15) &&
+          final bool yOverlap =
+              (y - currentH / 2 < other.posY! + otherH / 2 + 15) &&
               (y + currentH / 2 > other.posY! - otherH / 2 - 15);
 
           if (xOverlap && yOverlap) {
@@ -309,27 +419,33 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   void _startNight() {
     if (!widget.isHost) return;
-    _socketService.socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'night'});
+    _socketService.socket?.emit('vk_change_phase', {
+      'roomCode': widget.roomCode,
+      'nextPhase': 'night',
+    });
   }
 
   void _startDay() {
     if (!widget.isHost) return;
-    _socketService.socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'day'});
+    _socketService.socket?.emit('vk_change_phase', {
+      'roomCode': widget.roomCode,
+      'nextPhase': 'day',
+    });
   }
 
   void _startVoting() {
     if (!widget.isHost) return;
-    _socketService.socket?.emit('vk_change_phase', {'roomCode': widget.roomCode, 'nextPhase': 'voting'});
+    _socketService.socket?.emit('vk_change_phase', {
+      'roomCode': widget.roomCode,
+      'nextPhase': 'voting',
+    });
   }
 
   void _submitVote() {
     if (_selectedVoteTargetId == null || _hasVotedInCurrentRound) return;
     final target = _players.firstWhere((p) => p.id == _selectedVoteTargetId);
 
-    final myPlayerName = _players.firstWhere(
-      (p) => p.name.contains(widget.playerName),
-      orElse: () => _players.isNotEmpty ? _players[0] : PlayerModel(id: 'me', name: widget.playerName, avatarColor: Colors.blue, gender: widget.gender, role: 'Köylü'),
-    ).name;
+    final myPlayerName = _getMyPlayer().name;
 
     _socketService.socket?.emit('vk_submit_vote', {
       'roomCode': widget.roomCode,
@@ -340,7 +456,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     setState(() {
       _hasVotedInCurrentRound = true;
-      _logs.add('System: Oyunuzu ${target.name} kişisine verdiniz. Diğerlerinin oyları bekleniyor...');
+      _logs.add(
+        'System: Oyunuzu ${target.name} kişisine verdiniz. Diğerlerinin oyları bekleniyor...',
+      );
       _selectedVoteTargetId = null;
     });
   }
@@ -357,7 +475,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
             side: BorderSide(
-              color: isVillagerWin ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
+              color: isVillagerWin
+                  ? const Color(0xFF2ECC71)
+                  : const Color(0xFFE74C3C),
               width: 2,
             ),
           ),
@@ -365,7 +485,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             isVillagerWin ? '🎉 KÖYLÜLER KAZANDI!' : '🧛 VAMPİRLER KAZANDI!',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isVillagerWin ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
+              color: isVillagerWin
+                  ? const Color(0xFF2ECC71)
+                  : const Color(0xFFE74C3C),
               fontWeight: FontWeight.bold,
               fontSize: 22,
             ),
@@ -373,7 +495,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('$lastEliminated elendi ve kader tayin edildi!', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              Text(
+                '$lastEliminated elendi ve kader tayin edildi!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
               const SizedBox(height: 16),
               Text(
                 isVillagerWin
@@ -386,7 +512,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
           actions: [
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00D2FF)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00D2FF),
+              ),
               onPressed: () {
                 Navigator.of(ctx).pop();
 
@@ -404,7 +532,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   (route) => route.isFirst,
                 );
               },
-              child: const Text('LOBİYE DÖN', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'LOBİYE DÖN',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         );
@@ -418,16 +552,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _calculatePlayerPositions();
 
-    final PlayerModel myPlayer = _players.firstWhere(
-      (p) => p.name.contains(widget.playerName),
-      orElse: () => _players.isNotEmpty ? _players[0] : PlayerModel(
-        id: 'fallback',
-        name: widget.playerName,
-        avatarColor: Colors.cyan,
-        gender: widget.gender,
-        role: 'Köylü',
-      ),
-    );
+    final PlayerModel myPlayer = _getMyPlayer();
 
     return Scaffold(
       backgroundColor: const Color(0xFF13132B),
@@ -447,15 +572,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               screenSize: size,
               round: _round,
               phase: _phase,
-              isAfterNight: _isAfterNight, // 🎯 Pas ediliyor
+              isAfterNight: _isAfterNight,
               logs: _logs,
               players: _players,
               selectedVoteTargetId: _selectedVoteTargetId,
               myPlayer: myPlayer,
               hasVotedInCurrentRound: _hasVotedInCurrentRound,
-              onShowRoleCard: () => GameDialogs.showMyRoleCard(context, myPlayer),
-              onShowDebugDialog: () => GameDialogs.showRoleDistributionDebug(context, _players),
-              onSelectPlayer: (id) => setState(() => _selectedVoteTargetId = id),
+              onShowRoleCard: () =>
+                  GameDialogs.showMyRoleCard(context, myPlayer),
+              onShowDebugDialog: () =>
+                  GameDialogs.showRoleDistributionDebug(context, _players),
+              onSelectPlayer: (id) =>
+                  setState(() => _selectedVoteTargetId = id),
               onStartNight: _startNight,
               onStartDay: _startDay,
               onStartVoting: _startVoting,
@@ -469,7 +597,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 children: [
                   CircularProgressIndicator(color: Color(0xFF00D2FF)),
                   SizedBox(height: 16),
-                  Text('Köy yükleniyor...', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  Text(
+                    'Köy yükleniyor...',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
                 ],
               ),
             ),

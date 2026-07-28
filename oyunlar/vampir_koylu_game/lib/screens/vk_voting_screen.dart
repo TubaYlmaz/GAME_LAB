@@ -32,7 +32,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
 
   bool isVotingClosed = false;
   bool hasLockedVote = false;
-  bool isDialogShown = false; // 🎯 Çift dialog açılmasını engelleyen kilit!
+  bool isDialogShown = false;
   int votedCount = 0;
 
   Map<String, int> playerVotes = {};
@@ -52,7 +52,6 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   }
 
   void setupSocketListeners() {
-    // 🎯 Eski dinleyicileri temizle (Üst üste binmesin)
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_round_ended');
@@ -67,7 +66,9 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
         if (data['currentVotes'] != null) {
           playerVotes.updateAll((key, value) => 0);
 
-          Map<String, dynamic> rawVotes = Map<String, dynamic>.from(data['currentVotes']);
+          Map<String, dynamic> rawVotes = Map<String, dynamic>.from(
+            data['currentVotes'],
+          );
           rawVotes.forEach((voter, votedFor) {
             if (votedFor != 'skip' && playerVotes.containsKey(votedFor)) {
               playerVotes[votedFor] = (playerVotes[votedFor] ?? 0) + 1;
@@ -78,8 +79,8 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     });
 
     void handleResults(dynamic data) {
-      if (!mounted || isDialogShown) return; // 🎯 Zaten dialog açıldıysa tekrar çalıştırma!
-      
+      if (!mounted || isDialogShown) return;
+
       _timer?.cancel();
       setState(() {
         isVotingClosed = true;
@@ -93,7 +94,6 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       showRoundResultsDialog(eliminated, isTie, isVampire);
     }
 
-    // 🎯 Sadece tek bir ana sonuç dinleyicisi bağlıyoruz
     _socketService.socket?.on('vk_voting_results', handleResults);
     _socketService.socket?.on('vk_round_ended', handleResults);
 
@@ -118,7 +118,9 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
 
     final bool amIAlive = _isMyPlayerAlive();
 
-    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (
+      timer,
+    ) {
       if (!mounted) return;
       setState(() {
         if (progress < 1.0) {
@@ -135,10 +137,20 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   }
 
   bool _isMyPlayerAlive() {
-    return widget.players.firstWhere(
-      (p) => p.name.contains(widget.myName),
-      orElse: () => widget.players.isNotEmpty ? widget.players[0] : PlayerModel(id: 'me', name: widget.myName, avatarColor: Colors.blue, gender: Gender.female, role: 'Köylü'),
-    ).isAlive;
+    return widget.players
+        .firstWhere(
+          (p) => p.name.contains(widget.myName),
+          orElse: () => widget.players.isNotEmpty
+              ? widget.players[0]
+              : PlayerModel(
+                  id: 'me',
+                  name: widget.myName,
+                  avatarColor: Colors.blue,
+                  gender: Gender.female,
+                  role: 'Köylü',
+                ),
+        )
+        .isAlive;
   }
 
   void submitVote(String targetPlayer, {required bool lockIt}) {
@@ -161,7 +173,11 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     });
   }
 
-void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire) {
+  void showRoundResultsDialog(
+    String? eliminatedPlayer,
+    bool isTie,
+    bool isVampire,
+  ) {
     String title = "";
     String subtitle = "";
 
@@ -170,17 +186,15 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
       subtitle = "Oylamada eşitlik çıktı, bu tur kimse elenmedi!";
     } else {
       title = "OYLAMA BİTTİ! 🗳️";
-      subtitle = "$eliminatedPlayer köy kararıyla elendi. Rolü: ${isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾'}";
+      subtitle =
+          "$eliminatedPlayer köy kararıyla elendi. Rolü: ${isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾'}";
     }
 
-    // 🎯 3 Saniye sonra sadece Dialog ve Oylama Ekranını kapatır, HARİTADA kalırsınız!
     Timer(const Duration(milliseconds: 3000), () {
       if (mounted) {
-        // 1. Önce üstteki Dialog'u güvenle kapat
         if (Navigator.of(context, rootNavigator: true).canPop()) {
           Navigator.of(context, rootNavigator: true).pop();
         }
-        // 2. Hemen ardından Oylama Ekranından (VKVotingScreen) çık -> Arka plandaki GameScreen (Harita) görünür!
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
         }
@@ -193,23 +207,43 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
       builder: (BuildContext dialogContext) {
         return Dialog(
           backgroundColor: const Color(0xFF151528),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isTie ? Icons.balance : (isVampire ? Icons.bloodtype : Icons.person_off),
+                  isTie
+                      ? Icons.balance
+                      : (isVampire ? Icons.bloodtype : Icons.person_off),
                   size: 70,
-                  color: isTie ? Colors.amber : (isVampire ? Colors.redAccent : Colors.lightBlueAccent),
+                  color: isTie
+                      ? Colors.amber
+                      : (isVampire ? Colors.redAccent : Colors.lightBlueAccent),
                 ),
                 const SizedBox(height: 20),
-                Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
                 const SizedBox(height: 15),
-                Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: Colors.white70)),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 15, color: Colors.white70),
+                ),
                 const SizedBox(height: 20),
-                const Text("3 saniye sonra otomatik haritaya dönülüyor...", style: TextStyle(color: Colors.white38, fontSize: 12)),
+                const Text(
+                  "3 saniye sonra otomatik haritaya dönülüyor...",
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -229,7 +263,12 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
           backgroundColor: const Color(0xFF0D0D2A),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: isVillagerWin ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C), width: 2),
+            side: BorderSide(
+              color: isVillagerWin
+                  ? const Color(0xFF2ECC71)
+                  : const Color(0xFFE74C3C),
+              width: 2,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -237,16 +276,24 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  isVillagerWin ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded,
+                  isVillagerWin
+                      ? Icons.wb_sunny_rounded
+                      : Icons.nights_stay_rounded,
                   size: 80,
-                  color: isVillagerWin ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
+                  color: isVillagerWin
+                      ? const Color(0xFF2ECC71)
+                      : const Color(0xFFE74C3C),
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  isVillagerWin ? '🎉 KÖYLÜLER KAZANDI!' : '🧛 VAMPİRLER KAZANDI!',
+                  isVillagerWin
+                      ? '🎉 KÖYLÜLER KAZANDI!'
+                      : '🧛 VAMPİRLER KAZANDI!',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: isVillagerWin ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
+                    color: isVillagerWin
+                        ? const Color(0xFF2ECC71)
+                        : const Color(0xFFE74C3C),
                     fontWeight: FontWeight.bold,
                     fontSize: 22,
                   ),
@@ -264,11 +311,13 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00D2FF),
                     minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   onPressed: () {
                     Navigator.of(dialogContext).pop();
-                    
+
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
@@ -283,7 +332,13 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
                       (route) => route.isFirst,
                     );
                   },
-                  child: const Text('LOBİYE DÖN 🏠', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  child: const Text(
+                    'LOBİYE DÖN 🏠',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -312,10 +367,20 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
       backgroundColor: const Color(0xFF0B0B1A),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("KÖY OYLAMASI 🗳️", style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2.0, color: Colors.white)),
+        title: const Text(
+          "KÖY OYLAMASI 🗳️",
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2.0,
+            color: Colors.white,
+          ),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -326,12 +391,18 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
             width: double.infinity,
             height: 4,
             margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
-            decoration: BoxDecoration(color: const Color(0xFF2E2E5C), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2E2E5C),
+              borderRadius: BorderRadius.circular(10),
+            ),
             alignment: Alignment.centerLeft,
             child: FractionallySizedBox(
               widthFactor: progress,
               child: Container(
-                decoration: BoxDecoration(color: isVotingClosed ? Colors.grey : Colors.redAccent, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(
+                  color: isVotingClosed ? Colors.grey : Colors.redAccent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ),
@@ -339,7 +410,11 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
             padding: const EdgeInsets.only(bottom: 15.0),
             child: Text(
               "Onaylanan Kilitli Oylar: $votedCount / ${alivePlayers.length}",
-              style: const TextStyle(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           Expanded(
@@ -353,35 +428,65 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
                 final currentVotes = playerVotes[player.name] ?? 0;
 
                 return GestureDetector(
-                  onTap: (!amIAlive || hasLockedVote || isVotingClosed) ? null : () {
-                    setState(() { selectedPlayer = player.name; });
-                    submitVote(player.name, lockIt: false);
-                  },
+                  onTap: (!amIAlive || hasLockedVote || isVotingClosed)
+                      ? null
+                      : () {
+                          setState(() {
+                            selectedPlayer = player.name;
+                          });
+                          submitVote(player.name, lockIt: false);
+                        },
                   child: AnimatedScale(
                     scale: isSelected ? 1.03 : 1.0,
                     duration: const Duration(milliseconds: 200),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 20,
+                      ),
                       decoration: BoxDecoration(
                         gradient: isSelected
-                            ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)])
-                            : const LinearGradient(colors: [Color(0xFF1E1E38), Color(0xFF151528)]),
+                            ? const LinearGradient(
+                                colors: [Color(0xFFE53935), Color(0xFFB71C1C)],
+                              )
+                            : const LinearGradient(
+                                colors: [Color(0xFF1E1E38), Color(0xFF151528)],
+                              ),
                         borderRadius: BorderRadius.circular(16),
-                        border: hasLockedVote && isSelected ? Border.all(color: Colors.greenAccent, width: 2) : null,
+                        border: hasLockedVote && isSelected
+                            ? Border.all(color: Colors.greenAccent, width: 2)
+                            : null,
                       ),
                       child: Row(
                         children: [
-                          Icon(hasLockedVote && isSelected ? Icons.lock_outline_rounded : Icons.person_rounded, color: isSelected ? Colors.white : Colors.white54),
+                          Icon(
+                            hasLockedVote && isSelected
+                                ? Icons.lock_outline_rounded
+                                : Icons.person_rounded,
+                            color: isSelected ? Colors.white : Colors.white54,
+                          ),
                           const SizedBox(width: 15),
                           Text(
-                            currentVotes > 0 ? "${player.name} ($currentVotes Oy)" : player.name,
-                            style: const TextStyle(fontSize: 17, color: Colors.white, fontWeight: FontWeight.bold),
+                            currentVotes > 0
+                                ? "${player.name} ($currentVotes Oy)"
+                                : player.name,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           if (player.name.contains(widget.myName)) ...[
                             const Spacer(),
-                            const Text("(SEN)", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                            const Text(
+                              "(SEN)",
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ],
                       ),
@@ -394,9 +499,11 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: GestureDetector(
-              onTap: (!amIAlive || hasLockedVote || isVotingClosed) ? null : () {
-                submitVote(selectedPlayer ?? 'skip', lockIt: true);
-              },
+              onTap: (!amIAlive || hasLockedVote || isVotingClosed)
+                  ? null
+                  : () {
+                      submitVote(selectedPlayer ?? 'skip', lockIt: true);
+                    },
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 18),
@@ -404,16 +511,26 @@ void showRoundResultsDialog(String? eliminatedPlayer, bool isTie, bool isVampire
                   color: !amIAlive
                       ? const Color(0xFF2E2E5C).withOpacity(0.3)
                       : (hasLockedVote
-                          ? const Color(0xFF2E2E5C).withOpacity(0.5)
-                          : (selectedPlayer == null ? const Color(0xFF2E2E5C) : const Color(0xFF4CAF50))),
+                            ? const Color(0xFF2E2E5C).withOpacity(0.5)
+                            : (selectedPlayer == null
+                                  ? const Color(0xFF2E2E5C)
+                                  : const Color(0xFF4CAF50))),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Center(
                   child: Text(
                     !amIAlive
                         ? "ÖLDÜNÜZ (İZLEYİCİ MODU) 👻"
-                        : (hasLockedVote ? "OYUN KİLİTLENDİ 🔒" : (selectedPlayer == null ? "PAS GEÇ VE KİLİTLE 🔒" : "OYU KİLİTLE 🔒")),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                        : (hasLockedVote
+                              ? "OYUN KİLİTLENDİ 🔒"
+                              : (selectedPlayer == null
+                                    ? "PAS GEÇ VE KİLİTLE 🔒"
+                                    : "OYU KİLİTLE 🔒")),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),

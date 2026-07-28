@@ -37,6 +37,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final SocketService _socketService = SocketService();
   bool _isGameStarting = false;
 
+  String _myAssignedRole = "Vampir 🧛";
+  String _myRoleDescription =
+      "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!";
+  Color _myRoleColor = const Color(0xFFE74C3C);
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +52,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.currentRoomCode = widget.roomCode;
     _socketService.connect();
 
-    // Dinleyicileri temizleyip tekil socket aboneliği açıyoruz
     _socketService.socket?.off('vk_players_updated');
     _socketService.socket?.off('vk_game_started');
 
@@ -59,8 +63,30 @@ class _LobbyScreenState extends State<LobbyScreen> {
       }
     });
 
-    _socketService.socket?.on('vk_game_started', (_) {
+    _socketService.socket?.on('vk_game_started', (data) {
       if (mounted) {
+        if (data != null && data['players'] != null) {
+          final List serverPlayers = data['players'];
+          final myData = serverPlayers.firstWhere(
+            (p) => p['name'] == widget.playerName,
+            orElse: () => null,
+          );
+
+          if (myData != null) {
+            final bool isVamp = myData['isVampire'] ?? false;
+            setState(() {
+              _myAssignedRole =
+                  myData['role'] ?? (isVamp ? 'Vampir 🧛' : 'Köylü 🧑‍🌾');
+              _myRoleColor = isVamp
+                  ? const Color(0xFFE74C3C)
+                  : const Color(0xFF2ECC71);
+              _myRoleDescription = isVamp
+                  ? "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!"
+                  : "Köyünü koru, şüphelileri fark et ve gündüz oylamasında doğru kararı ver!";
+            });
+          }
+        }
+
         setState(() {
           _isGameStarting = true;
         });
@@ -74,7 +100,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
         'gender': widget.gender.name,
       });
     } else {
-      // Host odayı kurduktan sonra güncel listeyi ceker
       _socketService.socket?.emit('vk_get_players', {
         'roomCode': widget.roomCode,
       });
@@ -114,7 +139,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _startGame() {
     if (widget.isHost) {
-      _socketService.socket?.emit('vk_start_game', {'roomCode': widget.roomCode});
+      _socketService.socket?.emit('vk_start_game', {
+        'roomCode': widget.roomCode,
+      });
     } else {
       setState(() {
         _isGameStarting = true;
@@ -143,11 +170,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new,
+                            color: Colors.white,
+                          ),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
@@ -155,12 +188,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   ),
                   Expanded(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       child: Column(
                         children: [
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 24,
+                              horizontal: 16,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1A1A3E).withOpacity(0.9),
                               borderRadius: BorderRadius.circular(20),
@@ -198,18 +237,35 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             children: [
                               const Text(
                                 'Katılan Oyuncular',
-                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00D2FF).withOpacity(0.15),
+                                  color: const Color(
+                                    0xFF00D2FF,
+                                  ).withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.5)),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF00D2FF,
+                                    ).withOpacity(0.5),
+                                  ),
                                 ),
                                 child: Text(
                                   '${_players.length} Oyuncu',
-                                  style: const TextStyle(color: Color(0xFF00D2FF), fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    color: Color(0xFF00D2FF),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
@@ -221,19 +277,33 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             itemCount: _players.length,
                             itemBuilder: (context, index) {
                               final player = _players[index];
-                              final bool isHost = player['isHost'] ?? false;
+                              final bool isHostPlayer =
+                                  player['isHost'] ?? false;
                               final Gender pGender = player['gender'] is Gender
                                   ? player['gender']
-                                  : (player['gender'] == 'female' ? Gender.female : Gender.male);
-                              final String avatarPath = _getAvatarAsset(pGender);
+                                  : (player['gender'] == 'female'
+                                        ? Gender.female
+                                        : Gender.male);
+                              final String avatarPath = _getAvatarAsset(
+                                pGender,
+                              );
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1A1A3E).withOpacity(0.85),
+                                  color: const Color(
+                                    0xFF1A1A3E,
+                                  ).withOpacity(0.85),
                                   borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: const Color(0xFF00D2FF).withOpacity(0.2)),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF00D2FF,
+                                    ).withOpacity(0.2),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
@@ -242,29 +312,60 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                       height: 38,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: const Color(0xFF00D2FF), width: 1.5),
-                                        image: DecorationImage(image: AssetImage(avatarPath), fit: BoxFit.cover),
+                                        border: Border.all(
+                                          color: const Color(0xFF00D2FF),
+                                          width: 1.5,
+                                        ),
+                                        image: DecorationImage(
+                                          image: AssetImage(avatarPath),
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
                                     Text(
                                       player['name'] ?? 'Oyuncu',
-                                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
-                                    if (isHost) ...[
+                                    if (isHostPlayer) ...[
                                       const SizedBox(width: 8),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF00D2FF).withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(color: const Color(0xFF00D2FF), width: 0.8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
                                         ),
-                                        child: const Text('MUHTAR', style: TextStyle(color: Color(0xFF00D2FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF00D2FF,
+                                          ).withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFF00D2FF),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'MUHTAR',
+                                          style: TextStyle(
+                                            color: Color(0xFF00D2FF),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ],
                                     const Spacer(),
-                                    const Icon(Icons.check_circle, color: Color(0xFF00D2FF), size: 20),
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: Color(0xFF00D2FF),
+                                      size: 20,
+                                    ),
                                   ],
                                 ),
                               );
@@ -277,7 +378,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: _NeonButton(
-                      label: widget.isHost ? 'OYUNU BAŞLAT' : 'MUHTAR BEKLENİYOR...',
+                      label: widget.isHost
+                          ? 'OYUNU BAŞLAT'
+                          : 'MUHTAR BEKLENİYOR...',
                       icon: Icons.play_arrow_rounded,
                       color: const Color(0xFF00D2FF),
                       enabled: widget.isHost,
@@ -292,9 +395,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
           if (_isGameStarting)
             Center(
               child: RoleRevealCard(
-                roleName: "Vampir 🧛",
-                roleDescription: "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!",
-                roleColor: const Color(0xFFE74C3C),
+                roleName: _myAssignedRole,
+                roleDescription: _myRoleDescription,
+                roleColor: _myRoleColor,
                 onDismiss: _navigateToGameScreen,
               ),
             ),
@@ -325,6 +428,7 @@ class _StarPainter extends CustomPainter {
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
+
   @override
   bool shouldRepaint(_) => false;
 }
@@ -367,7 +471,14 @@ class _NeonButton extends StatelessWidget {
               children: [
                 Icon(icon, color: effectiveColor, size: large ? 20 : 16),
                 const SizedBox(width: 8),
-                Text(label, style: TextStyle(color: effectiveColor, fontSize: large ? 15 : 13, fontWeight: FontWeight.bold)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: effectiveColor,
+                    fontSize: large ? 15 : 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
