@@ -45,6 +45,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _hasVotedInCurrentRound = false;
   bool _hasActedAtNight = false;
 
+  bool _isNightDialogShowing = false;
+
   late List<String> _logs;
   List<PlayerModel> _players = [];
   bool _positionsCalculated = false;
@@ -58,14 +60,51 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     super.initState();
     _logs = [
       'System: Köy kuruldu (${widget.roomCode}).',
-      'System: Herkes köye hoş geldi! Gece çökmeden önce tanışın.',
+      'System: Oyun başladı, gündüz tartışması aktif.',
     ];
 
     _initSocket();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _centerCameraOnMap();
+
+      // Oyun ekranı açılır açılmaz oyuncunun rol kartını gösterelim
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          _showRoleCardModal();
+        }
+      });
     });
+  }
+
+  void _showRoleCardModal() {
+    final myPlayer = _getMyPlayer();
+
+    // Eğer vampirse takım arkadaşlarını bulalım
+    List<String> teamMates = [];
+    if (myPlayer.isVampire) {
+      teamMates = _players
+          .where(
+            (p) => p.isVampire && p.name.trim() != widget.playerName.trim(),
+          )
+          .map((p) => p.name)
+          .toList();
+    }
+
+    GameDialogs.showMyRoleCard(
+      context,
+      myPlayer,
+      roomCode: widget.roomCode,
+      socketService: _socketService,
+      teamMates: teamMates,
+    );
+  }
+
+  void _closeNightDialogIfOpen() {
+    if (_isNightDialogShowing && mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      _isNightDialogShowing = false;
+    }
   }
 
   void _initSocket() {
@@ -82,6 +121,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.off('vk_navigate_to_voting');
     _socketService.socket?.off('night_results');
     _socketService.socket?.off('night_action_error');
+    _socketService.socket?.off('vk_show_role_card');
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -98,6 +138,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
     _socketService.socket?.on('vk_game_started', updatePlayersFromData);
 
+    _socketService.socket?.on('vk_show_role_card', (_) {
+      if (!mounted) return;
+      _showRoleCardModal();
+    });
+
     _socketService.socket?.on('vk_vote_progress', (data) {
       if (!mounted) return;
       final int voted = data['votedCount'] ?? 0;
@@ -111,6 +156,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     void handleRoundEnded(dynamic data) {
       if (!mounted) return;
+      _closeNightDialogIfOpen();
       final String? eliminated = data['eliminatedPlayer'];
       final bool isTie = data['isTie'] ?? false;
       final bool isVampire = data['isVampire'] ?? false;
@@ -144,6 +190,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _socketService.socket?.on('vk_game_over', (data) {
       if (!mounted) return;
+      _closeNightDialogIfOpen();
       final String winner = data['winner'] ?? 'KÖYLÜLER';
       final String lastEliminated = data['eliminatedPlayer'] ?? 'Biri';
 
@@ -153,6 +200,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.on('vk_phase_changed', (data) {
       if (!mounted) return;
       final String nextPhase = data['phase'];
+
+      if (nextPhase != 'night') {
+        _closeNightDialogIfOpen();
+      }
+
       setState(() {
         if (nextPhase == 'night') {
           _phase = GamePhase.night;
@@ -179,6 +231,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _socketService.socket?.on('night_results', (data) {
       if (!mounted) return;
+      _closeNightDialogIfOpen();
+
       final List deadPlayers = data['deadPlayers'] ?? [];
       final String msg = data['message'] ?? 'Gece sona erdi.';
 
@@ -205,11 +259,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       setState(() {
         _hasActedAtNight = false;
       });
-      _checkAndShowNightDialog();
     });
 
     _socketService.socket?.on('vk_navigate_to_voting', (_) {
       if (!mounted) return;
+      _closeNightDialogIfOpen();
 
       Navigator.push(
         context,
@@ -246,12 +300,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   void _checkAndShowNightDialog() {
     final myPlayer = _getMyPlayer();
-    if (myPlayer.isAlive && !_hasActedAtNight && _phase == GamePhase.night) {
+    if (myPlayer.isAlive &&
+        !_hasActedAtNight &&
+        _phase == GamePhase.night &&
+        !_isNightDialogShowing) {
       _showNightActionModal(myPlayer);
     }
   }
 
   void _showNightActionModal(PlayerModel myPlayer) {
+    if (_isNightDialogShowing) return;
+    _isNightDialogShowing = true;
+
     final aliveTargets = _players
         .where((p) => p.isAlive)
         .map((p) => {'id': p.name, 'name': p.name})
@@ -260,6 +320,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     showDialog(
       context: context,
       barrierDismissible: false,
+      useRootNavigator: true,
       builder: (BuildContext context) {
         return NightActionDialog(
           myRole: myPlayer.role,
@@ -275,12 +336,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               'role': myPlayer.role,
               'target': target,
             });
-
-            Navigator.pop(context);
           },
         );
       },
-    );
+    ).then((_) {
+      _isNightDialogShowing = false;
+    });
   }
 
   List<PlayerModel> _parseServerPlayers(List serverPlayers) {
@@ -578,8 +639,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               selectedVoteTargetId: _selectedVoteTargetId,
               myPlayer: myPlayer,
               hasVotedInCurrentRound: _hasVotedInCurrentRound,
-              onShowRoleCard: () =>
-                  GameDialogs.showMyRoleCard(context, myPlayer),
+              onShowRoleCard: () => _showRoleCardModal(),
               onShowDebugDialog: () =>
                   GameDialogs.showRoleDistributionDebug(context, _players),
               onSelectPlayer: (id) =>

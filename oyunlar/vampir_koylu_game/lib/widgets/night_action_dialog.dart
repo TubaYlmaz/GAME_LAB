@@ -4,15 +4,20 @@ import 'package:flutter/material.dart';
 class NightActionDialog extends StatefulWidget {
   final String
   myRole; // 'Vampir 🧛', 'Doktor 🩺', 'Seri Katil 🔪', 'Köylü 🧑‍🌾'
-  final List<Map<String, dynamic>>
-  alivePlayers; // Yaşayan oyuncular [{id, name}]
+  final List<dynamic> alivePlayers; // Yaşayan oyuncular [{id, name}]
   final Function(String targetId) onActionSubmitted;
+  final Function(String targetId)? onVampireTargetSelected;
+  final Stream<String>? errorStream;
+  final Stream<Map<String, List<String>>>? vampireVotesStream;
 
   const NightActionDialog({
     Key? key,
     required this.myRole,
     required this.alivePlayers,
     required this.onActionSubmitted,
+    this.onVampireTargetSelected,
+    this.errorStream,
+    this.vampireVotesStream,
   }) : super(key: key);
 
   @override
@@ -31,9 +36,8 @@ class _NightActionDialogState extends State<NightActionDialog> {
 
   bool isSubmitted = false;
   String? errorMessage;
+  Map<String, List<String>> vampireVotesMap = {};
 
-  // --- DEĞİŞTİRİLEN KISIM BAŞLANGICI ---
-  // Rol tespit fonksiyonları daha güvenli ve kesin hale getirildi
   bool get isVampire {
     final r = widget.myRole.toLowerCase();
     return r.contains('vampir') || r.contains('vampire');
@@ -49,17 +53,34 @@ class _NightActionDialogState extends State<NightActionDialog> {
     return r.contains('seri') || r.contains('katil') || r.contains('killer');
   }
 
-  // Eğer oyuncu Vampir, Doktor veya Seri Katil değilse Köylüdür
   bool get isVillager {
     return !isVampire && !isDoctor && !isSerialKiller;
   }
-  // --- DEĞİŞTİRİLEN KISIM BİTİŞİ ---
 
   @override
   void initState() {
     super.initState();
     if (isVillager) {
       _generateMathQuestion();
+    }
+
+    widget.errorStream?.listen((errorMsg) {
+      if (mounted) {
+        setState(() {
+          isSubmitted = false;
+          errorMessage = errorMsg;
+        });
+      }
+    });
+
+    if (isVampire) {
+      widget.vampireVotesStream?.listen((votes) {
+        if (mounted) {
+          setState(() {
+            vampireVotesMap = votes;
+          });
+        }
+      });
     }
   }
 
@@ -117,81 +138,98 @@ class _NightActionDialogState extends State<NightActionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161528),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.redAccent.withOpacity(0.8),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.redAccent.withOpacity(0.2),
-              blurRadius: 15,
-              spreadRadius: 2,
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161528),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: Colors.redAccent.withOpacity(0.8),
+              width: 2,
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "GECE EYLEMİ",
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontSize: 14,
-                letterSpacing: 2,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildRoleHeader(),
-            const Divider(color: Colors.white24, height: 24),
-            _buildRoleActionBody(),
-            if (errorMessage != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                errorMessage!,
-                style: const TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.redAccent.withOpacity(0.2),
+                blurRadius: 15,
+                spreadRadius: 2,
               ),
             ],
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: isSubmitted ? null : _handleConfirm,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                disabledBackgroundColor: Colors.grey.shade800,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                minimumSize: const Size(double.infinity, 44),
-              ),
-              child: Text(
-                isSubmitted ? "SEÇİMİN ALINDI... ⏳" : "KARARIMI ONAYLA",
-                style: const TextStyle(
-                  color: Colors.white,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "GECE EYLEMİ",
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 14,
+                  letterSpacing: 2,
                   fontWeight: FontWeight.bold,
-                  fontSize: 15,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              _buildRoleHeader(),
+              const Divider(color: Colors.white24, height: 24),
+              _buildRoleActionBody(),
+              if (errorMessage != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  errorMessage!,
+                  style: const TextStyle(
+                    color: Colors.amberAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (isSubmitted) ...[
+                const SizedBox(height: 10),
+                const CircularProgressIndicator(color: Colors.redAccent),
+                const SizedBox(height: 12),
+                const Text(
+                  "Kararın alındı! Diğer oyuncuların eylemlerini tamamlaması bekleniyor...",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ] else ...[
+                ElevatedButton(
+                  onPressed: _handleConfirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    disabledBackgroundColor: Colors.grey.shade800,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                  child: const Text(
+                    "KARARIMI ONAYLA",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- DEĞİŞTİRİLEN KISIM BAŞLANGICI ---
   Widget _buildRoleHeader() {
     String title = "Köylü";
     String emoji = "🧑‍🌾";
@@ -200,18 +238,16 @@ class _NightActionDialogState extends State<NightActionDialog> {
     if (isVampire) {
       title = "Vampir";
       emoji = "🧛";
-      description =
-          "Bu gece avlayacağın kişiyi seç! (Tüm vampirler aynı kişiyi seçmelidir)";
+      description = "Bu gece avlayacağın kişiyi seç!";
     } else if (isDoctor) {
       title = "Doktor";
       emoji = "🩺";
       description =
-          "Bu gece kimi korumak istersin? (Vampir saldırısını engeller, Seri Katil engellenemez! Birden fazla doktorsanız aynı kişiyi seçmelisiniz)";
+          "Bu gece kimi korumak istersin? (Vampir saldırısını engeller)";
     } else if (isSerialKiller) {
       title = "Seri Katil";
       emoji = "🔪";
-      description =
-          "Bu gece kurbanını belirle! (Doktor koruması Seri Katil saldırısını engelleyemez!)";
+      description = "Bu gece kurbanını belirle!";
     }
 
     return Column(
@@ -233,10 +269,8 @@ class _NightActionDialogState extends State<NightActionDialog> {
       ],
     );
   }
-  // --- DEĞİŞTİRİLEN KISIM BİTİŞİ ---
 
   Widget _buildRoleActionBody() {
-    // Köylü Seçenekleri (Alt Alta Satır Satır Yapı)
     if (isVillager) {
       return Column(
         children: [
@@ -301,7 +335,6 @@ class _NightActionDialogState extends State<NightActionDialog> {
       );
     }
 
-    // Vampir / Doktor / Seri Katil Seçenekleri (Alt Alta İnce Liste)
     return SizedBox(
       height: 180,
       child: widget.alivePlayers.isEmpty
@@ -319,6 +352,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
                 final String pId = (player['id'] ?? player['name']).toString();
                 final String pName = (player['name'] ?? 'Oyuncu').toString();
                 final isSelected = selectedPlayerId == pId;
+                final vampireVoters = vampireVotesMap[pId] ?? [];
 
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 3),
@@ -348,6 +382,15 @@ class _NightActionDialogState extends State<NightActionDialog> {
                             : FontWeight.normal,
                       ),
                     ),
+                    subtitle: isVampire && vampireVoters.isNotEmpty
+                        ? Text(
+                            "Vampir oyları: ${vampireVoters.join(', ')}",
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 10,
+                            ),
+                          )
+                        : null,
                     trailing: isSelected
                         ? const Icon(
                             Icons.check_circle,
@@ -365,6 +408,10 @@ class _NightActionDialogState extends State<NightActionDialog> {
                           selectedPlayerId = pId;
                           errorMessage = null;
                         });
+                        if (isVampire &&
+                            widget.onVampireTargetSelected != null) {
+                          widget.onVampireTargetSelected!(pId);
+                        }
                       }
                     },
                   ),

@@ -5,14 +5,18 @@ class RoleRevealCard extends StatefulWidget {
   final String roleName;
   final String roleDescription;
   final Color roleColor;
+  final List<String> teamMates;
   final VoidCallback onDismiss;
+  final VoidCallback? onReadySubmitted;
 
   const RoleRevealCard({
     super.key,
     required this.roleName,
     required this.roleDescription,
     required this.roleColor,
+    this.teamMates = const [],
     required this.onDismiss,
+    this.onReadySubmitted,
   });
 
   @override
@@ -24,6 +28,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
   late AnimationController _controller;
   late Animation<double> _animation;
   bool _isFront = false;
+  bool _isReady = false;
 
   @override
   void initState() {
@@ -45,6 +50,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
   }
 
   void _toggleCard() {
+    if (_isReady) return; // Hazır olduktan sonra kartı çeviremez
     if (_isFront) {
       _controller.reverse();
     } else {
@@ -53,6 +59,19 @@ class _RoleRevealCardState extends State<RoleRevealCard>
     setState(() {
       _isFront = !_isFront;
     });
+  }
+
+  void _handleReady() {
+    if (_isReady) return;
+
+    setState(() {
+      _isReady = true; // Kartı yükleme durumuna geçir, ekrandan KALDIRMA!
+    });
+
+    // Sunucuya "ben hazırımı" bildiriyoruz
+    if (widget.onReadySubmitted != null) {
+      widget.onReadySubmitted!();
+    }
   }
 
   @override
@@ -71,7 +90,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
 
                 return Transform(
                   transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.001) // 3D Perspektif
+                    ..setEntry(3, 2, 0.001)
                     ..rotateY(angle),
                   alignment: Alignment.center,
                   child: isUnder90
@@ -87,43 +106,78 @@ class _RoleRevealCardState extends State<RoleRevealCard>
           ),
           const SizedBox(height: 24),
 
-          // Kart açıldığında beliren onay/hazır butonu
           AnimatedOpacity(
             opacity: _isFront ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 300),
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.roleColor,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 8,
-              ),
-              onPressed: _isFront ? widget.onDismiss : null,
-              icon: const Icon(Icons.visibility_off, color: Colors.black),
-              label: const Text(
-                'ROLÜMÜ GİZLE VE BAŞLA',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            child: _isReady
+                ? Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D0D2A),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: widget.roleColor.withOpacity(0.5),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            color: widget.roleColor,
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Rolünü onayladın!\nDiğer oyuncuların kartlarını açması bekleniyor...',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.roleColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 8,
+                    ),
+                    onPressed: _isFront ? _handleReady : null,
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.black,
+                    ),
+                    label: const Text(
+                      'ROLÜMÜ ANLADIM VE HAZIRIM',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  // KARTIN ARKA YÜZÜ (GİZLİ DURUM)
   Widget _buildCardBack() {
     return Container(
-      width: 250,
-      height: 360,
+      width: 260,
+      height: 380,
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A3E),
         borderRadius: BorderRadius.circular(20),
@@ -163,11 +217,10 @@ class _RoleRevealCardState extends State<RoleRevealCard>
     );
   }
 
-  // KARTIN ÖN YÜZÜ (ROL GÖSTERİMİ)
   Widget _buildCardFront() {
     return Container(
-      width: 250,
-      height: 360,
+      width: 260,
+      height: 380,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF0D0D2A),
@@ -203,9 +256,9 @@ class _RoleRevealCardState extends State<RoleRevealCard>
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Divider(color: widget.roleColor.withOpacity(0.3)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Text(
             widget.roleDescription,
             textAlign: TextAlign.center,
@@ -215,6 +268,44 @@ class _RoleRevealCardState extends State<RoleRevealCard>
               height: 1.3,
             ),
           ),
+          if (widget.teamMates.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'TÜM VAMPİRLER:',
+              style: TextStyle(
+                color: widget.roleColor,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: widget.teamMates.map((mate) {
+                return Chip(
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  labelPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: -2,
+                  ),
+                  backgroundColor: widget.roleColor.withOpacity(0.2),
+                  side: BorderSide(color: widget.roleColor.withOpacity(0.5)),
+                  label: Text(
+                    mate,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
