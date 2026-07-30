@@ -53,7 +53,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final TransformationController _transformationController =
       TransformationController();
 
-  @override
+@override
   void initState() {
     super.initState();
     _logs = [
@@ -62,6 +62,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     ];
 
     _initSocket();
+
+    // 🎯 İLK AÇILIŞ: Tanışma gündüzündeyiz, sırada GECE var!
+    _phase = GamePhase.dayDiscussion;
+    _isAfterNight = false; // 👈 Buton "GECEYE GEÇ 🌙" olur!
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _centerCameraOnMap();
@@ -109,36 +113,51 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       });
     });
 
-    void handleRoundEnded(dynamic data) {
-      if (!mounted) return;
-      final String? eliminated = data['eliminatedPlayer'];
-      final bool isTie = data['isTie'] ?? false;
-      final bool isVampire = data['isVampire'] ?? false;
-      final List serverPlayers = data['players'] ?? [];
+  void handleRoundEnded(dynamic data) {
+        if (!mounted) return;
+        final String? eliminated = data['eliminatedPlayer'];
+        final bool isTie = data['isTie'] ?? false;
+        final bool isVampire = data['isVampire'] ?? false;
+        final List serverPlayers = data['players'] ?? [];
 
-      setState(() {
-        if (serverPlayers.isNotEmpty) {
-          _players = _parseServerPlayers(serverPlayers);
-          _positionsCalculated = false;
-        }
+        setState(() {
+          if (serverPlayers.isNotEmpty) {
+            _players = _parseServerPlayers(serverPlayers);
+          } else if (eliminated != null && !isTie) {
+            _players = _players.map((p) {
+              final String cleanPName = p.name.trim().toLowerCase();
+              final String cleanEliminated = eliminated.trim().toLowerCase();
+              
+              if (cleanPName == cleanEliminated || cleanPName.contains(cleanEliminated) || cleanEliminated.contains(cleanPName)) {
+                return PlayerModel(
+                  id: p.id,
+                  name: p.name,
+                  avatarColor: p.avatarColor,
+                  gender: p.gender,
+                  role: p.role,
+                  isVampire: p.isVampire,
+                  isAlive: false, // 🎯 Kesin olarak ölü yapılıyor
+                );
+              }
+              return p;
+            }).toList();
+          }
 
-        _phase = GamePhase.dayDiscussion;
-        _isAfterNight = false;
-        _hasVotedInCurrentRound = false;
-        _selectedVoteTargetId = null;
+          _phase = GamePhase.dayDiscussion;
+          _isAfterNight = false; // 🎯 Oylama bitti -> Sırada GECE var ("GECEYE GEÇ 🌙")
+          _hasVotedInCurrentRound = false;
+          _selectedVoteTargetId = null;
+          
+          // 🎯 KRİTİK NOKTA: Haritaya "Evleri ve ölen oyuncuları yeniden çiz" emri veriyoruz!
+          _positionsCalculated = false; 
 
-        if (isTie || eliminated == null) {
-          _logs.add(
-            '⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Gün doğdu! ☀️',
-          );
-        } else {
-          _logs.add(
-            '🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Gün doğdu! ☀️',
-          );
-        }
-      });
-    }
-
+          if (isTie || eliminated == null) {
+            _logs.add('⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Geceye hazırlanılıyor... 🌙');
+          } else {
+            _logs.add('🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Geceye hazırlanılıyor... 🌙');
+          }
+        });
+      }
     _socketService.socket?.on('vk_round_ended', handleRoundEnded);
     _socketService.socket?.on('vk_voting_results', handleRoundEnded);
 
@@ -189,6 +208,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             p.isAlive = false;
           }
         }
+        _positionsCalculated = false;
       });
     });
 
@@ -209,20 +229,25 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     });
 
     _socketService.socket?.on('vk_navigate_to_voting', (_) {
-      if (!mounted) return;
+          if (!mounted) return;
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VKVotingScreen(
-            roomCode: widget.roomCode,
-            myName: widget.playerName,
-            players: _players,
-            amIVampire: _getMyPlayer().isVampire,
-          ),
-        ),
-      );
-    });
+          setState(() {
+            _phase = GamePhase.voting;
+          });
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VKVotingScreen(
+                roomCode: widget.roomCode,
+                myName: widget.playerName,
+                players: _players,
+                amIVampire: _getMyPlayer().isVampire,
+                isHost: widget.isHost, // 🎯 isHost parametresi aktarıldı
+              ),
+            ),
+          );
+        });
 
     _socketService.socket?.emit('vk_get_players', {
       'roomCode': widget.roomCode,

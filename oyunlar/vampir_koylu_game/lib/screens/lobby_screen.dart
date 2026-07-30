@@ -36,6 +36,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   List<Map<String, dynamic>> _players = [];
   final SocketService _socketService = SocketService();
   bool _isGameStarting = false;
+  
+  // 🎯 LOBİ DÖNÜŞ TAKİP DEĞİŞKENLERİ
+  bool _isEveryoneBackToLobby = true;
+  Set<String> _returnedPlayersSet = {};
+  int _totalPlayersInRoom = 0;
 
   String _myAssignedRole = "Vampir 🧛";
   String _myRoleDescription =
@@ -52,31 +57,50 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.currentRoomCode = widget.roomCode;
     _socketService.connect();
 
+    // Dinleyicileri temizleme
     _socketService.socket?.off('vk_players_updated');
     _socketService.socket?.off('vk_game_started');
+    _socketService.socket?.off('vk_lobby_return_status');
+    _socketService.socket?.off('vk_lobby_status_updated');
+    _socketService.socket?.off('vk_start_game_error');
+    _socketService.socket?.off('connect');
 
+    // 1. Oyuncu Listesi Güncellendiğinde
     _socketService.socket?.on('vk_players_updated', (data) {
       if (mounted) {
         setState(() {
           _players = List<Map<String, dynamic>>.from(data);
+          _isEveryoneBackToLobby = _returnedPlayersSet.length >= _players.length;
         });
       }
     });
 
+    // 🎯 2. Lobiye Dönen Oyuncuların Canlı Takibi (Yeşil Tik / Kumsaati)
+    _socketService.socket?.on('vk_lobby_status_updated', (data) {
+      if (mounted && data != null) {
+        final List returned = data['returnedPlayers'] ?? [];
+        setState(() {
+          _totalPlayersInRoom = data['totalPlayersCount'] ?? _players.length;
+          _returnedPlayersSet = returned.map((e) => e.toString().trim().toLowerCase()).toSet();
+          _isEveryoneBackToLobby = _returnedPlayersSet.length >= (_players.isNotEmpty ? _players.length : _totalPlayersInRoom);
+        });
+      }
+    });
+
+    // 3. Oyun Başlatıldığında Rol Alma
     _socketService.socket?.on('vk_game_started', (data) {
       if (mounted) {
         if (data != null && data['players'] != null) {
           final List serverPlayers = data['players'];
           final myData = serverPlayers.firstWhere(
-            (p) => p['name'] == widget.playerName,
+            (p) => p['name'].toString().trim().toLowerCase() == widget.playerName.trim().toLowerCase(),
             orElse: () => null,
           );
 
           if (myData != null) {
             final bool isVamp = myData['isVampire'] ?? false;
             setState(() {
-              _myAssignedRole =
-                  myData['role'] ?? (isVamp ? 'Vampir 🧛' : 'Köylü 🧑‍🌾');
+              _myAssignedRole = myData['role'] ?? (isVamp ? 'Vampir 🧛' : 'Köylü 🧑‍🌾');
               _myRoleColor = isVamp
                   ? const Color(0xFFE74C3C)
                   : const Color(0xFF2ECC71);
@@ -93,23 +117,54 @@ class _LobbyScreenState extends State<LobbyScreen> {
       }
     });
 
-    if (!widget.isHost) {
+    // 🎯 4. Herkes Dönmeden Başlatma Hatası
+    _socketService.socket?.on('vk_start_game_error', (data) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Tüm oyuncuların lobiye dönmesi bekleniyor! ⏳'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    });
+
+    // Odaya Katılma/Kayıt Olma Fonksiyonu
+    void sendJoinRoom() {
       _socketService.socket?.emit('vk_join_room', {
         'roomCode': widget.roomCode,
         'playerName': widget.playerName,
         'gender': widget.gender.name,
       });
-    } else {
+
+      // 🎯 BURA ÇOK ÖNEMLİ: İlk açılışta da lobiye katıldığını anında fırlatıyoruz!
+      _socketService.socket?.emit('vk_player_returned_to_lobby', {
+        'roomCode': widget.roomCode,
+        'playerName': widget.playerName,
+      });
+    }
+
+    if (_socketService.socket?.connected ?? false) {
+      sendJoinRoom();
       _socketService.socket?.emit('vk_get_players', {
         'roomCode': widget.roomCode,
       });
     }
+
+    _socketService.socket?.on('connect', (_) {
+      sendJoinRoom();
+      _socketService.socket?.emit('vk_get_players', {
+        'roomCode': widget.roomCode,
+      });
+    });
   }
 
   @override
   void dispose() {
     _socketService.socket?.off('vk_players_updated');
     _socketService.socket?.off('vk_game_started');
+    _socketService.socket?.off('vk_lobby_status_updated');
+    _socketService.socket?.off('vk_start_game_error');
     super.dispose();
   }
 
@@ -139,6 +194,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _startGame() {
     if (widget.isHost) {
+      if (!_isEveryoneBackToLobby) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Tüm oyuncuların lobiye dönmesi bekleniyor!'),
+            backgroundColor: Colors.amber,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
       _socketService.socket?.emit('vk_start_game', {
         'roomCode': widget.roomCode,
       });
@@ -249,14 +315,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF00D2FF,
-                                  ).withOpacity(0.15),
+                                  color: const Color(0xFF00D2FF).withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFF00D2FF,
-                                    ).withOpacity(0.5),
+                                    color: const Color(0xFF00D2FF).withOpacity(0.5),
                                   ),
                                 ),
                                 child: Text(
@@ -271,22 +333,25 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
+                          
+                          // 🎯 CANLI OYUNCU VE DÖNÜŞ DURUMU LİSTESİ
                           ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: _players.length,
                             itemBuilder: (context, index) {
                               final player = _players[index];
-                              final bool isHostPlayer =
-                                  player['isHost'] ?? false;
+                              final String pName = player['name'] ?? 'Oyuncu';
+                              final bool isHostPlayer = player['isHost'] ?? false;
                               final Gender pGender = player['gender'] is Gender
                                   ? player['gender']
                                   : (player['gender'] == 'female'
-                                        ? Gender.female
-                                        : Gender.male);
-                              final String avatarPath = _getAvatarAsset(
-                                pGender,
-                              );
+                                      ? Gender.female
+                                      : Gender.male);
+                              final String avatarPath = _getAvatarAsset(pGender);
+
+                              // 🎯 Lobiye döndü mü kontrolü
+                              final bool isReturned = _returnedPlayersSet.contains(pName.trim().toLowerCase());
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
@@ -295,14 +360,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   vertical: 12,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF1A1A3E,
-                                  ).withOpacity(0.85),
+                                  color: const Color(0xFF1A1A3E).withOpacity(0.85),
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: const Color(
-                                      0xFF00D2FF,
-                                    ).withOpacity(0.2),
+                                    color: isReturned 
+                                        ? const Color(0xFF00FF88).withOpacity(0.4) 
+                                        : const Color(0xFFFFB300).withOpacity(0.3),
                                   ),
                                 ),
                                 child: Row(
@@ -313,7 +376,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: const Color(0xFF00D2FF),
+                                          color: isReturned ? const Color(0xFF00FF88) : const Color(0xFFFFB300),
                                           width: 1.5,
                                         ),
                                         image: DecorationImage(
@@ -324,7 +387,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                     ),
                                     const SizedBox(width: 12),
                                     Text(
-                                      player['name'] ?? 'Oyuncu',
+                                      pName,
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 15,
@@ -339,12 +402,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           vertical: 3,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(
-                                            0xFF00D2FF,
-                                          ).withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
+                                          color: const Color(0xFF00D2FF).withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(6),
                                           border: Border.all(
                                             color: const Color(0xFF00D2FF),
                                             width: 0.8,
@@ -361,11 +420,44 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                       ),
                                     ],
                                     const Spacer(),
-                                    const Icon(
-                                      Icons.check_circle,
-                                      color: Color(0xFF00D2FF),
-                                      size: 20,
-                                    ),
+                                    
+                                    // 🎯 YEŞİL TİK / KUMSAATI GÖSTERİMİ
+                                    if (isReturned)
+                                      const Row(
+                                        children: [
+                                          Text(
+                                            "LOBİDE ",
+                                            style: TextStyle(
+                                              color: Color(0xFF00FF88), 
+                                              fontSize: 11, 
+                                              fontWeight: FontWeight.bold
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.check_circle_rounded, 
+                                            color: Color(0xFF00FF88), 
+                                            size: 20
+                                          ),
+                                        ],
+                                      )
+                                    else
+                                      const Row(
+                                        children: [
+                                          Text(
+                                            "BEKLENİYOR ",
+                                            style: TextStyle(
+                                              color: Color(0xFFFFB300), 
+                                              fontSize: 11, 
+                                              fontWeight: FontWeight.bold
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.hourglass_top_rounded, 
+                                            color: Color(0xFFFFB300), 
+                                            size: 18
+                                          ),
+                                        ],
+                                      ),
                                   ],
                                 ),
                               );
@@ -375,15 +467,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       ),
                     ),
                   ),
+                  
+                  // 🎯 NEON BUTON ALANI
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: _NeonButton(
                       label: widget.isHost
-                          ? 'OYUNU BAŞLAT'
+                          ? (_isEveryoneBackToLobby
+                              ? 'YENİ OYUNU BAŞLAT 🚀'
+                              : 'OYUNCULARIN LOBİYE DÖNMESİ BEKLENİYOR...')
                           : 'MUHTAR BEKLENİYOR...',
                       icon: Icons.play_arrow_rounded,
                       color: const Color(0xFF00D2FF),
-                      enabled: widget.isHost,
+                      enabled: widget.isHost && _isEveryoneBackToLobby,
                       large: true,
                       onPressed: _startGame,
                     ),

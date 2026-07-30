@@ -11,6 +11,7 @@ class VKVotingScreen extends StatefulWidget {
   final String myName;
   final List<PlayerModel> players;
   final bool amIVampire;
+  final bool isHost; // 🎯 EKLENDİ
 
   const VKVotingScreen({
     super.key,
@@ -18,6 +19,7 @@ class VKVotingScreen extends StatefulWidget {
     required this.myName,
     required this.players,
     required this.amIVampire,
+    this.isHost = false, //
   });
 
   @override
@@ -52,14 +54,14 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   }
 
   void setupSocketListeners() {
+    _socketService.socket?.off('vk_vote_progress');
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_round_ended');
     _socketService.socket?.off('vk_game_over');
 
-    _socketService.socket?.on('vk_vote_status_updated', (data) {
+    void handleProgress(dynamic data) {
       if (!mounted) return;
-
       setState(() {
         votedCount = data['votedCount'] ?? 0;
 
@@ -76,23 +78,44 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
           });
         }
       });
-    });
+    }
+
+    _socketService.socket?.on('vk_vote_progress', handleProgress);
+    _socketService.socket?.on('vk_vote_status_updated', handleProgress);
 
     void handleResults(dynamic data) {
-      if (!mounted || isDialogShown) return;
+          if (!mounted || isDialogShown) return;
 
-      _timer?.cancel();
-      setState(() {
-        isVotingClosed = true;
-        isDialogShown = true;
-      });
+          _timer?.cancel();
+          setState(() {
+            isVotingClosed = true;
+            isDialogShown = true;
+          });
 
-      String? eliminated = data['eliminatedPlayer'];
-      bool isTie = data['isTie'] ?? false;
-      bool isVampire = data['isVampire'] ?? false;
+          String? eliminated = data['eliminatedPlayer'];
+          String? eliminatedRole = data['eliminatedRole'];
+          bool isTie = data['isTie'] ?? false;
+          bool isVampire = data['isVampire'] ?? (eliminatedRole != null && eliminatedRole.toLowerCase().contains('vampir'));
 
-      showRoundResultsDialog(eliminated, isTie, isVampire);
-    }
+          // 🎯 Sunucu güncel oyuncu listesini fırlattıysa bizim widget.players listemizi de güncelliyoruz
+          if (data['players'] != null && data['players'] is List) {
+            final List serverPlayers = data['players'];
+            for (var pObj in serverPlayers) {
+              if (pObj is Map) {
+                final String name = pObj['name'] ?? '';
+                final bool isAlive = pObj['isAlive'] ?? true;
+                final match = widget.players.where(
+                  (p) => p.name.trim().toLowerCase() == name.trim().toLowerCase(),
+                );
+                if (match.isNotEmpty) {
+                  match.first.isAlive = isAlive;
+                }
+              }
+            }
+          }
+
+          showRoundResultsDialog(eliminated, eliminatedRole, isTie, isVampire);
+        }
 
     _socketService.socket?.on('vk_voting_results', handleResults);
     _socketService.socket?.on('vk_round_ended', handleResults);
@@ -118,9 +141,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
 
     final bool amIAlive = _isMyPlayerAlive();
 
-    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (
-      timer,
-    ) {
+    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (timer) {
       if (!mounted) return;
       setState(() {
         if (progress < 1.0) {
@@ -137,24 +158,16 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   }
 
   bool _isMyPlayerAlive() {
-    return widget.players
-        .firstWhere(
-          (p) => p.name.contains(widget.myName),
-          orElse: () => widget.players.isNotEmpty
-              ? widget.players[0]
-              : PlayerModel(
-                  id: 'me',
-                  name: widget.myName,
-                  avatarColor: Colors.blue,
-                  gender: Gender.female,
-                  role: 'Köylü',
-                ),
-        )
-        .isAlive;
+    if (widget.players.isEmpty) return false;
+    final myPlayer = widget.players.firstWhere(
+      (p) => p.name.trim() == widget.myName.trim() || p.name.contains(widget.myName),
+      orElse: () => widget.players[0],
+    );
+    return myPlayer.isAlive;
   }
 
   void submitVote(String targetPlayer, {required bool lockIt}) {
-    if (!_isMyPlayerAlive()) return;
+    if (!_isMyPlayerAlive() || hasLockedVote) return;
 
     HapticFeedback.selectionClick();
 
@@ -170,11 +183,13 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       'voterName': widget.myName,
       'isLocking': lockIt,
       'votedTargetName': targetPlayer,
+      'votedFor': targetPlayer,
     });
   }
 
-  void showRoundResultsDialog(
+void showRoundResultsDialog(
     String? eliminatedPlayer,
+    String? eliminatedRole,
     bool isTie,
     bool isVampire,
   ) {
@@ -186,15 +201,16 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       subtitle = "Oylamada eşitlik çıktı, bu tur kimse elenmedi!";
     } else {
       title = "OYLAMA BİTTİ! 🗳️";
-      subtitle =
-          "$eliminatedPlayer köy kararıyla elendi. Rolü: ${isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾'}";
+      final roleText = eliminatedRole ?? (isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾');
+      subtitle = "$eliminatedPlayer köy kararıyla elendi!\n\nRolü: $roleText";
     }
 
+    // 🎯 3 saniye sonra hem açık olan Dialog'u hem de VKVotingScreen'i kapatır -> Arka plandaki GameScreen (Harita) görünür!
     Timer(const Duration(milliseconds: 3000), () {
       if (mounted) {
-        if (Navigator.of(context, rootNavigator: true).canPop()) {
-          Navigator.of(context, rootNavigator: true).pop();
-        }
+        // 1. Önce açık olan Sonuç Dialog'unu kapat
+        Navigator.of(context, rootNavigator: true).pop();
+        // 2. Ardından Oylama Sayfasından çıkıp Haritaya dön
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
         }
@@ -237,7 +253,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, color: Colors.white70),
+                  style: const TextStyle(fontSize: 15, color: Colors.white70, height: 1.3),
                 ),
                 const SizedBox(height: 20),
                 const Text(
@@ -318,14 +334,26 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                   onPressed: () {
                     Navigator.of(dialogContext).pop();
 
+                    // 🎯 Benim Host olup olmadığımı oyuncu listesinden buluyoruz
+                    final myPlayerObj = widget.players.firstWhere(
+                      (p) => p.name.trim() == widget.myName.trim() || p.name.contains(widget.myName),
+                      orElse: () => widget.players.isNotEmpty ? widget.players[0] : PlayerModel(id: 'me', name: widget.myName, avatarColor: Colors.blue, gender: Gender.female, role: 'Köylü'),
+                    );
+
+                    // 🎯 Sunucuya Lobiye Döndüm Bildirimi Atıyoruz
+                    _socketService.socket?.emit('vk_player_returned_to_lobby', {
+                      'roomCode': widget.roomCode,
+                      'playerName': widget.myName,
+                    });
+                    
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
                         builder: (context) => LobbyScreen(
                           roomCode: widget.roomCode,
                           playerName: widget.myName,
-                          gender: Gender.female,
-                          isHost: false,
+                          gender: myPlayerObj.gender,
+                          isHost: widget.isHost, // 🎯 GERÇEK HOSTLUK BİLGİSİ AKTARILIYOR
                           vampireCount: 1,
                         ),
                       ),
@@ -351,6 +379,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _socketService.socket?.off('vk_vote_progress');
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_round_ended');

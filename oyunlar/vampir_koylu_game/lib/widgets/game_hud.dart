@@ -6,7 +6,7 @@ class GameHud extends StatelessWidget {
   final Size screenSize;
   final int round;
   final GamePhase phase;
-  final bool isAfterNight; // 🎯 Geceden sonraki gündüz mü kontrolü
+  final bool isAfterNight;
   final List<String> logs;
   final List<PlayerModel> players;
   final String? selectedVoteTargetId;
@@ -54,7 +54,7 @@ class GameHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool amIAlive = myPlayer.isAlive; // Canlı oyuncu kontrolü
+    final bool amIAlive = myPlayer.isAlive;
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -64,7 +64,6 @@ class GameHud extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 🎯 CANLI OYUNCULAR İÇİN KONTROL ÇUBUĞU
               if (amIAlive)
                 Container(
                   constraints: const BoxConstraints(maxWidth: 550),
@@ -87,7 +86,6 @@ class GameHud extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // BİLGİ BARI
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
@@ -101,7 +99,6 @@ class GameHud extends StatelessWidget {
 
                       const SizedBox(height: 8),
 
-                      // AKSİYON BARI
                       Row(
                         children: [
                           IconButton(
@@ -123,15 +120,14 @@ class GameHud extends StatelessWidget {
                                   elevation: 4,
                                 ),
                                 onPressed: () {
-                                  // 🎯 TAM İSTEDİĞİN MÜKEMMEL AKIŞ:
                                   if (phase == GamePhase.dayDiscussion) {
                                     if (isAfterNight) {
-                                      onStartVoting(); // Geceden çıkılmışsa -> Oylamaya git
+                                      onStartVoting();
                                     } else {
-                                      onStartNight(); // Oylamadan çıkılmışsa -> Geceye git
+                                      onStartNight();
                                     }
                                   } else if (phase == GamePhase.night) {
-                                    onStartDay(); // Gecedeyken -> Gündüzü Başlat
+                                    onStartDay();
                                   } else if (phase == GamePhase.voting) {
                                     onStartNight();
                                   }
@@ -163,23 +159,33 @@ class GameHud extends StatelessWidget {
                   ),
                 ),
 
-              // 👻 ÖLEN OYUNCULAR İÇİN (Ruh Modu)
               if (!amIAlive)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
+                    color: const Color(0xFF150808).withOpacity(0.92),
                     borderRadius: BorderRadius.circular(25),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.6), width: 1.5),
+                    border: Border.all(color: Colors.redAccent.withOpacity(0.8), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withOpacity(0.2),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
                   child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.visibility_rounded, color: Colors.white70, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        "Ruh Modundasın (İzleyici) 👻",
-                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                      Icon(Icons.sentiment_very_dissatisfied_rounded, color: Colors.redAccent, size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "ÖLDÜNÜZ! (İzleyici Modu) 👻\nKöyün kaderini izleyin, oyunun bitmesini bekleyin.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),
@@ -191,7 +197,6 @@ class GameHud extends StatelessWidget {
     );
   }
 
-  // 🎯 BUTON METİN DÖNGÜSÜ
   String _getActionButtonText() {
     if (phase == GamePhase.dayDiscussion) {
       return isAfterNight ? 'OYLAMAYI BAŞLAT 🗳️' : 'GECEYE GEÇ 🌙';
