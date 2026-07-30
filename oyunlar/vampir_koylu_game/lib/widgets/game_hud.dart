@@ -6,7 +6,7 @@ class GameHud extends StatelessWidget {
   final Size screenSize;
   final int round;
   final GamePhase phase;
-  final bool isAfterNight; // 🎯 Geceden sonraki gündüz mü kontrolü
+  final bool isAfterNight;
   final List<String> logs;
   final List<PlayerModel> players;
   final String? selectedVoteTargetId;
@@ -54,7 +54,7 @@ class GameHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool amIAlive = myPlayer.isAlive; // Canlı oyuncu kontrolü
+    final bool amIAlive = myPlayer.isAlive;
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -64,11 +64,13 @@ class GameHud extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 🎯 CANLI OYUNCULAR İÇİN KONTROL ÇUBUĞU
               if (amIAlive)
                 Container(
                   constraints: const BoxConstraints(maxWidth: 550),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0A0D2A).withOpacity(0.92),
                     borderRadius: BorderRadius.circular(35),
@@ -87,25 +89,47 @@ class GameHud extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // BİLGİ BARI
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildInfoChip(Icons.numbers, 'Tur $round', Colors.amber),
-                          Container(width: 1, height: 14, color: Colors.white24),
-                          _buildInfoChip(Icons.person_outline, myPlayer.role, const Color(0xFF00D2FF)),
-                          Container(width: 1, height: 14, color: Colors.white24),
-                          _buildInfoChip(Icons.timelapse, _phaseText, Colors.purpleAccent),
+                          _buildInfoChip(
+                            Icons.numbers,
+                            'Tur $round',
+                            Colors.amber,
+                          ),
+                          Container(
+                            width: 1,
+                            height: 14,
+                            color: Colors.white24,
+                          ),
+                          _buildInfoChip(
+                            Icons.person_outline,
+                            myPlayer.role,
+                            const Color(0xFF00D2FF),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 14,
+                            color: Colors.white24,
+                          ),
+                          _buildInfoChip(
+                            Icons.timelapse,
+                            _phaseText,
+                            Colors.purpleAccent,
+                          ),
                         ],
                       ),
 
                       const SizedBox(height: 8),
 
-                      // AKSİYON BARI
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.article_outlined, color: Color(0xFF00D2FF), size: 28),
+                            icon: const Icon(
+                              Icons.article_outlined,
+                              color: Color(0xFF00D2FF),
+                              size: 28,
+                            ),
                             onPressed: onShowRoleCard,
                             tooltip: 'Rol Kartım',
                           ),
@@ -123,15 +147,14 @@ class GameHud extends StatelessWidget {
                                   elevation: 4,
                                 ),
                                 onPressed: () {
-                                  // 🎯 TAM İSTEDİĞİN MÜKEMMEL AKIŞ:
                                   if (phase == GamePhase.dayDiscussion) {
                                     if (isAfterNight) {
-                                      onStartVoting(); // Geceden çıkılmışsa -> Oylamaya git
+                                      onStartVoting();
                                     } else {
-                                      onStartNight(); // Oylamadan çıkılmışsa -> Geceye git
+                                      onStartNight();
                                     }
                                   } else if (phase == GamePhase.night) {
-                                    onStartDay(); // Gecedeyken -> Gündüzü Başlat
+                                    onStartDay();
                                   } else if (phase == GamePhase.voting) {
                                     onStartNight();
                                   }
@@ -163,23 +186,36 @@ class GameHud extends StatelessWidget {
                   ),
                 ),
 
-              // 👻 ÖLEN OYUNCULAR İÇİN (Ruh Modu)
               if (!amIAlive)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.85),
                     borderRadius: BorderRadius.circular(25),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.6), width: 1.5),
+                    border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.6),
+                      width: 1.5,
+                    ),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.visibility_rounded, color: Colors.white70, size: 20),
+                      Icon(
+                        Icons.visibility_rounded,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
                       SizedBox(width: 10),
                       Text(
                         "Ruh Modundasın (İzleyici) 👻",
-                        style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -191,7 +227,6 @@ class GameHud extends StatelessWidget {
     );
   }
 
-  // 🎯 BUTON METİN DÖNGÜSÜ
   String _getActionButtonText() {
     if (phase == GamePhase.dayDiscussion) {
       return isAfterNight ? 'OYLAMAYI BAŞLAT 🗳️' : 'GECEYE GEÇ 🌙';
