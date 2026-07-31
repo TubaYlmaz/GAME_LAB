@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
@@ -27,51 +28,62 @@ class _RoleRevealCardState extends State<RoleRevealCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  bool _isFront = false;
-  bool _isReady = false;
+
+  int _secondsLeft = 10;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+
+    // 3D Animasyon Tanımı (800ms yumuşak dönme)
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 800),
     );
 
     _animation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOutBack),
     );
+
+    // Kart doğrudan ön yüzüne dönsün (otomatik açılış)
+    _controller.forward();
+
+    // 10 Saniyelik Otomatik Sayacı Başlat
+    _startAutoCountdown();
+  }
+
+  void _startAutoCountdown() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsLeft > 1) {
+        if (mounted) {
+          setState(() {
+            _secondsLeft--;
+          });
+        }
+      } else {
+        _timer?.cancel();
+        _finishAndClose(); // 10 saniye bittiğinde kartı otomatik kapat
+      }
+    });
+  }
+
+  void _finishAndClose() {
+    _timer?.cancel();
+
+    if (widget.onReadySubmitted != null) {
+      widget.onReadySubmitted!();
+    }
+
+    // Kartı yerel ekrandan temizle
+    widget.onDismiss();
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
     super.dispose();
-  }
-
-  void _toggleCard() {
-    if (_isReady) return; // Hazır olduktan sonra kartı çeviremez
-    if (_isFront) {
-      _controller.reverse();
-    } else {
-      _controller.forward();
-    }
-    setState(() {
-      _isFront = !_isFront;
-    });
-  }
-
-  void _handleReady() {
-    if (_isReady) return;
-
-    setState(() {
-      _isReady = true; // Kartı yükleme durumuna geçir, ekrandan KALDIRMA!
-    });
-
-    // Sunucuya "ben hazırımı" bildiriyoruz
-    if (widget.onReadySubmitted != null) {
-      widget.onReadySubmitted!();
-    }
   }
 
   @override
@@ -80,94 +92,71 @@ class _RoleRevealCardState extends State<RoleRevealCard>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTap: _toggleCard,
-            child: AnimatedBuilder(
-              animation: _animation,
-              builder: (context, child) {
-                final angle = _animation.value * pi;
-                final isUnder90 = angle < (pi / 2);
+          // 3D Çevrilen Kart
+          AnimatedBuilder(
+            animation: _animation,
+            builder: (context, child) {
+              final angle = _animation.value * pi;
+              final isUnder90 = angle < (pi / 2);
 
-                return Transform(
-                  transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.001)
-                    ..rotateY(angle),
-                  alignment: Alignment.center,
-                  child: isUnder90
-                      ? _buildCardBack()
-                      : Transform(
-                          transform: Matrix4.identity()..rotateY(pi),
-                          alignment: Alignment.center,
-                          child: _buildCardFront(),
-                        ),
-                );
-              },
-            ),
+              return Transform(
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.001)
+                  ..rotateY(angle),
+                alignment: Alignment.center,
+                child: isUnder90
+                    ? _buildCardBack()
+                    : Transform(
+                        transform: Matrix4.identity()..rotateY(pi),
+                        alignment: Alignment.center,
+                        child: _buildCardFront(),
+                      ),
+              );
+            },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          AnimatedOpacity(
-            opacity: _isFront ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 300),
-            child: _isReady
-                ? Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D0D2A),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: widget.roleColor.withOpacity(0.5),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            color: widget.roleColor,
-                            strokeWidth: 2.5,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Rolünü onayladın!\nDiğer oyuncuların kartlarını açması bekleniyor...',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.roleColor,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 8,
-                    ),
-                    onPressed: _isFront ? _handleReady : null,
-                    icon: const Icon(
-                      Icons.check_circle_outline,
-                      color: Colors.black,
-                    ),
-                    label: const Text(
-                      'ROLÜMÜ ANLADIM VE HAZIRIM',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+          // Alt taraftaki Otomatik Süre Rozeti (Buton Değil, Bilgilendirme)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D0D2A),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: widget.roleColor.withOpacity(0.6),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.roleColor.withOpacity(0.2),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                )
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    color: widget.roleColor,
+                    strokeWidth: 2.5,
                   ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Oyun Başlıyor... ($_secondsLeft sn)',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -182,34 +171,19 @@ class _RoleRevealCardState extends State<RoleRevealCard>
         color: const Color(0xFF1A1A3E),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFF00D2FF), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00D2FF).withOpacity(0.3),
-            blurRadius: 15,
-            spreadRadius: 2,
-          ),
-        ],
       ),
-      child: Column(
+      child: const Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.lock_outline, size: 60, color: Color(0xFF00D2FF)),
-          const SizedBox(height: 16),
-          const Text(
+          Icon(Icons.lock_outline, size: 60, color: Color(0xFF00D2FF)),
+          SizedBox(height: 16),
+          Text(
             'GİZLİ ROL',
             style: TextStyle(
               color: Color(0xFF00D2FF),
               fontSize: 18,
               fontWeight: FontWeight.bold,
               letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Dokun ve rolünü gör',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: 12,
             ),
           ),
         ],

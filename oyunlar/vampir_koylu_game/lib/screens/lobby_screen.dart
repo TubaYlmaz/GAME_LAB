@@ -495,6 +495,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 roleDescription: _myRoleDescription,
                 roleColor: _myRoleColor,
                 onDismiss: _navigateToGameScreen,
+                onReadySubmitted: () {},
               ),
             ),
         ],

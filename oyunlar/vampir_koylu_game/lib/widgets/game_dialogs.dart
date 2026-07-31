@@ -4,6 +4,9 @@ import '../services/socket_service.dart';
 import '../widgets/role_reveal_card.dart';
 
 class GameDialogs {
+  // 🎯 Ekranda aktif rol kartı modalı var mı takibi (Çift dialog açılmasını engeller)
+  static bool _isRoleCardShowing = false;
+
   // Debug / Algoritma Çıktı Dialogu
   static void showRoleDistributionDebug(
     BuildContext context,
@@ -96,7 +99,7 @@ class GameDialogs {
     );
   }
 
-  // Kullanıcının Kendi Gizli Rol Kartı (Gelişmiş 3D RoleRevealCard Entegrasyonu)
+  // Kullanıcının Kendi Gizli Rol Kartı (Tekil Dialog ve Timer Garantili)
   static void showMyRoleCard(
     BuildContext context,
     PlayerModel myPlayer, {
@@ -104,6 +107,13 @@ class GameDialogs {
     required SocketService socketService,
     List<String> teamMates = const [],
   }) {
+    // 🛑 Ekranda zaten bir rol kartı açıksa ikincisini AÇMA!
+    if (_isRoleCardShowing) {
+      print("⚠️ [DIALOG] Ekranda zaten açık rol kartı var, tekrar açılmadı.");
+      return;
+    }
+    _isRoleCardShowing = true;
+
     Color roleColor = myPlayer.avatarColor;
     final String lowerRole = myPlayer.role.toLowerCase();
 
@@ -115,15 +125,28 @@ class GameDialogs {
       roleColor = Colors.purpleAccent;
     }
 
+    // Modal Güvenli Kapatma Metodu
+    void safeCloseCard(BuildContext ctx) {
+      if (_isRoleCardShowing) {
+        _isRoleCardShowing = false;
+        if (Navigator.of(ctx, rootNavigator: true).canPop()) {
+          Navigator.of(ctx, rootNavigator: true).pop();
+        }
+      }
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
+      useRootNavigator: true,
       builder: (BuildContext dialogContext) {
-        // Sunucudan herkesin rolü gördüğüne dair sinyal geldiğinde kartı otomatik kapat
+        // Eski dinleyiciyi kaldır
+        socketService.socket?.off('vk_all_roles_seen');
+
+        // Sunucudan Herkes Onayladı Sinyali Gelirse
         socketService.socket?.once('vk_all_roles_seen', (_) {
-          if (Navigator.canPop(dialogContext)) {
-            Navigator.pop(dialogContext);
-          }
+          print("📥 [DIALOG] vk_all_roles_seen SİNYALİ GELDİ! KART KAPATILIYOR...");
+          safeCloseCard(dialogContext);
         });
 
         return PopScope(
@@ -134,17 +157,31 @@ class GameDialogs {
                 'Köydeki rolünü gizli tut ve stratejini buna göre belirle.',
             roleColor: roleColor,
             teamMates: teamMates,
-            onDismiss: () {},
+            onDismiss: () {
+              // 🎯 Butona basılınca veya 10sn Timer dolunca çağrılır
+              safeCloseCard(dialogContext);
+            },
             onReadySubmitted: () {
-              // 🛠️ DÜZELTME: Sunucunun beklediği playerName eklendi
-              socketService.socket?.emit('vk_player_role_seen', {
-                'roomCode': roomCode,
-                'playerName': myPlayer.name,
-              });
+              print("🚀 [DIALOG] SOCKET EMIT EDİLİYOR! Oda: $roomCode, İsim: ${myPlayer.name}");
+              
+              final activeSocket = SocketService().socket ?? socketService.socket;
+              
+              if (activeSocket != null && activeSocket.connected) {
+                activeSocket.emit('vk_player_role_seen', {
+                  'roomCode': roomCode,
+                  'playerName': myPlayer.name,
+                });
+                print("✅ [DIALOG] EMIT BAŞARIYLA GÖNDERİLDİ!");
+              } else {
+                print("❌ [DIALOG HATA] Socket bağlantısı kopuk!");
+              }
             },
           ),
         );
       },
-    );
+    ).then((_) {
+      // Modal dışarıdan bir şekilde kapandığında bayrağı temizle
+      _isRoleCardShowing = false;
+    });
   }
 }
