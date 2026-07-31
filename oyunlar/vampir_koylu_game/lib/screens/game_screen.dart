@@ -65,22 +65,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _initSocket();
 
+    _phase = GamePhase.dayDiscussion;
+    _isAfterNight = false;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _centerCameraOnMap();
-
-      // Oyun ekranı açılır açılmaz oyuncunun rol kartını gösterelim
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          _showRoleCardModal();
-        }
-      });
     });
   }
 
   void _showRoleCardModal() {
     final myPlayer = _getMyPlayer();
 
-    // Eğer vampirse takım arkadaşlarını bulalım
     List<String> teamMates = [];
     if (myPlayer.isVampire) {
       teamMates = _players
@@ -102,7 +97,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   void _closeNightDialogIfOpen() {
     if (_isNightDialogShowing && mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       _isNightDialogShowing = false;
     }
   }
@@ -121,7 +118,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.off('vk_navigate_to_voting');
     _socketService.socket?.off('night_results');
     _socketService.socket?.off('night_action_error');
-    _socketService.socket?.off('vk_show_role_card');
+    _socketService.socket?.off('vk_show_role_card'); // Dinleyiciyi kapatıyoruz
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -138,15 +135,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
     _socketService.socket?.on('vk_game_started', updatePlayersFromData);
 
-    _socketService.socket?.on('vk_show_role_card', (_) {
-      if (!mounted) return;
-      _showRoleCardModal();
-    });
-
     _socketService.socket?.on('vk_vote_progress', (data) {
       if (!mounted) return;
-      final int voted = data['votedCount'] ?? 0;
-      final int total = data['totalAlive'] ?? 0;
+      final int voted = (data is Map && data['votedCount'] != null)
+          ? data['votedCount']
+          : 0;
+      final int total = (data is Map && data['totalAlive'] != null)
+          ? data['totalAlive']
+          : 0;
       setState(() {
         _logs.add(
           'System: Oylama devam ediyor... ($voted / $total oy kullanıldı)',
@@ -157,29 +153,55 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     void handleRoundEnded(dynamic data) {
       if (!mounted) return;
       _closeNightDialogIfOpen();
-      final String? eliminated = data['eliminatedPlayer'];
-      final bool isTie = data['isTie'] ?? false;
-      final bool isVampire = data['isVampire'] ?? false;
-      final List serverPlayers = data['players'] ?? [];
+
+      final String? eliminated =
+          (data is Map && data['eliminatedPlayer'] != null)
+          ? data['eliminatedPlayer'].toString()
+          : null;
+      final bool isTie = (data is Map && data['isTie'] == true);
+      final bool isVampire = (data is Map && data['isVampire'] == true);
+      final List serverPlayers = (data is Map && data['players'] is List)
+          ? data['players']
+          : [];
 
       setState(() {
         if (serverPlayers.isNotEmpty) {
           _players = _parseServerPlayers(serverPlayers);
-          _positionsCalculated = false;
+        } else if (eliminated != null && !isTie) {
+          _players = _players.map((p) {
+            final String cleanPName = p.name.trim().toLowerCase();
+            final String cleanEliminated = eliminated.trim().toLowerCase();
+
+            if (cleanPName == cleanEliminated ||
+                cleanPName.contains(cleanEliminated) ||
+                cleanEliminated.contains(cleanPName)) {
+              return PlayerModel(
+                id: p.id,
+                name: p.name,
+                avatarColor: p.avatarColor,
+                gender: p.gender,
+                role: p.role,
+                isVampire: p.isVampire,
+                isAlive: false,
+              );
+            }
+            return p;
+          }).toList();
         }
 
         _phase = GamePhase.dayDiscussion;
         _isAfterNight = false;
         _hasVotedInCurrentRound = false;
         _selectedVoteTargetId = null;
+        _positionsCalculated = false;
 
         if (isTie || eliminated == null) {
           _logs.add(
-            '⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Gün doğdu! ☀️',
+            '⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Geceye hazırlanılıyor... 🌙',
           );
         } else {
           _logs.add(
-            '🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Gün doğdu! ☀️',
+            '🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Geceye hazırlanılıyor... 🌙',
           );
         }
       });
@@ -188,18 +210,31 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.on('vk_round_ended', handleRoundEnded);
     _socketService.socket?.on('vk_voting_results', handleRoundEnded);
 
+    // 🏆 OYUN BİTTİ DİNLENİCİSİ
     _socketService.socket?.on('vk_game_over', (data) {
       if (!mounted) return;
+
       _closeNightDialogIfOpen();
-      final String winner = data['winner'] ?? 'KÖYLÜLER';
-      final String lastEliminated = data['eliminatedPlayer'] ?? 'Biri';
+
+      final String winner = (data is Map && data['winner'] != null)
+          ? data['winner'].toString()
+          : 'KÖYLÜLER';
+      final String lastEliminated =
+          (data is Map && data['eliminatedPlayer'] != null)
+          ? data['eliminatedPlayer'].toString()
+          : 'Biri';
 
       _showGameOverDialog(winner, lastEliminated);
     });
 
+    // 🔄 FAZ DEĞİŞİM DİNLENİCİSİ
     _socketService.socket?.on('vk_phase_changed', (data) {
       if (!mounted) return;
-      final String nextPhase = data['phase'];
+      final String? nextPhase = (data is Map && data['phase'] != null)
+          ? data['phase'].toString()
+          : null;
+
+      if (nextPhase == null) return;
 
       if (nextPhase != 'night') {
         _closeNightDialogIfOpen();
@@ -213,7 +248,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _logs.add('System: Tur $_round - Gece çöktü... 🌙');
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _checkAndShowNightDialog();
+            if (mounted) {
+              _checkAndShowNightDialog();
+            }
           });
         } else if (nextPhase == 'day') {
           _round++;
@@ -233,22 +270,32 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       _closeNightDialogIfOpen();
 
-      final List deadPlayers = data['deadPlayers'] ?? [];
-      final String msg = data['message'] ?? 'Gece sona erdi.';
+      final List deadPlayers = (data is Map && data['deadPlayers'] is List)
+          ? data['deadPlayers']
+          : [];
+      final String msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Gece sona erdi.';
 
       setState(() {
         _logs.add('System: $msg');
         for (var p in _players) {
-          if (deadPlayers.contains(p.name)) {
+          if (deadPlayers
+              .map((e) => e.toString().trim())
+              .contains(p.name.trim())) {
             p.isAlive = false;
           }
         }
+        _positionsCalculated = false;
       });
     });
 
     _socketService.socket?.on('night_action_error', (data) {
       if (!mounted) return;
-      final String message = data['message'] ?? 'Anlaşmazlık çıktı!';
+      final String message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Anlaşmazlık çıktı!';
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
@@ -265,6 +312,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       _closeNightDialogIfOpen();
 
+      setState(() {
+        _phase = GamePhase.voting;
+      });
+
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -273,6 +324,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             myName: widget.playerName,
             players: _players,
             amIVampire: _getMyPlayer().isVampire,
+            isHost: widget.isHost,
           ),
         ),
       );
@@ -360,11 +412,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     List<PlayerModel> list = [];
     for (int i = 0; i < serverPlayers.length; i++) {
       final p = serverPlayers[i];
-      final String name =
-          (p is Map ? p['name'] : p.toString()) ?? 'Oyuncu ${i + 1}';
+      if (p == null) continue;
 
-      final String rawRole =
-          (p is Map ? (p['role'] ?? p['roleName'] ?? '') : '').toString();
+      final String name = (p is Map && p['name'] != null)
+          ? p['name'].toString()
+          : (p is Map && p['playerName'] != null)
+          ? p['playerName'].toString()
+          : 'Oyuncu ${i + 1}';
+
+      final String rawRole = (p is Map && p['role'] != null)
+          ? p['role'].toString()
+          : (p is Map && p['roleName'] != null)
+          ? p['roleName'].toString()
+          : '';
+
       final bool isVampire =
           (p is Map && p['isVampire'] == true) ||
           rawRole.toLowerCase().contains('vampir');
@@ -374,19 +435,43 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         roleStr = isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾';
       }
 
-      final Gender gender = (p is Map && p['gender'] == 'female')
+      final Gender gender = (p is Map && p['gender']?.toString() == 'female')
           ? Gender.female
           : Gender.male;
 
+      Color avatarColor = colors[i % colors.length];
+      if (p is Map && p['avatarColor'] != null) {
+        try {
+          final String rawColor = p['avatarColor'].toString();
+          if (rawColor.startsWith('0x') || rawColor.startsWith('#')) {
+            avatarColor = Color(int.parse(rawColor.replaceAll('#', '0x')));
+          } else if (int.tryParse(rawColor) != null) {
+            avatarColor = Color(int.parse(rawColor));
+          }
+        } catch (_) {
+          avatarColor = colors[i % colors.length];
+        }
+      }
+
+      final String id = (p is Map && p['id'] != null)
+          ? p['id'].toString()
+          : (p is Map && p['socketId'] != null)
+          ? p['socketId'].toString()
+          : 'p_$i';
+
+      final bool isAlive = (p is Map && p['isAlive'] != null)
+          ? (p['isAlive'] == true)
+          : true;
+
       list.add(
         PlayerModel(
-          id: (p is Map ? p['id']?.toString() : null) ?? 'p_$i',
+          id: id,
           name: name,
-          avatarColor: colors[i % colors.length],
+          avatarColor: avatarColor,
           gender: gender,
           role: roleStr,
           isVampire: isVampire,
-          isAlive: (p is Map && p['isAlive'] != null) ? p['isAlive'] : true,
+          isAlive: isAlive,
         ),
       );
     }

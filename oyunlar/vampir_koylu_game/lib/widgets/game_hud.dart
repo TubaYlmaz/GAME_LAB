@@ -119,9 +119,7 @@ class GameHud extends StatelessWidget {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 8),
-
                       Row(
                         children: [
                           IconButton(
@@ -188,33 +186,44 @@ class GameHud extends StatelessWidget {
 
               if (!amIAlive)
                 Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
-                    vertical: 10,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
+                    color: const Color(0xFF150808).withOpacity(0.92),
                     borderRadius: BorderRadius.circular(25),
                     border: Border.all(
-                      color: Colors.redAccent.withOpacity(0.6),
+                      color: Colors.redAccent.withOpacity(0.8),
                       width: 1.5,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withOpacity(0.2),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                    ],
                   ),
                   child: const Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.visibility_rounded,
-                        color: Colors.white70,
-                        size: 20,
+                        Icons.sentiment_very_dissatisfied_rounded,
+                        color: Colors.redAccent,
+                        size: 24,
                       ),
-                      SizedBox(width: 10),
-                      Text(
-                        "Ruh Modundasın (İzleyici) 👻",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          "ÖLDÜNÜZ! (İzleyici Modu) 👻\nKöyün kaderini izleyin, oyunun bitmesini bekleyin.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
