@@ -135,14 +135,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
     _socketService.socket?.on('vk_game_started', updatePlayersFromData);
 
+
     _socketService.socket?.on('vk_vote_progress', (data) {
       if (!mounted) return;
-      final int voted = (data is Map && data['votedCount'] != null)
-          ? data['votedCount']
-          : 0;
-      final int total = (data is Map && data['totalAlive'] != null)
-          ? data['totalAlive']
-          : 0;
+      final int voted = (data is Map && data['votedCount'] != null) ? data['votedCount'] : 0;
+      final int total = (data is Map && data['totalAlive'] != null) ? data['totalAlive'] : 0;
       setState(() {
         _logs.add(
           'System: Oylama devam ediyor... ($voted / $total oy kullanıldı)',
@@ -153,16 +150,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     void handleRoundEnded(dynamic data) {
       if (!mounted) return;
       _closeNightDialogIfOpen();
-
-      final String? eliminated =
-          (data is Map && data['eliminatedPlayer'] != null)
-          ? data['eliminatedPlayer'].toString()
+      
+      final String? eliminated = (data is Map && data['eliminatedPlayer'] != null) 
+          ? data['eliminatedPlayer'].toString() 
           : null;
       final bool isTie = (data is Map && data['isTie'] == true);
       final bool isVampire = (data is Map && data['isVampire'] == true);
-      final List serverPlayers = (data is Map && data['players'] is List)
-          ? data['players']
-          : [];
+      final List serverPlayers = (data is Map && data['players'] is List) ? data['players'] : [];
 
       setState(() {
         if (serverPlayers.isNotEmpty) {
@@ -213,15 +207,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     // 🏆 OYUN BİTTİ DİNLENİCİSİ
     _socketService.socket?.on('vk_game_over', (data) {
       if (!mounted) return;
-
+      
       _closeNightDialogIfOpen();
 
-      final String winner = (data is Map && data['winner'] != null)
-          ? data['winner'].toString()
+      final String winner = (data is Map && data['winner'] != null) 
+          ? data['winner'].toString() 
           : 'KÖYLÜLER';
-      final String lastEliminated =
-          (data is Map && data['eliminatedPlayer'] != null)
-          ? data['eliminatedPlayer'].toString()
+      final String lastEliminated = (data is Map && data['eliminatedPlayer'] != null) 
+          ? data['eliminatedPlayer'].toString() 
           : 'Biri';
 
       _showGameOverDialog(winner, lastEliminated);
@@ -230,10 +223,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     // 🔄 FAZ DEĞİŞİM DİNLENİCİSİ
     _socketService.socket?.on('vk_phase_changed', (data) {
       if (!mounted) return;
-      final String? nextPhase = (data is Map && data['phase'] != null)
-          ? data['phase'].toString()
+      final String? nextPhase = (data is Map && data['phase'] != null) 
+          ? data['phase'].toString() 
           : null;
-
+          
       if (nextPhase == null) return;
 
       if (nextPhase != 'night') {
@@ -259,9 +252,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _logs.add('System: Tur $_round - Gün doğdu! ☀️');
         } else if (nextPhase == 'voting') {
           _phase = GamePhase.voting;
-          _logs.add(
-            'System: Tur $_round - Oylama başladı. Oyunuzu kullanın! 🗳️',
-          );
+          _logs.add('System: Tur $_round - Oylama başladı. Oyunuzu kullanın! 🗳️');
         }
       });
     });
@@ -270,19 +261,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       _closeNightDialogIfOpen();
 
-      final List deadPlayers = (data is Map && data['deadPlayers'] is List)
-          ? data['deadPlayers']
+      final List deadPlayers = (data is Map && data['deadPlayers'] is List) 
+          ? data['deadPlayers'] 
           : [];
-      final String msg = (data is Map && data['message'] != null)
-          ? data['message'].toString()
+      final String msg = (data is Map && data['message'] != null) 
+          ? data['message'].toString() 
           : 'Gece sona erdi.';
 
       setState(() {
         _logs.add('System: $msg');
         for (var p in _players) {
-          if (deadPlayers
-              .map((e) => e.toString().trim())
-              .contains(p.name.trim())) {
+          if (deadPlayers.map((e) => e.toString().trim()).contains(p.name.trim())) {
             p.isAlive = false;
           }
         }
@@ -292,10 +281,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _socketService.socket?.on('night_action_error', (data) {
       if (!mounted) return;
-      final String message = (data is Map && data['message'] != null)
-          ? data['message'].toString()
+      final String message = (data is Map && data['message'] != null) 
+          ? data['message'].toString() 
           : 'Anlaşmazlık çıktı!';
-
+          
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
@@ -417,17 +406,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       final String name = (p is Map && p['name'] != null)
           ? p['name'].toString()
           : (p is Map && p['playerName'] != null)
-          ? p['playerName'].toString()
-          : 'Oyuncu ${i + 1}';
+              ? p['playerName'].toString()
+              : 'Oyuncu ${i + 1}';
 
       final String rawRole = (p is Map && p['role'] != null)
           ? p['role'].toString()
           : (p is Map && p['roleName'] != null)
-          ? p['roleName'].toString()
-          : '';
+              ? p['roleName'].toString()
+              : '';
 
-      final bool isVampire =
-          (p is Map && p['isVampire'] == true) ||
+      final bool isVampire = (p is Map && p['isVampire'] == true) ||
           rawRole.toLowerCase().contains('vampir');
 
       String roleStr = rawRole;
@@ -456,8 +444,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       final String id = (p is Map && p['id'] != null)
           ? p['id'].toString()
           : (p is Map && p['socketId'] != null)
-          ? p['socketId'].toString()
-          : 'p_$i';
+              ? p['socketId'].toString()
+              : 'p_$i';
 
       final bool isAlive = (p is Map && p['isAlive'] != null)
           ? (p['isAlive'] == true)
