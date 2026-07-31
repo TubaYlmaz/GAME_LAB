@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../player_model.dart';
+import '../services/socket_service.dart';
+import '../widgets/role_reveal_card.dart';
 
 class GameDialogs {
   // Debug / Algoritma Çıktı Dialogu
@@ -94,38 +96,52 @@ class GameDialogs {
     );
   }
 
-  // Kullanıcının Kendi Gizli Rol Kartı
-  static void showMyRoleCard(BuildContext context, PlayerModel myPlayer) {
+  // Kullanıcının Kendi Gizli Rol Kartı (Gelişmiş 3D RoleRevealCard Entegrasyonu)
+  static void showMyRoleCard(
+    BuildContext context,
+    PlayerModel myPlayer, {
+    required String roomCode,
+    required SocketService socketService,
+    List<String> teamMates = const [],
+  }) {
+    Color roleColor = myPlayer.avatarColor;
+    final String lowerRole = myPlayer.role.toLowerCase();
+
+    if (lowerRole.contains('vampir')) {
+      roleColor = Colors.redAccent;
+    } else if (lowerRole.contains('doktor')) {
+      roleColor = Colors.greenAccent;
+    } else if (lowerRole.contains('katil')) {
+      roleColor = Colors.purpleAccent;
+    }
+
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF13132B),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: myPlayer.avatarColor, width: 2),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'GİZLİ ROLÜN',
-                style: TextStyle(
-                  color: Colors.white54,
-                  fontSize: 12,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                myPlayer.role,
-                style: TextStyle(
-                  color: myPlayer.avatarColor,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        // Sunucudan herkesin rolü gördüğüne dair sinyal geldiğinde kartı otomatik kapat
+        socketService.socket?.once('vk_all_roles_seen', (_) {
+          if (Navigator.canPop(dialogContext)) {
+            Navigator.pop(dialogContext);
+          }
+        });
+
+        return PopScope(
+          canPop: false,
+          child: RoleRevealCard(
+            roleName: myPlayer.role,
+            roleDescription:
+                'Köydeki rolünü gizli tut ve stratejini buna göre belirle.',
+            roleColor: roleColor,
+            teamMates: teamMates,
+            onDismiss: () {},
+            onReadySubmitted: () {
+              // 🛠️ DÜZELTME: Sunucunun beklediği playerName eklendi
+              socketService.socket?.emit('vk_player_role_seen', {
+                'roomCode': roomCode,
+                'playerName': myPlayer.name,
+              });
+            },
           ),
         );
       },

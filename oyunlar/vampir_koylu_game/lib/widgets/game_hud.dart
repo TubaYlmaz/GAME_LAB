@@ -67,7 +67,10 @@ class GameHud extends StatelessWidget {
               if (amIAlive)
                 Container(
                   constraints: const BoxConstraints(maxWidth: 550),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0A0D2A).withOpacity(0.92),
                     borderRadius: BorderRadius.circular(35),
@@ -89,20 +92,42 @@ class GameHud extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildInfoChip(Icons.numbers, 'Tur $round', Colors.amber),
-                          Container(width: 1, height: 14, color: Colors.white24),
-                          _buildInfoChip(Icons.person_outline, myPlayer.role, const Color(0xFF00D2FF)),
-                          Container(width: 1, height: 14, color: Colors.white24),
-                          _buildInfoChip(Icons.timelapse, _phaseText, Colors.purpleAccent),
+                          _buildInfoChip(
+                            Icons.numbers,
+                            'Tur $round',
+                            Colors.amber,
+                          ),
+                          Container(
+                            width: 1,
+                            height: 14,
+                            color: Colors.white24,
+                          ),
+                          _buildInfoChip(
+                            Icons.person_outline,
+                            myPlayer.role,
+                            const Color(0xFF00D2FF),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 14,
+                            color: Colors.white24,
+                          ),
+                          _buildInfoChip(
+                            Icons.timelapse,
+                            _phaseText,
+                            Colors.purpleAccent,
+                          ),
                         ],
                       ),
-
                       const SizedBox(height: 8),
-
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.article_outlined, color: Color(0xFF00D2FF), size: 28),
+                            icon: const Icon(
+                              Icons.article_outlined,
+                              color: Color(0xFF00D2FF),
+                              size: 28,
+                            ),
                             onPressed: onShowRoleCard,
                             tooltip: 'Rol Kartım',
                           ),
@@ -162,11 +187,17 @@ class GameHud extends StatelessWidget {
               if (!amIAlive)
                 Container(
                   constraints: const BoxConstraints(maxWidth: 500),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF150808).withOpacity(0.92),
                     borderRadius: BorderRadius.circular(25),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.8), width: 1.5),
+                    border: Border.all(
+                      color: Colors.redAccent.withOpacity(0.8),
+                      width: 1.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.redAccent.withOpacity(0.2),
@@ -178,13 +209,21 @@ class GameHud extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.sentiment_very_dissatisfied_rounded, color: Colors.redAccent, size: 24),
+                      Icon(
+                        Icons.sentiment_very_dissatisfied_rounded,
+                        color: Colors.redAccent,
+                        size: 24,
+                      ),
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           "ÖLDÜNÜZ! (İzleyici Modu) 👻\nKöyün kaderini izleyin, oyunun bitmesini bekleyin.",
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],
