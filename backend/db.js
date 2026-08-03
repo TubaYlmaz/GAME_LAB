@@ -1,17 +1,30 @@
 // backend/db.js
 const mysql = require('mysql2');
 
-// MySQL Bağlantı Havuzu (Pool) oluşturuyoruz kanka.
-// Bu yapı, her sorgu için sıfırdan bağlantı açıp kapatmak yerine hazır bağlantıları elinde tutarak performansı artırır.
-const pool = mysql.createPool({
-    host: 'localhost',       // Lokalinde çalıştığın için localhost
-    user: 'root',            // MySQL kullanıcı adın (varsayılan olarak root)
-    password: 'My2003.SQL.root-', // MySQL kurarken belirlediğin şifreni buraya yaz!
-    database: 'impostor_game', // Workbench'te oluşturduğumuz veri tabanı adı
+// 1. Impostor Oyunu için Bağlantı Havuzu
+const impostorPool = mysql.createPool({
+    host: 'localhost',
+    user: 'root',
+    password: 'My2003.SQL.root-',
+    database: 'impostor_game',
     waitForConnections: true,
-    connectionLimit: 10,     // Aynı anda en fazla 10 aktif bağlantı kuyrukta bekleyebilir
+    connectionLimit: 10,
     queueLimit: 0
 });
 
-// Kodlarımızda modern "async/await" yapısını kullanabilmek için promise versiyonunu dışa aktarıyoruz.
-module.exports = pool.promise();
+// 2. Vampir Köylü Oyunu için Bağlantı Havuzu (YENİ)
+const vampirPool = mysql.createPool({
+    host: 'localhost',
+    user: 'root',
+    password: '1234',
+    database: 'vampir_koylu_game', // Workbench'te oluşturduğun yeni veri tabanı adı
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+// İkisini de projede rahatça kullanabilmek için dışa aktarıyoruz (Promise desteğiyle)
+module.exports = {
+    impostorDb: impostorPool.promise(),
+    vampirDb: vampirPool.promise()
+};
