@@ -1,17 +1,14 @@
-// lib/config.dart
+import 'package:flutter/foundation.dart';
+import 'dart:html' as html; // Web için
 
 class AppConfig {
-  // 1. 💻 Kendi bilgisayarındaki tarayıcı (Chrome) testleri için:
-  static const String localWebUrl = "http://localhost:3000";
-
-  // 2. 📱 Telefon testleri için (Telefonun kendi ağındayken bilgisayarının aldığı IP'yi buraya yaz kanka):
-  static const String localMobileUrl = "http://10.7.9.2:3000";
-
-  // 3. 🚀 Yarın bir gün oyunu canlı sunucuya (AWS, Render vb.) yüklediğinde buraya o adresi yazacaksın:
-  //static const String productionUrl = "https://gamelab-backend.onrender.com";
-
-  // 🎯 AKTİF BAĞLANTI ADRESİ:
-  // Telefonla test ederken burayı 'localMobileUrl' yap kanka.
-  // Canlıya çıkarken tek yapman gereken burayı 'productionUrl' olarak değiştirmek!
-  static const String serverUrl = localMobileUrl;
+  // Eğer Web'de çalışıyorsa otomatik olarak tarayıcının bağlandığı adresi (localhost veya domain) alır,
+  // mobil cihazdaysa (APK/iOS) belirlediğin IP'yi kullanır.
+  static String get serverUrl {
+    if (kIsWeb) {
+      // Tarayıcının bağlandığı origin'i alır (Örn: http://localhost:3000)
+      return html.window.location.origin;
+    }
+    return 'http://10.7.9.35:3000'; // Mobil/Emulator için varsayılan IP
+  }
 }
