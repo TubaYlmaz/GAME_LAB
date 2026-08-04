@@ -29,7 +29,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
   late AnimationController _controller;
   late Animation<double> _animation;
 
-  int _secondsLeft = 10;
+  int _secondsLeft = 5;
   Timer? _timer;
 
   @override
@@ -131,7 +131,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
                   color: widget.roleColor.withOpacity(0.2),
                   blurRadius: 10,
                   spreadRadius: 1,
-                )
+                ),
               ],
             ),
             child: Row(
