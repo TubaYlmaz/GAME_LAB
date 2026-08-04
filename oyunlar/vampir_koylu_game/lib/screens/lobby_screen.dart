@@ -37,6 +37,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   final SocketService _socketService = SocketService();
   bool _isGameStarting = false;
   bool _isStartRequestInFlight = false;
+  late bool _isHost;
+  late int _vampireCount;
+  late int _doctorCount;
+  late int _serialKillerCount;
+  late int _villagerCount;
 
   // Lobi dönüş ve eşzamanlılık takip değişkenleri
   bool _isEveryoneBackToLobby = false;
@@ -48,11 +53,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
   String _myRoleDescription =
       "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!";
   Color _myRoleColor = const Color(0xFFE74C3C);
+  List<String> _myTeamMates = [];
+  String _myTeamMatesLabel = 'EKİP ARKADAŞLARIN:';
 
   @override
   void initState() {
     super.initState();
     _currentRoomCode = widget.roomCode;
+    _isHost = widget.isHost;
+    _vampireCount = widget.vampireCount;
+    _doctorCount = widget.doctorCount;
+    _serialKillerCount = widget.serialKillerCount;
+    _villagerCount = widget.villagerCount;
     _initSocket();
   }
 
@@ -67,6 +79,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.socket?.off('vk_lobby_status_updated');
     _socketService.socket?.off('vk_start_game_error');
     _socketService.socket?.off('vk_redirect_to_new_room');
+    _socketService.socket?.off('vk_host_changed');
+    _socketService.socket?.off('vk_room_config_updated');
+    _socketService.socket?.off('vk_room_config_error');
     _socketService.socket?.off('connect');
 
     // 1. Oyuncu Listesi Güncellendiğinde
@@ -74,6 +89,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
       if (mounted) {
         setState(() {
           _players = List<Map<String, dynamic>>.from(data);
+          final myPlayer = _players.cast<Map<String, dynamic>>().firstWhere(
+            (player) =>
+                player['name']?.toString().trim().toLowerCase() ==
+                widget.playerName.trim().toLowerCase(),
+            orElse: () => <String, dynamic>{},
+          );
+          if (myPlayer.containsKey('isHost')) {
+            _isHost = myPlayer['isHost'] == true;
+          }
           _isEveryoneBackToLobby =
               _returnedPlayersSet.length >= _players.length;
         });
@@ -97,6 +121,35 @@ class _LobbyScreenState extends State<LobbyScreen> {
               targetCount > 0 && _returnedPlayersSet.length >= targetCount;
         });
       }
+    });
+
+    _socketService.socket?.on('vk_host_changed', (data) {
+      if (!mounted || data is! Map || data['newHost'] == null) return;
+      setState(() {
+        _isHost = data['newHost'].toString().trim().toLowerCase() ==
+            widget.playerName.trim().toLowerCase();
+      });
+    });
+
+    _socketService.socket?.on('vk_room_config_updated', (data) {
+      if (!mounted || data is! Map) return;
+      setState(() {
+        _vampireCount = int.tryParse('${data['vampireCount']}') ?? _vampireCount;
+        _doctorCount = int.tryParse('${data['doctorCount']}') ?? _doctorCount;
+        _serialKillerCount =
+            int.tryParse('${data['serialKillerCount']}') ?? _serialKillerCount;
+        _villagerCount = int.tryParse('${data['villagerCount']}') ?? _villagerCount;
+      });
+    });
+
+    _socketService.socket?.on('vk_room_config_error', (data) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text((data is Map ? data['message'] : null) ?? 'Ayarlar güncellenemedi.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     });
 
     // 🌟 3. YENİ ODA KODUNA OTOMATİK YÖNLENDİRME DİNLEYİCİSİ
@@ -132,7 +185,38 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
           if (myData != null) {
             final bool isVamp = myData['isVampire'] ?? false;
+            final String myRole = (myData['role'] ?? '').toString().toLowerCase();
+            String? teamRole;
+            String teamLabel = 'EKİP ARKADAŞLARIN:';
+            if (isVamp || myRole.contains('vampir')) {
+              teamRole = 'vampir';
+              teamLabel = 'DİĞER VAMPİRLER:';
+            } else if (myRole.contains('doktor')) {
+              teamRole = 'doktor';
+              teamLabel = 'DİĞER DOKTORLAR:';
+            } else if (myRole.contains('seri') || myRole.contains('katil')) {
+              teamRole = 'seri';
+              teamLabel = 'DİĞER SERİ KATİLLER:';
+            }
+            final List<String> teamMates = teamRole == null
+                ? []
+                : serverPlayers
+                    .where((player) {
+                      final role = (player['role'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      final name = player['name']?.toString().trim().toLowerCase();
+                      if (name == widget.playerName.trim().toLowerCase()) {
+                        return false;
+                      }
+                      if (teamRole == 'vampir') return role.contains('vampir');
+                      if (teamRole == 'doktor') return role.contains('doktor');
+                      return role.contains('seri') || role.contains('katil');
+                    })
+                    .map((player) => player['name'].toString())
+                    .toList();
             setState(() {
+              _isHost = myData['isHost'] == true;
               _myAssignedRole =
                   myData['role'] ?? (isVamp ? 'Vampir 🧛' : 'Köylü 🧑‍🌾');
               _myRoleColor = isVamp
@@ -141,6 +225,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
               _myRoleDescription = isVamp
                   ? "Geceleri diğer vampirlerle anlaşıp köylüleri avla. Gündüzleri kendini belli etme!"
                   : "Köyünü koru, şüphelileri fark et ve gündüz oylamasında doğru kararı ver!";
+              _myTeamMates = teamMates;
+              _myTeamMatesLabel = teamLabel;
             });
           }
         }
@@ -205,6 +291,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.socket?.off('vk_lobby_return_status');
     _socketService.socket?.off('vk_start_game_error');
     _socketService.socket?.off('vk_redirect_to_new_room');
+    _socketService.socket?.off('vk_host_changed');
+    _socketService.socket?.off('vk_room_config_updated');
+    _socketService.socket?.off('vk_room_config_error');
     super.dispose();
   }
 
@@ -222,18 +311,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
           roomCode: _currentRoomCode,
           playerName: widget.playerName,
           gender: widget.gender,
-          isHost: widget.isHost,
-          vampireCount: widget.vampireCount,
-          doctorCount: widget.doctorCount,
-          serialKillerCount: widget.serialKillerCount,
-          villagerCount: widget.villagerCount,
+          isHost: _isHost,
+          vampireCount: _vampireCount,
+          doctorCount: _doctorCount,
+          serialKillerCount: _serialKillerCount,
+          villagerCount: _villagerCount,
         ),
       ),
     );
   }
 
   void _startGame() {
-    if (widget.isHost) {
+    if (_isHost) {
       if (_isStartRequestInFlight) return;
 
       final bool canStart =
@@ -263,9 +352,145 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
+  void _saveRoleConfig() {
+    _socketService.socket?.emit('vk_update_room_config', {
+      'roomCode': _currentRoomCode,
+      'vampireCount': _vampireCount,
+      'doctorCount': _doctorCount,
+      'serialKillerCount': _serialKillerCount,
+      'villagerCount': _villagerCount,
+    });
+  }
+
+  Widget _buildRoleCounter({
+    required String label,
+    required int value,
+    required Color color,
+    required VoidCallback? onDecrease,
+    required VoidCallback onIncrease,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+          IconButton(
+            onPressed: onDecrease,
+            icon: const Icon(Icons.remove_circle_outline),
+            color: Colors.redAccent,
+          ),
+          Text(
+            '$value',
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          IconButton(
+            onPressed: onIncrease,
+            icon: const Icon(Icons.add_circle_outline),
+            color: Colors.greenAccent,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsDrawer() {
+    final total =
+        _vampireCount + _doctorCount + _serialKillerCount + _villagerCount;
+    return Drawer(
+      backgroundColor: const Color(0xFF121229),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.tune_rounded, color: Color(0xFF00D2FF)),
+                  SizedBox(width: 10),
+                  Text(
+                    'YENİ OYUN AYARLARI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Seçilen rol dağılımı: $total kişi',
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+              const Divider(color: Colors.white24, height: 28),
+              _buildRoleCounter(
+                label: '🧛 Vampir',
+                value: _vampireCount,
+                color: Colors.redAccent,
+                onDecrease: _vampireCount > 1
+                    ? () => setState(() => _vampireCount--)
+                    : null,
+                onIncrease: () => setState(() => _vampireCount++),
+              ),
+              _buildRoleCounter(
+                label: '🩺 Doktor',
+                value: _doctorCount,
+                color: Colors.greenAccent,
+                onDecrease: _doctorCount > 0
+                    ? () => setState(() => _doctorCount--)
+                    : null,
+                onIncrease: () => setState(() => _doctorCount++),
+              ),
+              _buildRoleCounter(
+                label: '🔪 Seri Katil',
+                value: _serialKillerCount,
+                color: Colors.purpleAccent,
+                onDecrease: _serialKillerCount > 0
+                    ? () => setState(() => _serialKillerCount--)
+                    : null,
+                onIncrease: () => setState(() => _serialKillerCount++),
+              ),
+              _buildRoleCounter(
+                label: '🧑‍🌾 Köylü',
+                value: _villagerCount,
+                color: Colors.amberAccent,
+                onDecrease: _villagerCount > 0
+                    ? () => setState(() => _villagerCount--)
+                    : null,
+                onIncrease: () => setState(() => _villagerCount++),
+              ),
+              const Spacer(),
+              _NeonButton(
+                label: 'AYARLARI KAYDET',
+                icon: Icons.save_rounded,
+                color: const Color(0xFF00D2FF),
+                large: true,
+                onPressed: () {
+                  _saveRoleConfig();
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      endDrawer: _isHost ? _buildSettingsDrawer() : null,
       body: Stack(
         children: [
           Image.asset(
@@ -297,6 +522,18 @@ class _LobbyScreenState extends State<LobbyScreen> {
                           ),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
+                        const Spacer(),
+                        if (_isHost)
+                          Builder(
+                            builder: (drawerContext) => IconButton(
+                              icon: const Icon(
+                                Icons.tune_rounded,
+                                color: Color(0xFF00D2FF),
+                              ),
+                              tooltip: 'Yeni oyun ayarları',
+                              onPressed: () => Scaffold.of(drawerContext).openEndDrawer(),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -536,7 +773,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: _NeonButton(
-                      label: widget.isHost
+                      label: _isHost
                           ? ((_isEveryoneBackToLobby && _players.isNotEmpty)
                                 ? 'YENİ OYUNU BAŞLAT 🚀'
                                 : 'OYUNCULARIN LOBİYE DÖNMESİ BEKLENİYOR...')
@@ -544,7 +781,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       icon: Icons.play_arrow_rounded,
                       color: const Color(0xFF00D2FF),
                       enabled:
-                          widget.isHost &&
+                          _isHost &&
                           _isEveryoneBackToLobby &&
                           _players.isNotEmpty &&
                           !_isStartRequestInFlight,
@@ -562,6 +799,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                 roleName: _myAssignedRole,
                 roleDescription: _myRoleDescription,
                 roleColor: _myRoleColor,
+                teamMates: _myTeamMates,
+                teamMatesLabel: _myTeamMatesLabel,
                 onDismiss: _navigateToGameScreen,
               ),
             ),

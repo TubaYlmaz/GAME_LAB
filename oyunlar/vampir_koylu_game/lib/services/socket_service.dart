@@ -32,6 +32,7 @@ class SocketService {
     socket?.off('vk_round_ended');
     socket?.off('vk_voting_results');
     socket?.off('vk_game_over');
+    socket?.off('vk_host_status');
     socket?.off('vk_phase_changed');
     socket?.off('vk_navigate_to_voting');
     socket?.off('vk_vote_status_updated');
