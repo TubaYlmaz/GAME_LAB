@@ -3,39 +3,452 @@ module.exports = function ({ app, io, redisClient, db }) {
     const nightVotes = {};
 
     // ==========================================
+    // 🎯 KÖTÜ ROL KONTROL YARDIMCISI (Vampir veya Seri Katil)
+    // ==========================================
+    function isEvilPlayer(player) {
+        if (!player) return false;
+        if (player.isVampire === true) return true;
+
+        const roleStr = String(player.role || '').toLowerCase();
+        return roleStr.includes('vampir') || roleStr.includes('seri') || roleStr.includes('katil');
+    }
+
+    function normalisePlayerName(name) {
+        return String(name || '').trim().toLocaleLowerCase('tr-TR');
+    }
+
+    function getSpecialRoleTeam(player) {
+        const role = String(player && player.role || '').toLocaleLowerCase('tr-TR');
+        if (player && player.isVampire === true || role.includes('vampir')) return 'Vampirler';
+        if (role.includes('doktor')) return 'Doktorlar';
+        if (role.includes('seri') || role.includes('katil')) return 'Seri Katiller';
+        return null;
+    }
+
+    async function emitTeamVoteStatus(roomCode, players, currentVotes) {
+        const sockets = await io.in(roomCode).fetchSockets();
+
+        for (const connectedSocket of sockets) {
+            const player = players.find(candidate =>
+                normalisePlayerName(typeof candidate === 'object' ? candidate.name : candidate) ===
+                normalisePlayerName(connectedSocket.data.vkPlayerName)
+            );
+            const team = getSpecialRoleTeam(player);
+            const teamMembers = team
+                ? players.filter(candidate => candidate.isAlive !== false && getSpecialRoleTeam(candidate) === team)
+                    .map(candidate => candidate.name)
+                : [];
+            const teamVotes = {};
+
+            if (team) {
+                Object.entries(currentVotes).forEach(([voterName, targetName]) => {
+                    const voter = players.find(candidate =>
+                        normalisePlayerName(candidate.name) === normalisePlayerName(voterName)
+                    );
+                    if (getSpecialRoleTeam(voter) !== team || !targetName || targetName === 'skip') return;
+
+                    const target = String(targetName);
+                    if (!teamVotes[target]) teamVotes[target] = [];
+                    teamVotes[target].push(voter.name);
+                });
+            }
+
+            io.to(connectedSocket.id).emit('vk_team_vote_status', {
+                team,
+                teamMembers,
+                teamVotes
+            });
+        }
+    }
+
+    async function getLobbyReturnStatus(roomCode, players) {
+        const returnedPlayers = await redisClient.smembers(
+            `room:${roomCode}:returned_players`
+        );
+        const returnedNames = new Set(returnedPlayers.map(normalisePlayerName));
+        const expectedNames = players.map(player => normalisePlayerName(
+            typeof player === 'object' ? player.name : player
+        ));
+
+        return {
+            returnedPlayers,
+            isEveryoneBack: expectedNames.length > 0 && expectedNames.every(
+                name => returnedNames.has(name)
+            )
+        };
+    }
+
+    async function restoreOriginalHostForLobby(roomCode) {
+        const room = await redisClient.hgetall(`room:${roomCode}`);
+        if (!room || !room.players) return null;
+
+        const players = JSON.parse(room.players || '[]');
+        const originalHostName = room.creatorHost || room.host;
+        const originalHostKey = normalisePlayerName(originalHostName);
+        const originalHostExists = players.some(player => normalisePlayerName(
+            typeof player === 'object' ? player.name : player
+        ) === originalHostKey);
+
+        if (!originalHostKey || !originalHostExists) return players;
+
+        const updatedPlayers = players.map(player => {
+            if (typeof player !== 'object') return player;
+            return {
+                ...player,
+                isHost: normalisePlayerName(player.name) === originalHostKey
+            };
+        });
+
+        await redisClient.hset(`room:${roomCode}`, 'host', originalHostName);
+        await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
+
+        io.to(roomCode).emit('vk_host_changed', {
+            newHost: originalHostName,
+            message: `Lobiye dönüldü. Muhtarlık oda kurucusu ${originalHostName} kişisine geri verildi.`
+        });
+        io.to(roomCode).emit('vk_players_updated', updatedPlayers);
+
+        return updatedPlayers;
+    }
+
+    async function finishGame(roomCode, winner, eliminatedPlayer) {
+        const room = await redisClient.hgetall(`room:${roomCode}`);
+        if (!room || room.status === 'finished') return false;
+
+        await redisClient.hset(`room:${roomCode}`, 'status', 'finished');
+        await saveGameWinnerToDb(roomCode, winner);
+
+        io.to(roomCode).emit('vk_game_over', {
+            winner,
+            eliminatedPlayer,
+            // The client uses this authoritative snapshot to decide whether
+            // the local player won or lost.
+            players: JSON.parse(room.players || '[]')
+        });
+        delete nightVotes[roomCode];
+        return true;
+    }
+
+    async function resolveVotingIfReady(roomCode) {
+        const roomData = await redisClient.hgetall(`room:${roomCode}`);
+        if (!roomData || roomData.status !== 'started') return false;
+
+        let players = JSON.parse(roomData.players || '[]');
+        const alivePlayers = players.filter(player => player.isAlive !== false);
+        const voteKey = `room:${roomCode}:vk_votes`;
+        const lockKey = `room:${roomCode}:vk_locked_votes`;
+        const currentVotes = await redisClient.hgetall(voteKey) || {};
+        const lockedPlayers = await redisClient.smembers(lockKey) || [];
+        const activePlayerNames = new Set(alivePlayers.map(player => normalisePlayerName(player.name)));
+        const activeLocks = lockedPlayers.filter(name => activePlayerNames.has(normalisePlayerName(name)));
+
+        if (alivePlayers.length === 0 || activeLocks.length < alivePlayers.length) return false;
+
+        const voteCounts = {};
+        alivePlayers.forEach(player => {
+            voteCounts[player.name.trim()] = 0;
+        });
+        Object.entries(currentVotes).forEach(([voterName, targetName]) => {
+            if (!activePlayerNames.has(normalisePlayerName(voterName)) || !targetName || targetName === 'skip') return;
+            const targetKey = Object.keys(voteCounts).find(name =>
+                normalisePlayerName(name) === normalisePlayerName(targetName)
+            );
+            if (targetKey) voteCounts[targetKey]++;
+        });
+
+        let eliminatedPlayerName = null;
+        let eliminatedPlayerObj = null;
+        let maxVotes = 0;
+        let isTie = false;
+        Object.entries(voteCounts).forEach(([playerName, count]) => {
+            if (count > maxVotes) {
+                maxVotes = count;
+                eliminatedPlayerName = playerName;
+                isTie = false;
+            } else if (count === maxVotes && count > 0) {
+                isTie = true;
+            }
+        });
+        if (isTie) eliminatedPlayerName = null;
+
+        let isVampire = false;
+        if (eliminatedPlayerName) {
+            players = players.map(player => {
+                if (normalisePlayerName(player.name) !== normalisePlayerName(eliminatedPlayerName)) return player;
+                eliminatedPlayerObj = player;
+                isVampire = !!player.isVampire || String(player.role || '').toLowerCase().includes('vampir');
+                return { ...player, isAlive: false };
+            });
+            players = await handleHostTransferIfNeeded(roomCode, players);
+
+            if (db) {
+                try {
+                    await db.query(
+                        'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
+                        [roomCode, eliminatedPlayerName]
+                    );
+                } catch (dbErr) {
+                    console.error('❌ [MySQL Error - Elenen Oyuncu Güncellenemedi]:', dbErr);
+                }
+            }
+        }
+
+        await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
+        await redisClient.del(voteKey);
+        await redisClient.del(lockKey);
+
+        const remainingAlive = players.filter(player => player.isAlive !== false);
+        const evilCount = remainingAlive.filter(isEvilPlayer).length;
+        const goodCount = remainingAlive.filter(player => !isEvilPlayer(player)).length;
+
+        if (evilCount === 0) {
+            await finishGame(roomCode, 'KÖYLÜLER', eliminatedPlayerName);
+        } else if (evilCount >= goodCount) {
+            await finishGame(roomCode, 'VAMPİRLER', eliminatedPlayerName);
+        } else {
+            const result = {
+                eliminatedPlayer: eliminatedPlayerName,
+                eliminatedRole: eliminatedPlayerObj ? eliminatedPlayerObj.role : null,
+                isTie,
+                isVampire,
+                players
+            };
+            io.to(roomCode).emit('vk_voting_results', result);
+            io.to(roomCode).emit('vk_round_ended', result);
+        }
+        io.to(roomCode).emit('vk_players_updated', players);
+        return true;
+    }
+
+    function chooseRandomTarget(players, ownName) {
+        const candidates = players.filter(player =>
+            player.isAlive !== false && normalisePlayerName(player.name) !== normalisePlayerName(ownName)
+        );
+        const pool = candidates.length > 0 ? candidates : players.filter(player => player.isAlive !== false);
+        if (pool.length === 0) return null;
+        return pool[Math.floor(Math.random() * pool.length)].name;
+    }
+
+    async function addBotVotes(roomCode) {
+        const roomData = await redisClient.hgetall(`room:${roomCode}`);
+        if (!roomData || roomData.status !== 'started') return;
+
+        const players = JSON.parse(roomData.players || '[]');
+        const alivePlayers = players.filter(player => player.isAlive !== false);
+        const bots = alivePlayers.filter(player => player.isBot === true);
+        if (bots.length === 0) return;
+
+        const voteKey = `room:${roomCode}:vk_votes`;
+        const lockKey = `room:${roomCode}:vk_locked_votes`;
+        const lockedPlayers = await redisClient.smembers(lockKey) || [];
+        const lockedNames = new Set(lockedPlayers.map(normalisePlayerName));
+
+        for (const bot of bots) {
+            if (lockedNames.has(normalisePlayerName(bot.name))) continue;
+            const target = chooseRandomTarget(alivePlayers, bot.name) || 'skip';
+            await redisClient.hset(voteKey, bot.name, target);
+            await redisClient.sadd(lockKey, bot.name);
+        }
+
+        const currentVotes = await redisClient.hgetall(voteKey) || {};
+        const updatedLocks = await redisClient.smembers(lockKey) || [];
+        io.to(roomCode).emit('vk_vote_status_updated', {
+            votedCount: updatedLocks.length,
+            totalPlayers: alivePlayers.length,
+            lockedPlayers: updatedLocks
+        });
+        io.to(roomCode).emit('vk_vote_progress', {
+            votedCount: updatedLocks.length,
+            totalAlive: alivePlayers.length
+        });
+        await emitTeamVoteStatus(roomCode, players, currentVotes);
+        await resolveVotingIfReady(roomCode);
+    }
+
+    function addBotNightActions(roomCode, alivePlayers) {
+        if (!nightVotes[roomCode]) return;
+        const bots = alivePlayers.filter(player => player.isBot === true);
+        if (bots.length === 0) return;
+
+        const botVampires = bots.filter(player => String(player.role || '').toLowerCase().includes('vampir'));
+        const botKillers = bots.filter(player => {
+            const role = String(player.role || '').toLowerCase();
+            return role.includes('seri') || role.includes('katil');
+        });
+        const existingVampireTarget = Object.values(nightVotes[roomCode].vampires)[0];
+        const existingKillerTarget = Object.values(nightVotes[roomCode].killers)[0];
+        const sharedVampireTarget = existingVampireTarget ||
+            chooseRandomTarget(alivePlayers, botVampires[0] && botVampires[0].name);
+        const sharedKillerTarget = existingKillerTarget ||
+            chooseRandomTarget(alivePlayers, botKillers[0] && botKillers[0].name);
+
+        for (const bot of bots) {
+            const role = String(bot.role || '').toLowerCase();
+            if (role.includes('vampir')) {
+                if (sharedVampireTarget) nightVotes[roomCode].vampires[bot.name] = sharedVampireTarget;
+            } else if (role.includes('seri') || role.includes('katil')) {
+                if (sharedKillerTarget) nightVotes[roomCode].killers[bot.name] = sharedKillerTarget;
+            } else if (role.includes('doktor')) {
+                const target = chooseRandomTarget(alivePlayers, bot.name) || bot.name;
+                nightVotes[roomCode].doctors[bot.name] = target;
+            } else if (!nightVotes[roomCode].mathSolvedPlayers.includes(bot.name)) {
+                nightVotes[roomCode].mathSolvedPlayers.push(bot.name);
+            }
+        }
+    }
+
+    async function resolveNightIfReady(roomCode) {
+        const roomData = await redisClient.hgetall(`room:${roomCode}`);
+        if (!roomData || roomData.status !== 'started' || !nightVotes[roomCode]) return false;
+
+        const players = JSON.parse(roomData.players || '[]');
+        const alivePlayers = players.filter(player => player.isAlive !== false);
+        const votes = nightVotes[roomCode];
+        const totalActionsReceived =
+            Object.keys(votes.vampires).length +
+            Object.keys(votes.killers).length +
+            Object.keys(votes.doctors).length +
+            votes.mathSolvedPlayers.length;
+
+        if (totalActionsReceived < alivePlayers.length) return false;
+
+        const vampireChoices = Object.values(votes.vampires);
+        const killerChoices = Object.values(votes.killers);
+        const uniqueVampireTargets = [...new Set(vampireChoices)];
+        const uniqueKillerTargets = [...new Set(killerChoices)];
+        const totalVampires = alivePlayers.filter(player =>
+            String(player.role || '').toLowerCase().includes('vampir')
+        ).length;
+        const totalKillers = alivePlayers.filter(player => {
+            const role = String(player.role || '').toLowerCase();
+            return role.includes('seri') || role.includes('katil');
+        }).length;
+
+        if (totalVampires > 0 && vampireChoices.length === totalVampires && uniqueVampireTargets.length > 1) {
+            io.to(roomCode).emit('night_action_error', {
+                roleTarget: 'Vampir',
+                message: '⚠️ Vampirler anlaşamadı! Ortak hedefi seçip kararını yeniden onayla.'
+            });
+            return true;
+        }
+        if (totalKillers > 0 && killerChoices.length === totalKillers && uniqueKillerTargets.length > 1) {
+            io.to(roomCode).emit('night_action_error', {
+                roleTarget: 'Seri Katil',
+                message: '⚠️ Seri katiller anlaşamadı! Ortak hedef seçmelisiniz.'
+            });
+            return true;
+        }
+
+        const finalVampireTarget = uniqueVampireTargets[0] || null;
+        const finalDoctorTarget = Object.values(votes.doctors)[0] || null;
+        const finalKillerTarget = uniqueKillerTargets[0] || null;
+        const deadTargetNames = new Set();
+        if (finalKillerTarget) deadTargetNames.add(normalisePlayerName(finalKillerTarget));
+        if (finalVampireTarget && normalisePlayerName(finalVampireTarget) !== normalisePlayerName(finalDoctorTarget)) {
+            deadTargetNames.add(normalisePlayerName(finalVampireTarget));
+        }
+
+        const actualDeadNames = [];
+        let updatedPlayers = players.map(player => {
+            if (!deadTargetNames.has(normalisePlayerName(player.name))) return player;
+            actualDeadNames.push(player.name);
+            return { ...player, isAlive: false };
+        });
+        updatedPlayers = await handleHostTransferIfNeeded(roomCode, updatedPlayers);
+        await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
+
+        if (db) {
+            try {
+                for (const deadName of actualDeadNames) {
+                    await db.query(
+                        'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
+                        [roomCode, deadName]
+                    );
+                }
+            } catch (dbErr) {
+                console.error('❌ [MySQL Error - Gece Ölüleri Güncellenemedi]:', dbErr);
+            }
+        }
+
+        io.to(roomCode).emit('night_results', {
+            deadPlayers: actualDeadNames,
+            message: actualDeadNames.length > 0
+                ? `Sabah oldu! Gece kurbanı / kurbanları: ${actualDeadNames.join(', ')} 💀`
+                : 'Mucize! Doktor köyü korumayı başardı, gece kimse ölmedi. 🩺'
+        });
+        io.to(roomCode).emit('vk_players_updated', updatedPlayers);
+
+        const remainingAlive = updatedPlayers.filter(player => player.isAlive !== false);
+        const evilCount = remainingAlive.filter(isEvilPlayer).length;
+        const goodCount = remainingAlive.filter(player => !isEvilPlayer(player)).length;
+        if (evilCount === 0) {
+            await finishGame(roomCode, 'KÖYLÜLER', actualDeadNames.join(', ') || 'Kötüler');
+        } else if (evilCount >= goodCount) {
+            await finishGame(roomCode, 'VAMPİRLER', actualDeadNames.join(', ') || 'Köy Kurbanı');
+        } else {
+            delete nightVotes[roomCode];
+        }
+        return true;
+    }
+
+    // ==========================================
     // 👑 MUHTAR/HOST DEVİR YARDIMCISI (RASTGELE DEVİR)
     // ==========================================
     async function handleHostTransferIfNeeded(roomCode, updatedPlayers) {
         const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
         if (!savedRoom) return updatedPlayers;
 
-        const currentHostName = savedRoom.host;
-        const currentHostPlayer = updatedPlayers.find(p => (typeof p === 'object' ? p.name : p) === currentHostName);
+        const currentHostKey = normalisePlayerName(savedRoom.host);
+        const currentHostByRoom = updatedPlayers.find(player => {
+            const name = typeof player === 'object' ? player.name : player;
+            return normalisePlayerName(name) === currentHostKey;
+        });
+        // Only fall back to a player flag when the room has no usable host
+        // record. Do not let an old, stale isHost flag hide a dead host.
+        const currentHost = currentHostByRoom || updatedPlayers.find(player =>
+            typeof player === 'object' && player.isHost === true
+        );
 
-        if (currentHostPlayer && currentHostPlayer.isAlive === false) {
-            const alivePlayers = updatedPlayers.filter(p => p.isAlive !== false);
+        // A host assignment is valid only while that player is alive.  If the
+        // host dies (including a replacement host), make a fresh assignment.
+        if (currentHost && currentHost.isAlive !== false) return updatedPlayers;
 
-            if (alivePlayers.length > 0) {
-                const randomIndex = Math.floor(Math.random() * alivePlayers.length);
-                const newHost = alivePlayers[randomIndex];
-                const newHostName = typeof newHost === 'object' ? newHost.name : newHost;
+        const alivePlayers = updatedPlayers.filter(player => player.isAlive !== false);
+        if (alivePlayers.length === 0) return updatedPlayers;
 
-                updatedPlayers.forEach(p => {
-                    if (typeof p === 'object') {
-                        p.isHost = (p.name === newHostName);
-                    }
-                });
+        // Prefer real players. Bots are allowed only when no human remains.
+        const humanPlayers = alivePlayers.filter(player => player.isBot !== true);
+        const eligiblePlayers = humanPlayers.length > 0 ? humanPlayers : alivePlayers;
+        const newHost = eligiblePlayers[
+            Math.floor(Math.random() * eligiblePlayers.length)
+        ];
+        const newHostName = typeof newHost === 'object' ? newHost.name : newHost;
+        const previousHostName = currentHost
+            ? (typeof currentHost === 'object' ? currentHost.name : currentHost)
+            : savedRoom.host;
 
-                await redisClient.hset(`room:${roomCode}`, 'host', newHostName);
-                console.log(`👑 [MUHTAR DEĞİŞTİ] Eski Muhtar (${currentHostName}) öldü. Yeni Muhtar Rastgele Seçildi: ${newHostName}`);
+        const reassignedPlayers = updatedPlayers.map(player => {
+            if (typeof player !== 'object') return player;
+            return {
+                ...player,
+                isHost: normalisePlayerName(player.name) === normalisePlayerName(newHostName)
+            };
+        });
 
-                io.to(roomCode).emit('vk_host_changed', {
-                    newHost: newHostName,
-                    message: `👑 Muhtar ${currentHostName} hayatını kaybetti! Yeni Muhtar rastgele seçildi: ${newHostName}`
-                });
-            }
-        }
-        return updatedPlayers;
+        await redisClient.hset(`room:${roomCode}`, 'host', newHostName);
+        await redisClient.hset(
+            `room:${roomCode}`,
+            'players',
+            JSON.stringify(reassignedPlayers)
+        );
+
+        console.log(`👑 [MUHTAR DEĞİŞTİ] Eski Muhtar (${previousHostName}) öldü. Yeni Muhtar: ${newHostName}`);
+        io.to(roomCode).emit('vk_host_changed', {
+            newHost: newHostName,
+            message: `👑 Muhtar ${previousHostName} hayatını kaybetti! Yeni muhtar: ${newHostName}`
+        });
+        io.to(roomCode).emit('vk_players_updated', reassignedPlayers);
+        return reassignedPlayers;
     }
 
     // ==========================================
@@ -138,6 +551,7 @@ module.exports = function ({ app, io, redisClient, db }) {
         });
 
         await redisClient.hset(`room:${roomCode}`, 'status', 'started');
+        await redisClient.hset(`room:${roomCode}`, 'phase', 'role_reveal');
         await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
         console.log(`✅ [LOG - REDIS] Roller ve oyun durumu Redis'e kaydedildi.`);
 
@@ -175,9 +589,12 @@ module.exports = function ({ app, io, redisClient, db }) {
             console.log(`📥 [LOG - SOCKET] 'vk_create_room' alındı. Oda: ${roomCode}, Host: ${hostName}`);
 
             const initialPlayers = [{ name: hostName, gender: gender || 'male', isHost: true }];
+            socket.data.vkRoomCode = roomCode;
+            socket.data.vkPlayerName = normalisePlayerName(hostName);
 
             const roomData = {
                 host: hostName,
+                creatorHost: hostName,
                 status: 'waiting',
                 players: JSON.stringify(initialPlayers),
                 gameMode: 'Klasik',
@@ -225,26 +642,6 @@ module.exports = function ({ app, io, redisClient, db }) {
                 totalPlayersCount: initialPlayers.length,
                 returnedPlayers: returnedPlayers
             });
-        });
-
-        socket.on('vk_change_phase', async (data) => {
-            const { roomCode, nextPhase } = data;
-            console.log(`🔄 [Vampir Köylü FAZ] Oda: ${roomCode} -> Yeni Faz: ${nextPhase}`);
-
-            if (nextPhase === 'night') {
-                nightVotes[roomCode] = {
-                    vampires: {},
-                    killers: {},
-                    doctors: {},
-                    mathSolvedPlayers: []
-                };
-            }
-
-            if (nextPhase === 'voting') {
-                io.to(roomCode).emit('vk_navigate_to_voting');
-            } else {
-                io.to(roomCode).emit('vk_phase_changed', { phase: nextPhase });
-            }
         });
 
         socket.on('vk_join_room', async (data) => {
@@ -301,10 +698,10 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
 
             await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(playerObjects));
-            await redisClient.sadd(`room:${roomCode}:returned_players`, playerName.trim());
-            const returnedPlayers = await redisClient.smembers(`room:${roomCode}:returned_players`);
 
             socket.join(roomCode);
+            socket.data.vkRoomCode = roomCode;
+            socket.data.vkPlayerName = normalisePlayerName(playerName);
             console.log(`🏃‍♂️ ${playerName} (${gender}), ${roomCode} odasına katıldı.`);
 
             io.to(roomCode).emit('room_updated', {
@@ -315,13 +712,14 @@ module.exports = function ({ app, io, redisClient, db }) {
 
             io.to(roomCode).emit('vk_players_updated', playerObjects);
 
+            const { returnedPlayers, isEveryoneBack } = await getLobbyReturnStatus(roomCode, playerObjects);
             io.to(roomCode).emit('vk_lobby_status_updated', {
                 totalPlayersCount: playerObjects.length,
                 returnedPlayers: returnedPlayers
             });
             io.to(roomCode).emit('lobby_return_status', {
                 returnedPlayers: returnedPlayers,
-                isEveryoneBack: returnedPlayers.length >= playerObjects.length
+                isEveryoneBack: isEveryoneBack
             });
         });
 
@@ -330,12 +728,30 @@ module.exports = function ({ app, io, redisClient, db }) {
             if (!roomCode || !playerName) return;
             const roomKey = `room:${roomCode}`;
 
-            const cleanName = playerName.toString().trim().toLowerCase();
+            const cleanName = normalisePlayerName(playerName);
             await redisClient.sadd(`${roomKey}:returned_players`, cleanName);
 
             const roomData = await redisClient.hgetall(roomKey);
-            let players = JSON.parse(roomData.players || '[]');
-            const returnedPlayers = await redisClient.smembers(`${roomKey}:returned_players`) || [];
+            let players = JSON.parse((roomData && roomData.players) || '[]');
+            if (roomData && roomData.status === 'finished') {
+                // Bots are game-hand placeholders only.  Clear them on the
+                // first return to the finished lobby, then restore the room
+                // creator as the normal lobby host.
+                const bots = players.filter(player => player && player.isBot === true);
+                if (bots.length > 0) {
+                    players = players.filter(player => !player || player.isBot !== true);
+                    await redisClient.hset(roomKey, 'players', JSON.stringify(players));
+                    for (const bot of bots) {
+                        await redisClient.srem(
+                            `${roomKey}:returned_players`,
+                            normalisePlayerName(bot.name)
+                        );
+                    }
+                    io.to(roomCode).emit('vk_players_updated', players);
+                }
+                await restoreOriginalHostForLobby(roomCode);
+            }
+            const { returnedPlayers, isEveryoneBack } = await getLobbyReturnStatus(roomCode, players);
 
             console.log(`🟢 [LOBİ FLAG] ${playerName} lobiye döndü. Hazır olanlar: ${returnedPlayers.length}/${players.length}`);
 
@@ -343,9 +759,47 @@ module.exports = function ({ app, io, redisClient, db }) {
                 totalPlayersCount: players.length,
                 returnedPlayers: returnedPlayers
             });
+            io.to(roomCode).emit('lobby_return_status', {
+                returnedPlayers: returnedPlayers,
+                isEveryoneBack: isEveryoneBack
+            });
         });
 
         // 🎯 KESİNTİSİZ VE GARANTİLİ YENİ EL BAŞLATMA
+        socket.on('vk_update_room_config', async (data) => {
+            const { roomCode, vampireCount, doctorCount, serialKillerCount, villagerCount } = data;
+            if (!roomCode) return;
+
+            const roomKey = `room:${roomCode}`;
+            const roomData = await redisClient.hgetall(roomKey);
+            const requestingPlayer = normalisePlayerName(socket.data.vkPlayerName);
+            if (!roomData || requestingPlayer !== normalisePlayerName(roomData.host)) {
+                socket.emit('vk_room_config_error', {
+                    message: 'Lobi ayarlarını yalnızca muhtar değiştirebilir.'
+                });
+                return;
+            }
+            if (roomData.status === 'started') {
+                socket.emit('vk_room_config_error', {
+                    message: 'Oyun başladıktan sonra lobi ayarları değiştirilemez.'
+                });
+                return;
+            }
+
+            const parseCount = (value, minimum) => Math.max(
+                minimum,
+                Math.min(20, Number.parseInt(value, 10) || 0)
+            );
+            const config = {
+                vampireCount: parseCount(vampireCount, 1).toString(),
+                doctorCount: parseCount(doctorCount, 0).toString(),
+                serialKillerCount: parseCount(serialKillerCount, 0).toString(),
+                villagerCount: parseCount(villagerCount, 0).toString()
+            };
+            await redisClient.hmset(roomKey, config);
+            io.to(roomCode).emit('vk_room_config_updated', config);
+        });
+
         socket.on('vk_start_game', async (data) => {
             const { roomCode } = data;
             if (!roomCode) return;
@@ -360,6 +814,42 @@ module.exports = function ({ app, io, redisClient, db }) {
                 return;
             }
 
+            // Only the current in-game/lobby host can launch the next round.
+            // We deliberately check this before restoring the room creator as
+            // host: a temporary host remains in charge until the next game is
+            // actually launched.
+            const requestingPlayer = normalisePlayerName(socket.data.vkPlayerName);
+            if (!requestingPlayer || requestingPlayer !== normalisePlayerName(roomData.host)) {
+                socket.emit('vk_start_game_error', {
+                    message: 'Yeni oyunu yalnızca mevcut muhtar başlatabilir.'
+                });
+                return;
+            }
+
+            if (roomData.status === 'started') {
+                socket.emit('vk_start_game_error', {
+                    message: 'Oyun zaten devam ediyor.'
+                });
+                return;
+            }
+
+            const players = JSON.parse(roomData.players || '[]');
+            const { isEveryoneBack } = await getLobbyReturnStatus(roomCode, players);
+            if (!isEveryoneBack) {
+                socket.emit('vk_start_game_error', {
+                    message: 'Yeni oyun için tüm oyuncuların lobiye dönmesi bekleniyor!'
+                });
+                return;
+            }
+
+            if (players.length < 3) {
+                socket.emit('vk_start_game_error', {
+                    message: 'Oyunu başlatmak için en az 3 oyuncu gereklidir!'
+                });
+                return;
+            }
+
+            // Every new round starts from a clean game state, then roles are shuffled again.
             await redisClient.del(`${roomKey}:vk_votes`);
             await redisClient.del(`${roomKey}:vk_locked_votes`);
             await redisClient.del(`${roomKey}:returned_players`);
@@ -410,6 +900,7 @@ module.exports = function ({ app, io, redisClient, db }) {
             if (seenPlayers.length >= players.length) {
                 console.log(`🚀 [OYUN BAŞLIYOR] Tüm oyuncular rolünü onayladı! Kartlar kapatılıyor...`);
                 await redisClient.del(`${roomKey}:roles_seen_players`);
+                await redisClient.hset(roomKey, 'phase', 'day');
                 io.to(roomCode).emit('vk_all_roles_seen');
                 io.to(roomCode).emit('vk_phase_changed', { phase: 'day' });
             }
@@ -430,8 +921,53 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
         });
 
+        socket.on('vk_get_host_status', async (data) => {
+            const roomCode = data && data.roomCode;
+            if (!roomCode) return;
+            const roomData = await redisClient.hgetall(`room:${roomCode}`);
+            if (!roomData) return;
+
+            socket.emit('vk_host_status', {
+                host: roomData.host,
+                isHost: normalisePlayerName(socket.data.vkPlayerName) ===
+                    normalisePlayerName(roomData.host)
+            });
+        });
+
+        socket.on('vk_get_team_vote_status', async (data) => {
+            const { roomCode } = data || {};
+            if (!roomCode) return;
+            const roomData = await redisClient.hgetall(`room:${roomCode}`);
+            if (!roomData || !roomData.players) return;
+            const players = JSON.parse(roomData.players || '[]');
+            const currentVotes = await redisClient.hgetall(`room:${roomCode}:vk_votes`) || {};
+            await emitTeamVoteStatus(roomCode, players, currentVotes);
+        });
+        // ==========================================
+        // 🌙 GECE AKSİYONLARI VE ZAFER KONTROLÜ
+        // ==========================================
         socket.on('submit_night_action', async (data) => {
-            const { roomCode, playerName, role, target } = data;
+            const { roomCode, playerName, target } = data;
+
+            if (!roomCode || !playerName) return;
+
+            const roomData = await redisClient.hgetall(`room:${roomCode}`);
+            if (!roomData || roomData.status !== 'started') return;
+
+            const players = JSON.parse(roomData.players || '[]');
+            const playerKey = normalisePlayerName(playerName);
+            const socketPlayerKey = normalisePlayerName(socket.data.vkPlayerName);
+            const actingPlayer = players.find(player =>
+                normalisePlayerName(typeof player === 'object' ? player.name : player) === playerKey
+            );
+
+            // Do not trust a role or player name sent from the client.
+            if (!actingPlayer || !socketPlayerKey || playerKey !== socketPlayerKey || actingPlayer.isAlive === false) {
+                socket.emit('night_action_error', {
+                    message: 'Bu gece eylemini gerçekleştiremezsin.'
+                });
+                return;
+            }
 
             if (!nightVotes[roomCode]) {
                 nightVotes[roomCode] = {
@@ -442,34 +978,58 @@ module.exports = function ({ app, io, redisClient, db }) {
                 };
             }
 
-            const roomData = await redisClient.hgetall(`room:${roomCode}`);
-            const players = JSON.parse(roomData.players || '[]');
             const alivePlayers = players.filter(p => p.isAlive !== false);
 
-            const rStr = role ? role.toString().toLowerCase() : '';
+            const rStr = String(actingPlayer.role || '').toLowerCase();
+            const targetKey = normalisePlayerName(target);
+            const validTarget = alivePlayers.some(player =>
+                normalisePlayerName(typeof player === 'object' ? player.name : player) === targetKey
+            );
+
+            if (!rStr.includes('k\u00f6yl\u00fc') && !validTarget) {
+                socket.emit('night_action_error', {
+                    message: 'Geçerli ve hayatta olan bir oyuncu seçmelisin.'
+                });
+                return;
+            }
 
             if (rStr.includes('vampir')) {
-                nightVotes[roomCode].vampires[playerName] = target;
+                nightVotes[roomCode].vampires[actingPlayer.name] = target;
             } else if (rStr.includes('seri') || rStr.includes('katil')) {
-                nightVotes[roomCode].killers[playerName] = target;
+                nightVotes[roomCode].killers[actingPlayer.name] = target;
             } else if (rStr.includes('doktor')) {
-                nightVotes[roomCode].doctors[playerName] = target;
+                nightVotes[roomCode].doctors[actingPlayer.name] = target;
             } else {
-                if (!nightVotes[roomCode].mathSolvedPlayers.includes(playerName)) {
-                    nightVotes[roomCode].mathSolvedPlayers.push(playerName);
+                if (!nightVotes[roomCode].mathSolvedPlayers.includes(actingPlayer.name)) {
+                    nightVotes[roomCode].mathSolvedPlayers.push(actingPlayer.name);
                 }
             }
+
+            addBotNightActions(roomCode, alivePlayers);
+
+            if (await resolveNightIfReady(roomCode)) return;
 
             const vampireChoices = Object.values(nightVotes[roomCode].vampires);
             const uniqueVampireTargets = [...new Set(vampireChoices)];
             const totalVampiresInGame = alivePlayers.filter(p => p.role && p.role.toLowerCase().includes('vampir')).length;
 
+            // Vampire choices are intentionally shared with the vampire team
+            // so they can coordinate on the same target before the night ends.
+            const vampireSelections = {};
+            Object.entries(nightVotes[roomCode].vampires).forEach(([voter, selectedTarget]) => {
+                const targetName = String(selectedTarget);
+                if (!vampireSelections[targetName]) vampireSelections[targetName] = [];
+                vampireSelections[targetName].push(voter);
+            });
+            io.to(roomCode).emit('vk_night_action_choices', {
+                vampireSelections
+            });
+
             if (totalVampiresInGame > 0 && vampireChoices.length === totalVampiresInGame && uniqueVampireTargets.length > 1) {
                 io.to(roomCode).emit('night_action_error', {
                     roleTarget: 'Vampir',
-                    message: '⚠️ Vampirler anlaşamadı! Aynı kişiyi seçene kadar gece bitmeyecek.'
+                    message: '⚠️ Vampirler anlaşamadı! Ortak hedefi seçip kararını yeniden onayla.'
                 });
-                nightVotes[roomCode].vampires = {};
                 return;
             }
 
@@ -482,7 +1042,6 @@ module.exports = function ({ app, io, redisClient, db }) {
                     roleTarget: 'Seri Katil',
                     message: '⚠️ Seri katiller anlaşamadı! Ortak hedef seçmelisiniz.'
                 });
-                nightVotes[roomCode].killers = {};
                 return;
             }
 
@@ -534,19 +1093,14 @@ module.exports = function ({ app, io, redisClient, db }) {
                 updatedPlayers = await handleHostTransferIfNeeded(roomCode, updatedPlayers);
                 await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
 
-                // MySQL'de ölen oyuncuların is_alive durumunu güncelle (Log kontrollü)
-                if (typeof db === 'undefined' || !db) {
-                    console.warn(`⚠️ [LOG - DB UYARI] db tanımsız! Gece ölenler MySQL'e işlenemedi.`);
-                } else {
+                if (typeof db !== 'undefined' && db) {
                     try {
-                        console.log(`📝 [LOG - SQL] Gece ölen oyuncular MySQL'de güncelleniyor:`, actualDeadNames);
                         for (const deadName of actualDeadNames) {
                             await db.query(
                                 'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
                                 [roomCode, deadName]
                             );
                         }
-                        console.log(`✅ [LOG - SQL] Ölen oyuncuların durumu MySQL'de güncellendi.`);
                     } catch (dbErr) {
                         console.error("❌ [MySQL Error - Ölenler Güncellenemedi]:", dbErr);
                     }
@@ -560,27 +1114,81 @@ module.exports = function ({ app, io, redisClient, db }) {
                 });
                 io.to(roomCode).emit('vk_players_updated', updatedPlayers);
 
+                // 🎯 YENİ KÖTÜ / İYİ SAVAŞI ZAFER HESAPLAMASI
                 const updatedAlive = updatedPlayers.filter(p => p.isAlive !== false);
-                const aliveVampires = updatedAlive.filter(p => p.isVampire || (p.role && p.role.toLowerCase().includes('vampir'))).length;
-                const aliveVillagers = updatedAlive.filter(p => !p.isVampire && !(p.role && p.role.toLowerCase().includes('vampir'))).length;
+                const evilCount = updatedAlive.filter(p => isEvilPlayer(p)).length;
+                const goodCount = updatedAlive.filter(p => !isEvilPlayer(p)).length;
 
-                console.log(`🌅 [SABAH ZAFER KONTROLÜ] Kalan Vampir: ${aliveVampires} | Kalan Köylü: ${aliveVillagers}`);
+                console.log(`🌅 [SABAH ZAFER KONTROLÜ] Oda: ${roomCode} | Kalan Kötü: ${evilCount} | Kalan İyi: ${goodCount}`);
 
-                if (aliveVampires === 0) {
-                    await saveGameWinnerToDb(roomCode, 'KÖYLÜLER');
-                    io.to(roomCode).emit('vk_game_over', {
-                        winner: 'KÖYLÜLER',
-                        eliminatedPlayer: actualDeadNames.join(', ') || 'Vampirler'
-                    });
-                } else if (aliveVampires >= aliveVillagers) {
-                    await saveGameWinnerToDb(roomCode, 'VAMPİRLER');
-                    io.to(roomCode).emit('vk_game_over', {
-                        winner: 'VAMPİRLER',
-                        eliminatedPlayer: actualDeadNames.join(', ') || 'Köy Kurbanı'
-                    });
+                if (evilCount === 0) {
+                    console.log(">>> EMIT GAME OVER (KÖYLÜLER KAZANDI)");
+                    await finishGame(
+                        roomCode,
+                        'KÖYLÜLER',
+                        actualDeadNames.join(', ') || 'Kötüler'
+                    );
+                    return;
+                } else if (evilCount >= goodCount) {
+                    console.log(">>> EMIT GAME OVER (VAMPİRLER KAZANDI)");
+                    await finishGame(
+                        roomCode,
+                        'VAMPİRLER',
+                        actualDeadNames.join(', ') || 'Köy Kurbanı'
+                    );
+                    return;
                 }
 
                 delete nightVotes[roomCode];
+            }
+        });
+
+        // ==========================================
+        // 🔄 FAZ DEĞİŞİM DİNLENİCİSİ
+        // ==========================================
+        socket.on('vk_change_phase', async (data) => {
+            const { roomCode, nextPhase } = data;
+
+            // 🎯 ODA KONTROLÜ: Eğer oyun bittiyse (status === 'finished') faz değişimini tamamen kitle!
+            const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
+            const requestingPlayer = normalisePlayerName(socket.data.vkPlayerName);
+            const currentHost = normalisePlayerName(savedRoom && savedRoom.host);
+
+            if (!savedRoom || !requestingPlayer || requestingPlayer !== currentHost) {
+                console.warn(`⛔ [FAZ ENGELLENDİ] Yetkisiz faz isteği. Oda: ${roomCode}, Oyuncu: ${requestingPlayer || 'bilinmiyor'}`);
+                socket.emit('vk_phase_error', {
+                    message: 'Faz geçişlerini yalnızca güncel muhtar yönetebilir.'
+                });
+                return;
+            }
+
+            if (savedRoom.status === 'finished') {
+                console.log(`⛔ [FAZ ENGLLENDİ] Oda ${roomCode} bittiği için "${nextPhase}" fazına geçiş isteği REDDEDİLDİ.`);
+                return; // 🎯 <<< OYUN BİTTİYSE FAZ DEĞİŞTİRME RETURN'Ü
+            }
+
+            console.log(`🔄 [FAZ TETİKLENDİ] Oda: ${roomCode} | Faz: ${nextPhase}`);
+
+            await redisClient.hset(`room:${roomCode}`, 'phase', nextPhase);
+
+            if (nextPhase === 'night') {
+                nightVotes[roomCode] = {
+                    vampires: {},
+                    killers: {},
+                    doctors: {},
+                    mathSolvedPlayers: []
+                };
+            }
+
+            if (nextPhase === 'voting') {
+                console.log(">>> EMIT VOTING");
+                io.to(roomCode).emit('vk_navigate_to_voting');
+                const phasePlayers = JSON.parse(savedRoom.players || '[]');
+                await emitTeamVoteStatus(roomCode, phasePlayers, {});
+                await addBotVotes(roomCode);
+            } else {
+                console.log(`>>> EMIT DAY / PHASE: ${nextPhase}`);
+                io.to(roomCode).emit('vk_phase_changed', { phase: nextPhase });
             }
         });
 
@@ -588,38 +1196,64 @@ module.exports = function ({ app, io, redisClient, db }) {
             const { roomCode, voterName, votedTargetName, votedFor, isLocking } = data;
             const actualTarget = votedTargetName || votedFor;
 
+            if (!roomCode || !voterName) return;
+
+            const roomData = await redisClient.hgetall(`room:${roomCode}`);
+            if (!roomData || roomData.status !== 'started') return;
+
+            let players = JSON.parse(roomData.players || '[]');
+            const voterKey = normalisePlayerName(voterName);
+            const socketPlayerKey = normalisePlayerName(socket.data.vkPlayerName);
+            const voter = players.find(player =>
+                normalisePlayerName(typeof player === 'object' ? player.name : player) === voterKey
+            );
+            const alivePlayers = players.filter(p => p.isAlive !== false);
+
+            if (!voter || voter.isAlive === false || !socketPlayerKey || voterKey !== socketPlayerKey) {
+                socket.emit('vk_vote_error', { message: 'Oy kullanma yetkin bulunmuyor.' });
+                return;
+            }
+
+            const targetIsValid = actualTarget === 'skip' || alivePlayers.some(player =>
+                normalisePlayerName(typeof player === 'object' ? player.name : player) === normalisePlayerName(actualTarget)
+            );
+            if (!targetIsValid) {
+                socket.emit('vk_vote_error', { message: 'Geçerli, hayatta olan bir oyuncuya oy vermelisin.' });
+                return;
+            }
+
             const voteKey = `room:${roomCode}:vk_votes`;
             const lockKey = `room:${roomCode}:vk_locked_votes`;
 
+            const lockedPlayers = await redisClient.smembers(lockKey) || [];
+            if (lockedPlayers.map(normalisePlayerName).includes(voterKey)) return;
+
             if (actualTarget) {
-                await redisClient.hset(voteKey, voterName, actualTarget);
+                await redisClient.hset(voteKey, voter.name, actualTarget);
             }
 
             if (isLocking) {
-                await redisClient.sadd(lockKey, voterName);
+                await redisClient.sadd(lockKey, voter.name);
             }
 
-            const roomData = await redisClient.hgetall(`room:${roomCode}`);
-            let players = JSON.parse(roomData.players || '[]');
-            const alivePlayers = players.filter(p => p.isAlive !== false);
-
             const currentVotes = await redisClient.hgetall(voteKey) || {};
-            const lockedPlayers = await redisClient.smembers(lockKey) || [];
+            const updatedLockedPlayers = await redisClient.smembers(lockKey) || [];
 
             io.to(roomCode).emit('vk_vote_status_updated', {
-                votedCount: lockedPlayers.length,
+                votedCount: updatedLockedPlayers.length,
                 totalPlayers: alivePlayers.length,
-                currentVotes: currentVotes,
-                lockedPlayers: lockedPlayers
+                lockedPlayers: updatedLockedPlayers
             });
 
             io.to(roomCode).emit('vk_vote_progress', {
-                votedCount: lockedPlayers.length,
-                totalAlive: alivePlayers.length,
-                currentVotes: currentVotes
+                votedCount: updatedLockedPlayers.length,
+                totalAlive: alivePlayers.length
             });
+            await emitTeamVoteStatus(roomCode, players, currentVotes);
 
-            if (lockedPlayers.length >= alivePlayers.length) {
+            if (await resolveVotingIfReady(roomCode)) return;
+
+            if (updatedLockedPlayers.length >= alivePlayers.length) {
                 const voteCounts = {};
                 alivePlayers.forEach(p => {
                     const pName = typeof p === 'object' ? p.name : p;
@@ -693,24 +1327,23 @@ module.exports = function ({ app, io, redisClient, db }) {
                 await redisClient.del(voteKey);
                 await redisClient.del(lockKey);
 
+                // 🎯 YENİ KÖTÜ / İYİ SAVAŞI ZAFER HESAPLAMASI
                 const updatedAlive = players.filter(p => p.isAlive !== false);
-                const aliveVampires = updatedAlive.filter(p => p.isVampire || (p.role && p.role.toLowerCase().includes('vampir'))).length;
-                const aliveVillagers = updatedAlive.filter(p => !p.isVampire && !(p.role && p.role.toLowerCase().includes('vampir'))).length;
 
-                console.log(`📊 [VK OYLAMA SONUCU] Elenen: ${eliminatedPlayerName} | Kalan Vampir: ${aliveVampires} | Kalan Köylü: ${aliveVillagers}`);
+                // Kötüler: Vampir + Seri Katil
+                const evilCount = updatedAlive.filter(p => isEvilPlayer(p)).length;
 
-                if (aliveVampires === 0) {
-                    await saveGameWinnerToDb(roomCode, 'KÖYLÜLER');
-                    io.to(roomCode).emit('vk_game_over', {
-                        winner: 'KÖYLÜLER',
-                        eliminatedPlayer: eliminatedPlayerName
-                    });
-                } else if (aliveVampires >= aliveVillagers) {
-                    await saveGameWinnerToDb(roomCode, 'VAMPİRLER');
-                    io.to(roomCode).emit('vk_game_over', {
-                        winner: 'VAMPİRLER',
-                        eliminatedPlayer: eliminatedPlayerName
-                    });
+                // İyiler: Doktor + Köylü
+                const goodCount = updatedAlive.filter(p => !isEvilPlayer(p)).length;
+
+                console.log(`📊 [VK OYLAMA SONUCU] Elenen: ${eliminatedPlayerName} | Kalan Kötü: ${evilCount} | Kalan İyi: ${goodCount}`);
+
+                if (evilCount === 0) {
+                    await finishGame(roomCode, 'KÖYLÜLER', eliminatedPlayerName);
+                    return;
+                } else if (evilCount >= goodCount) {
+                    await finishGame(roomCode, 'VAMPİRLER', eliminatedPlayerName);
+                    return;
                 } else {
                     io.to(roomCode).emit('vk_voting_results', {
                         eliminatedPlayer: eliminatedPlayerName,
@@ -730,6 +1363,99 @@ module.exports = function ({ app, io, redisClient, db }) {
 
                 io.to(roomCode).emit('vk_players_updated', players);
             }
+        });
+
+        socket.on('disconnect', async () => {
+            const roomCode = socket.data.vkRoomCode;
+            const playerName = socket.data.vkPlayerName;
+            if (!roomCode || !playerName) return;
+
+            const roomKey = `room:${roomCode}`;
+            const roomData = await redisClient.hgetall(roomKey);
+            if (!roomData || !roomData.players) return;
+
+            let players = JSON.parse(roomData.players || '[]');
+            const disconnectedPlayer = players.find(player =>
+                normalisePlayerName(typeof player === 'object' ? player.name : player) === normalisePlayerName(playerName)
+            );
+            if (!disconnectedPlayer) return;
+
+            // During a live hand, the player is replaced by a bot that keeps
+            // the same role and plays until the game finishes.  In the lobby,
+            // disconnected players are still removed immediately.
+            const markedPlayers = players.map(player =>
+                normalisePlayerName(typeof player === 'object' ? player.name : player) === normalisePlayerName(playerName)
+                    ? { ...player, isAlive: false }
+                    : player
+            );
+            const withNewHost = await handleHostTransferIfNeeded(roomCode, markedPlayers);
+            let botPlayer = null;
+            if (roomData.status === 'started') {
+                const botName = `Bot ${disconnectedPlayer.name}`;
+                players = withNewHost.map(player => {
+                    if (normalisePlayerName(typeof player === 'object' ? player.name : player) !== normalisePlayerName(playerName)) {
+                        return player;
+                    }
+                    botPlayer = {
+                        ...player,
+                        name: botName,
+                        isBot: true,
+                        isHost: false,
+                        isAlive: true,
+                        replacedPlayerName: disconnectedPlayer.name
+                    };
+                    return botPlayer;
+                });
+            } else {
+                players = withNewHost.filter(player =>
+                    normalisePlayerName(typeof player === 'object' ? player.name : player) !== normalisePlayerName(playerName)
+                );
+            }
+
+            await redisClient.hset(roomKey, 'players', JSON.stringify(players));
+            await redisClient.srem(`${roomKey}:returned_players`, normalisePlayerName(playerName));
+            await redisClient.hdel(`${roomKey}:vk_votes`, disconnectedPlayer.name);
+            await redisClient.srem(`${roomKey}:vk_locked_votes`, disconnectedPlayer.name);
+
+            if (db) {
+                try {
+                    await db.query(
+                        'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
+                        [roomCode, disconnectedPlayer.name]
+                    );
+                } catch (dbErr) {
+                    console.error('❌ [MySQL Error - Bağlantısı Kopan Oyuncu Güncellenemedi]:', dbErr);
+                }
+            }
+
+            io.to(roomCode).emit('vk_player_disconnected', {
+                playerName: disconnectedPlayer.name,
+                botName: botPlayer ? botPlayer.name : null,
+                message: botPlayer
+                    ? `${disconnectedPlayer.name} bağlantısını kaybetti; yerine ${botPlayer.name} oyuna devam ediyor.`
+                    : `${disconnectedPlayer.name} oyundan ayrıldı; oylama güncellendi.`
+            });
+            io.to(roomCode).emit('vk_players_updated', players);
+
+            if (roomData.status === 'started') {
+                if (roomData.phase === 'voting') {
+                    await addBotVotes(roomCode);
+                } else if (roomData.phase === 'night') {
+                    addBotNightActions(roomCode, players);
+                    await resolveNightIfReady(roomCode);
+                }
+                await resolveVotingIfReady(roomCode);
+            }
+
+            const { returnedPlayers, isEveryoneBack } = await getLobbyReturnStatus(roomCode, players);
+            io.to(roomCode).emit('vk_lobby_status_updated', {
+                totalPlayersCount: players.length,
+                returnedPlayers
+            });
+            io.to(roomCode).emit('lobby_return_status', {
+                returnedPlayers,
+                isEveryoneBack
+            });
         });
 
     });

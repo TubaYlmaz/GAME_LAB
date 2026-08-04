@@ -7,6 +7,7 @@ class RoleRevealCard extends StatefulWidget {
   final String roleDescription;
   final Color roleColor;
   final List<String> teamMates;
+  final String teamMatesLabel;
   final VoidCallback onDismiss;
   final VoidCallback? onReadySubmitted;
 
@@ -16,6 +17,7 @@ class RoleRevealCard extends StatefulWidget {
     required this.roleDescription,
     required this.roleColor,
     this.teamMates = const [],
+    this.teamMatesLabel = 'EKİP ARKADAŞLARIN:',
     required this.onDismiss,
     this.onReadySubmitted,
   });
@@ -245,7 +247,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
           if (widget.teamMates.isNotEmpty) ...[
             const SizedBox(height: 14),
             Text(
-              'TÜM VAMPİRLER:',
+              widget.teamMatesLabel,
               style: TextStyle(
                 color: widget.roleColor,
                 fontSize: 11,

@@ -12,6 +12,7 @@ class GameHud extends StatelessWidget {
   final String? selectedVoteTargetId;
   final PlayerModel myPlayer;
   final bool hasVotedInCurrentRound;
+  final bool isHost;
 
   final VoidCallback onShowRoleCard;
   final VoidCallback onShowDebugDialog;
@@ -32,6 +33,7 @@ class GameHud extends StatelessWidget {
     required this.selectedVoteTargetId,
     required this.myPlayer,
     required this.hasVotedInCurrentRound,
+    required this.isHost,
     required this.onShowRoleCard,
     required this.onShowDebugDialog,
     required this.onSelectPlayer,
@@ -144,6 +146,10 @@ class GameHud extends StatelessWidget {
                                   ),
                                   elevation: 4,
                                 ),
+                                // The server is the authority for phase
+                                // changes. Keeping this interactive prevents
+                                // the newly assigned host from being trapped
+                                // by a delayed local host-status update.
                                 onPressed: () {
                                   if (phase == GamePhase.dayDiscussion) {
                                     if (isAfterNight) {

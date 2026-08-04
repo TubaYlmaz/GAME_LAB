@@ -36,12 +36,17 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   bool hasLockedVote = false;
   bool isDialogShown = false;
   int votedCount = 0;
+  late bool _isHost;
 
   Map<String, int> playerVotes = {};
+  String? _teamName;
+  List<String> _teamMembers = [];
+  Map<String, List<String>> _teamVotes = {};
 
   @override
   void initState() {
     super.initState();
+    _isHost = widget.isHost;
 
     for (var player in widget.players) {
       if (player.isAlive) {
@@ -58,30 +63,97 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_round_ended');
-    _socketService.socket?.off('vk_game_over');
+    _socketService.socket?.off('vk_team_vote_status');
+    _socketService.socket?.off('vk_player_disconnected');
 
     void handleProgress(dynamic data) {
       if (!mounted) return;
       setState(() {
         votedCount = data['votedCount'] ?? 0;
 
-        if (data['currentVotes'] != null) {
-          playerVotes.updateAll((key, value) => 0);
-
-          Map<String, dynamic> rawVotes = Map<String, dynamic>.from(
-            data['currentVotes'],
-          );
-          rawVotes.forEach((voter, votedFor) {
-            if (votedFor != 'skip' && playerVotes.containsKey(votedFor)) {
-              playerVotes[votedFor] = (playerVotes[votedFor] ?? 0) + 1;
-            }
-          });
-        }
       });
     }
 
     _socketService.socket?.on('vk_vote_progress', handleProgress);
     _socketService.socket?.on('vk_vote_status_updated', handleProgress);
+
+    _socketService.socket?.on('vk_host_changed', (data) {
+      if (!mounted || data is! Map || data['newHost'] == null) return;
+      setState(() {
+        _isHost = data['newHost'].toString().trim().toLowerCase() ==
+            widget.myName.trim().toLowerCase();
+      });
+    });
+
+    _socketService.socket?.on('vk_team_vote_status', (data) {
+      if (!mounted || data is! Map) return;
+      final rawVotes = data['teamVotes'] is Map ? data['teamVotes'] as Map : {};
+      setState(() {
+        _teamName = data['team']?.toString();
+        _teamMembers = data['teamMembers'] is List
+            ? (data['teamMembers'] as List)
+                .map((member) => member.toString())
+                .toList()
+            : [];
+        _teamVotes = rawVotes.map<String, List<String>>(
+          (target, voters) => MapEntry(
+            target.toString(),
+            voters is List
+                ? voters.map((voter) => voter.toString()).toList()
+                : <String>[],
+          ),
+        );
+      });
+    });
+
+    _socketService.socket?.on('vk_player_disconnected', (data) {
+      if (!mounted || data is! Map || data['playerName'] == null) return;
+      final playerName = data['playerName'].toString().trim().toLowerCase();
+      final botName = data['botName']?.toString();
+      setState(() {
+        final playerIndex = widget.players.indexWhere(
+          (player) => player.name.trim().toLowerCase() == playerName,
+        );
+        if (playerIndex >= 0 && botName != null && botName.isNotEmpty) {
+          final previousPlayer = widget.players[playerIndex];
+          widget.players[playerIndex] = PlayerModel(
+            id: previousPlayer.id,
+            name: botName,
+            avatarColor: previousPlayer.avatarColor,
+            gender: previousPlayer.gender,
+            role: previousPlayer.role,
+            isVampire: previousPlayer.isVampire,
+            isAlive: true,
+          );
+          playerVotes.remove(previousPlayer.name);
+          playerVotes[botName] = 0;
+          final teamIndex = _teamMembers.indexWhere(
+            (name) => name.trim().toLowerCase() == playerName,
+          );
+          if (teamIndex >= 0) _teamMembers[teamIndex] = botName;
+        } else {
+          widget.players.removeWhere(
+            (player) => player.name.trim().toLowerCase() == playerName,
+          );
+          playerVotes.removeWhere(
+            (name, _) => name.trim().toLowerCase() == playerName,
+          );
+          _teamMembers.removeWhere(
+            (name) => name.trim().toLowerCase() == playerName,
+          );
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text((data['message'] ?? 'Bir oyuncu oyundan ayrıldı.').toString()),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    });
+
+    _socketService.socket?.emit('vk_get_team_vote_status', {
+      'roomCode': widget.roomCode,
+    });
 
     void handleResults(dynamic data) {
           if (!mounted || isDialogShown) return;
@@ -120,18 +192,6 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     _socketService.socket?.on('vk_voting_results', handleResults);
     _socketService.socket?.on('vk_round_ended', handleResults);
 
-    _socketService.socket?.on('vk_game_over', (data) {
-      if (!mounted) return;
-      _timer?.cancel();
-      setState(() {
-        isVotingClosed = true;
-      });
-
-      String winner = data['winner'] ?? 'KÖYLÜLER';
-      String lastEliminated = data['eliminatedPlayer'] ?? 'Biri';
-
-      showGameOverDialog(winner, lastEliminated);
-    });
   }
 
   void startTimer() {
@@ -353,7 +413,7 @@ void showRoundResultsDialog(
                           roomCode: widget.roomCode,
                           playerName: widget.myName,
                           gender: myPlayerObj.gender,
-                          isHost: widget.isHost, // 🎯 GERÇEK HOSTLUK BİLGİSİ AKTARILIYOR
+                          isHost: _isHost,
                           vampireCount: 1,
                         ),
                       ),
@@ -383,7 +443,8 @@ void showRoundResultsDialog(
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_round_ended');
-    _socketService.socket?.off('vk_game_over');
+    _socketService.socket?.off('vk_team_vote_status');
+    _socketService.socket?.off('vk_player_disconnected');
     super.dispose();
   }
 
@@ -446,6 +507,25 @@ void showRoundResultsDialog(
               ),
             ),
           ),
+          if (_teamName != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.45)),
+              ),
+              child: Text(
+                '$_teamName: ${_teamMembers.join(', ')}\nTakım arkadaşlarının oyları hedeflerin altında görünür.',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               physics: const BouncingScrollPhysics(),
@@ -455,6 +535,7 @@ void showRoundResultsDialog(
                 final player = alivePlayers[index];
                 final isSelected = selectedPlayer == player.name;
                 final currentVotes = playerVotes[player.name] ?? 0;
+                final teamVoters = _teamVotes[player.name] ?? [];
 
                 return GestureDetector(
                   onTap: (!amIAlive || hasLockedVote || isVotingClosed)
@@ -497,14 +578,30 @@ void showRoundResultsDialog(
                             color: isSelected ? Colors.white : Colors.white54,
                           ),
                           const SizedBox(width: 15),
-                          Text(
-                            currentVotes > 0
-                                ? "${player.name} ($currentVotes Oy)"
-                                : player.name,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  currentVotes > 0
+                                      ? "${player.name} ($currentVotes Oy)"
+                                      : player.name,
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (teamVoters.isNotEmpty)
+                                  Text(
+                                    'Takım oyu: ${teamVoters.join(', ')}',
+                                    style: const TextStyle(
+                                      color: Colors.amberAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           if (player.name.contains(widget.myName)) ...[

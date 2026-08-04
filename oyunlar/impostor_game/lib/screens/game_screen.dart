@@ -5,11 +5,12 @@ import 'voting_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String playerName;
-  final String secretWord; // Köylünün kelimesi ya da İmpostor'ın yakın kelimesi buraya paslanıyor kanka!
+  final String
+  secretWord; // Köylünün kelimesi ya da İmpostor'ın yakın kelimesi buraya paslanıyor kanka!
   final bool isImpostor;
-  final dynamic socket; 
-  final String roomCode; 
-  final List<String> players; 
+  final dynamic socket;
+  final String roomCode;
+  final List<String> players;
 
   const GameScreen({
     super.key,
@@ -27,13 +28,14 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _isWordVisible = false;
-  bool amIHost = false; 
+  bool amIHost = false;
 
   @override
   void initState() {
     super.initState();
-    
-    if (widget.players.isNotEmpty && widget.players.first == widget.playerName) {
+
+    if (widget.players.isNotEmpty &&
+        widget.players.first == widget.playerName) {
       amIHost = true;
     }
 
@@ -44,7 +46,7 @@ class _GameScreenState extends State<GameScreen> {
     if (widget.socket != null) {
       widget.socket.on('navigate_to_voting', (_) {
         if (!mounted) return;
-        
+
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -71,9 +73,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _triggerVotingOnServer() {
     if (widget.socket != null) {
-      widget.socket.emit('start_voting', {
-        'roomCode': widget.roomCode,
-      });
+      widget.socket.emit('start_voting', {'roomCode': widget.roomCode});
     }
   }
 
@@ -83,13 +83,16 @@ class _GameScreenState extends State<GameScreen> {
       backgroundColor: const Color(0xFF0B0B1A),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      extendBodyBehindAppBar: true, 
+      extendBodyBehindAppBar: true,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -118,7 +121,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  // 🎯 DÜZELTME: Üstteki alt başlığı da tamamen eşitledik kanka. 
+                  // 🎯 DÜZELTME: Üstteki alt başlığı da tamamen eşitledik kanka.
                   // İmpostor buraya bakıp "Aha bende kırmızı yazmıyor, kesin köylüyüm" diyecek!
                   'Kelimeyi arkadaşlarına anlatmaya hazır ol!',
                   textAlign: TextAlign.center,
@@ -153,7 +156,9 @@ class _GameScreenState extends State<GameScreen> {
                       boxShadow: _isWordVisible
                           ? [
                               BoxShadow(
-                                color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
+                                color: const Color(
+                                  0xFF00D2FF,
+                                ).withValues(alpha: 0.3),
                                 blurRadius: 15,
                                 spreadRadius: 2,
                               ),
@@ -244,7 +249,7 @@ class _GameScreenState extends State<GameScreen> {
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            _triggerVotingOnServer(); 
+                            _triggerVotingOnServer();
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2E2E5C),

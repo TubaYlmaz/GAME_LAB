@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/socket_service.dart';
 import 'entry_screen.dart';
@@ -44,6 +46,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   String? _selectedVoteTargetId;
   bool _hasVotedInCurrentRound = false;
   bool _hasActedAtNight = false;
+  late bool _isHost;
 
   bool _isNightDialogShowing = false;
   bool _isGameOverDialogShowing = false; // Çift açılmayı önlemek için
@@ -55,10 +58,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final SocketService _socketService = SocketService();
   final TransformationController _transformationController =
       TransformationController();
+  final StreamController<Map<String, List<String>>> _vampireChoicesController =
+      StreamController<Map<String, List<String>>>.broadcast();
 
   @override
   void initState() {
     super.initState();
+    _isHost = widget.isHost;
     _logs = [
       'System: Köy kuruldu (${widget.roomCode}).',
       'System: Oyun başladı, gündüz tartışması aktif.',
@@ -121,6 +127,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.off('night_results');
     _socketService.socket?.off('night_action_error');
     _socketService.socket?.off('vk_show_role_card');
+    _socketService.socket?.off('vk_host_changed');
+    _socketService.socket?.off('vk_host_status');
+    _socketService.socket?.off('vk_phase_error');
+    _socketService.socket?.off('vk_night_action_choices');
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -129,6 +139,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (serverPlayers.isNotEmpty) {
         setState(() {
           _players = _parseServerPlayers(serverPlayers);
+          final myPlayerData = serverPlayers.cast<dynamic>().firstWhere(
+            (player) =>
+                player is Map &&
+                player['name']?.toString().trim().toLowerCase() ==
+                    widget.playerName.trim().toLowerCase(),
+            orElse: () => null,
+          );
+          if (myPlayerData is Map && myPlayerData['isHost'] != null) {
+            _isHost = myPlayerData['isHost'] == true;
+          }
           _positionsCalculated = false;
         });
       }
@@ -136,6 +156,63 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
     _socketService.socket?.on('vk_game_started', updatePlayersFromData);
+
+    _socketService.socket?.on('vk_host_changed', (data) {
+      if (!mounted || data is! Map || data['newHost'] == null) return;
+
+      final newHost = data['newHost'].toString().trim().toLowerCase();
+      final amINewHost = newHost == widget.playerName.trim().toLowerCase();
+      setState(() {
+        _isHost = amINewHost;
+        _logs.add(
+          amINewHost
+              ? 'System: Muhtar oldun. Faz yönetimi artık sende.'
+              : 'System: Yeni muhtar: ${data['newHost']}.',
+        );
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            amINewHost
+                ? '🏛️ Muhtar oldun! Gece/gündüz geçişlerini sen yönetebilirsin.'
+                : (data['message'] ?? 'Yeni muhtar seçildi.').toString(),
+          ),
+          backgroundColor: amINewHost ? Colors.teal : Colors.indigo,
+        ),
+      );
+
+      // Ask the server for an authoritative answer as well.  This avoids a
+      // stale local name comparison leaving the newly assigned host locked.
+      _socketService.socket?.emit('vk_get_host_status', {
+        'roomCode': widget.roomCode,
+      });
+    });
+
+    _socketService.socket?.on('vk_host_status', (data) {
+      if (!mounted || data is! Map) return;
+      final bool amIHost = data['isHost'] == true;
+      if (_isHost == amIHost) return;
+      setState(() {
+        _isHost = amIHost;
+        if (amIHost) {
+          _logs.add('System: Sunucu host yetkini doğruladı.');
+        }
+      });
+    });
+
+    _socketService.socket?.on('vk_phase_error', (data) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            (data is Map ? data['message'] : null) ??
+                'Bu geçişi yalnızca muhtar yapabilir.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    });
 
     _socketService.socket?.on('vk_vote_progress', (data) {
       if (!mounted) return;
@@ -232,6 +309,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ? data['eliminatedPlayer'].toString()
           : 'Biri';
 
+      final List serverPlayers = (data is Map && data['players'] is List)
+          ? data['players']
+          : const [];
+      if (serverPlayers.isNotEmpty) {
+        setState(() {
+          _players = _parseServerPlayers(serverPlayers);
+          _positionsCalculated = false;
+        });
+      }
+
       // Doğrudan mevcut GameScreen haritası üzerinde dialogu açıyoruz
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -316,9 +403,42 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           duration: const Duration(seconds: 4),
         ),
       );
+
+      final String roleTarget =
+          (data is Map && data['roleTarget'] != null)
+              ? data['roleTarget'].toString().toLowerCase()
+              : '';
+      final String myRole = _getMyPlayer().role.toLowerCase();
+      final bool mustChooseAgain =
+          (roleTarget.contains('vampir') && myRole.contains('vampir')) ||
+          (roleTarget.contains('seri') &&
+              (myRole.contains('seri') || myRole.contains('katil')));
+
+      if (mustChooseAgain) {
+        _closeNightDialogIfOpen();
+      }
       setState(() {
         _hasActedAtNight = false;
       });
+      if (mustChooseAgain) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _checkAndShowNightDialog();
+        });
+      }
+    });
+
+    _socketService.socket?.on('vk_night_action_choices', (data) {
+      if (data is! Map || data['vampireSelections'] is! Map) return;
+
+      final selections = <String, List<String>>{};
+      (data['vampireSelections'] as Map).forEach((target, voters) {
+        selections[target.toString()] = voters is List
+            ? voters.map((voter) => voter.toString()).toList()
+            : <String>[];
+      });
+      if (!_vampireChoicesController.isClosed) {
+        _vampireChoicesController.add(selections);
+      }
     });
 
     _socketService.socket?.on('vk_navigate_to_voting', (_) {
@@ -337,13 +457,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             myName: widget.playerName,
             players: _players,
             amIVampire: _getMyPlayer().isVampire,
-            isHost: widget.isHost,
+            isHost: _isHost,
           ),
         ),
       );
     });
 
     _socketService.socket?.emit('vk_get_players', {
+      'roomCode': widget.roomCode,
+    });
+    _socketService.socket?.emit('vk_get_host_status', {
       'roomCode': widget.roomCode,
     });
   }
@@ -389,6 +512,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         return NightActionDialog(
           myRole: myPlayer.role,
           alivePlayers: aliveTargets,
+          vampireVotesStream: _vampireChoicesController.stream,
           onActionSubmitted: (target) {
             setState(() {
               _hasActedAtNight = true;
@@ -502,6 +626,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _socketService.clearAllListeners();
+    _vampireChoicesController.close();
     _transformationController.dispose();
     super.dispose();
   }
@@ -576,7 +701,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _startNight() {
-    if (!widget.isHost) return;
     _socketService.socket?.emit('vk_change_phase', {
       'roomCode': widget.roomCode,
       'nextPhase': 'night',
@@ -584,7 +708,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _startDay() {
-    if (!widget.isHost) return;
     _socketService.socket?.emit('vk_change_phase', {
       'roomCode': widget.roomCode,
       'nextPhase': 'day',
@@ -592,7 +715,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _startVoting() {
-    if (!widget.isHost) return;
     _socketService.socket?.emit('vk_change_phase', {
       'roomCode': widget.roomCode,
       'nextPhase': 'voting',
@@ -622,6 +744,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _showGameOverDialog(String winner, String lastEliminated) {
+    final bool isVillagerWin = winner.toUpperCase().contains('KÖYL');
+    final PlayerModel myPlayer = _getMyPlayer();
+    final String myRole = myPlayer.role.toLowerCase();
+    final bool amIEvil =
+        myPlayer.isVampire ||
+        myRole.contains('vampir') ||
+        myRole.contains('seri') ||
+        myRole.contains('katil');
+    final bool didIWin = isVillagerWin ? !amIEvil : amIEvil;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -629,8 +761,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       // yarı şeffaf yaparak arkadaki haritanın görünmesini sağlıyoruz.
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (ctx) {
-        final bool isVillagerWin = winner == 'KÖYLÜLER';
-
         return AlertDialog(
           // 🌟 Arka plan rengini hafif şeffaf yaparak haritanın bütünlüğünü bozmuyoruz
           backgroundColor: const Color(0xFF0D0D2A).withOpacity(0.92),
@@ -644,7 +774,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             ),
           ),
           title: Text(
-            isVillagerWin ? '🎉 KÖYLÜLER KAZANDI!' : '🧛 VAMPİRLER KAZANDI!',
+            didIWin ? '🎉 KAZANDIN!' : '💀 KAYBETTİN!',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: isVillagerWin
@@ -658,15 +788,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '$lastEliminated elendi ve kader tayin edildi!',
+                isVillagerWin
+                    ? 'Köylüler kazandı. ${didIWin ? 'Ekibin zafere ulaştı!' : 'Ekibin elendi.'}'
+                    : 'Vampirler kazandı. ${didIWin ? 'Ekibin köyü ele geçirdi!' : 'Köy karanlığa yenildi.'}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 16),
               Text(
-                isVillagerWin
-                    ? 'Köydeki tüm vampirler temizlendi, adalet yerini buldu! ☀️'
-                    : 'Vampirler köyün kontrolünü tamamen ele geçirdi! 🌑',
+                'Son elenen: $lastEliminated',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
@@ -689,21 +819,22 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   // 1. Sadece açılan bu oyun bitti kartını kapatıyoruz (arkadaki GameScreen kalıyor)
                   Navigator.of(ctx).pop();
 
-                  // 2. Sadece bu butona basıldığında lobi ekranına geçiş yapıyoruz
-                  Navigator.pushReplacement(
-                    context,
+                  // 2. Voting ekranı açıksa da eski oyun ekranlarına dönmeden
+                  // doğrudan temiz bir lobiye geçiyoruz.
+                  Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                     MaterialPageRoute(
                       builder: (context) => LobbyScreen(
                         roomCode: widget.roomCode,
                         playerName: widget.playerName,
                         gender: widget.gender,
-                        isHost: widget.isHost,
+                        isHost: _isHost,
                         vampireCount: widget.vampireCount,
                         doctorCount: widget.doctorCount,
                         serialKillerCount: widget.serialKillerCount,
                         villagerCount: widget.villagerCount,
                       ),
                     ),
+                    (route) => route.isFirst,
                   );
                 },
                 child: const Text(
@@ -754,6 +885,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               selectedVoteTargetId: _selectedVoteTargetId,
               myPlayer: myPlayer,
               hasVotedInCurrentRound: _hasVotedInCurrentRound,
+              isHost: _isHost,
               onShowRoleCard: () => _showRoleCardModal(),
               onShowDebugDialog: () =>
                   GameDialogs.showRoleDistributionDebug(context, _players),
