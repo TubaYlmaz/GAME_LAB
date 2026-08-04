@@ -172,8 +172,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       });
 
       _socketService.socket?.emit('vk_player_returned_to_lobby', {
-        'roomCode':
-            widget.roomCode, // Eski kod üzerinden tetiklenip yeni odayı alacak
+        'roomCode': widget.roomCode,
         'playerName': widget.playerName,
       });
     }
@@ -214,7 +213,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => GameScreen(
-          roomCode: _currentRoomCode, // 🌟 Yeni oda koduyla oyuna başla
+          roomCode: _currentRoomCode,
           playerName: widget.playerName,
           gender: widget.gender,
           isHost: widget.isHost,
@@ -229,7 +228,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _startGame() {
     if (widget.isHost) {
-      if (!_isEveryoneBackToLobby) {
+      // 🌟 DÜZELTME: Lobiye dönmeyen oyuncu kalmadıysa VEYA oyuncu listesi henüz tam dolmadıysa güvenli başlatma sağlandı.
+      bool canStart = _isEveryoneBackToLobby || (_players.isEmpty);
+
+      if (!canStart) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('⚠️ Tüm oyuncuların lobiye dönmesi bekleniyor!'),
@@ -321,7 +323,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
-                                  _currentRoomCode, // 🌟 Güncel Oda Kodu gösterilir
+                                  _currentRoomCode,
                                   style: const TextStyle(
                                     color: Color(0xFF00D2FF),
                                     fontSize: 34,
@@ -524,13 +526,15 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     padding: const EdgeInsets.all(24),
                     child: _NeonButton(
                       label: widget.isHost
-                          ? (_isEveryoneBackToLobby
+                          ? ((_isEveryoneBackToLobby || _players.isEmpty)
                                 ? 'YENİ OYUNU BAŞLAT 🚀'
                                 : 'OYUNCULARIN LOBİYE DÖNMESİ BEKLENİYOR...')
                           : 'MUHTAR BEKLENİYOR...',
                       icon: Icons.play_arrow_rounded,
                       color: const Color(0xFF00D2FF),
-                      enabled: widget.isHost && _isEveryoneBackToLobby,
+                      enabled:
+                          widget.isHost &&
+                          (_isEveryoneBackToLobby || _players.isEmpty),
                       large: true,
                       onPressed: _startGame,
                     ),
