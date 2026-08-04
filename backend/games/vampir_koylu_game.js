@@ -3,6 +3,38 @@ module.exports = function ({ app, io, redisClient, db }) {
     const nightVotes = {};
 
     // ==========================================
+    // 🎯 KÖTÜ ROL KONTROL YARDIMCISI (Vampir veya Seri Katil)
+    // ==========================================
+    function isEvilPlayer(player) {
+        if (!player) return false;
+        if (player.isVampire === true) return true;
+
+        const roleStr = String(player.role || '').toLowerCase();
+        return roleStr.includes('vampir') || roleStr.includes('seri') || roleStr.includes('katil');
+    }
+
+    function normalisePlayerName(name) {
+        return String(name || '').trim().toLocaleLowerCase('tr-TR');
+    }
+
+    async function getLobbyReturnStatus(roomCode, players) {
+        const returnedPlayers = await redisClient.smembers(
+            `room:${roomCode}:returned_players`
+        );
+        const returnedNames = new Set(returnedPlayers.map(normalisePlayerName));
+        const expectedNames = players.map(player => normalisePlayerName(
+            typeof player === 'object' ? player.name : player
+        ));
+
+        return {
+            returnedPlayers,
+            isEveryoneBack: expectedNames.length > 0 && expectedNames.every(
+                name => returnedNames.has(name)
+            )
+        };
+    }
+
+    // ==========================================
     // 👑 MUHTAR/HOST DEVİR YARDIMCISI (RASTGELE DEVİR)
     // ==========================================
     async function handleHostTransferIfNeeded(roomCode, updatedPlayers) {
@@ -227,26 +259,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             });
         });
 
-        socket.on('vk_change_phase', async (data) => {
-            const { roomCode, nextPhase } = data;
-            console.log(`🔄 [Vampir Köylü FAZ] Oda: ${roomCode} -> Yeni Faz: ${nextPhase}`);
-
-            if (nextPhase === 'night') {
-                nightVotes[roomCode] = {
-                    vampires: {},
-                    killers: {},
-                    doctors: {},
-                    mathSolvedPlayers: []
-                };
-            }
-
-            if (nextPhase === 'voting') {
-                io.to(roomCode).emit('vk_navigate_to_voting');
-            } else {
-                io.to(roomCode).emit('vk_phase_changed', { phase: nextPhase });
-            }
-        });
-
         socket.on('vk_join_room', async (data) => {
             const { roomCode, playerName, gender } = data;
             console.log(`📥 [LOG - SOCKET] 'vk_join_room' alındı. Oda: ${roomCode}, Oyuncu: ${playerName}`);
@@ -301,8 +313,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
 
             await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(playerObjects));
-            await redisClient.sadd(`room:${roomCode}:returned_players`, playerName.trim());
-            const returnedPlayers = await redisClient.smembers(`room:${roomCode}:returned_players`);
 
             socket.join(roomCode);
             console.log(`🏃‍♂️ ${playerName} (${gender}), ${roomCode} odasına katıldı.`);
@@ -315,13 +325,14 @@ module.exports = function ({ app, io, redisClient, db }) {
 
             io.to(roomCode).emit('vk_players_updated', playerObjects);
 
+            const { returnedPlayers, isEveryoneBack } = await getLobbyReturnStatus(roomCode, playerObjects);
             io.to(roomCode).emit('vk_lobby_status_updated', {
                 totalPlayersCount: playerObjects.length,
                 returnedPlayers: returnedPlayers
             });
             io.to(roomCode).emit('lobby_return_status', {
                 returnedPlayers: returnedPlayers,
-                isEveryoneBack: returnedPlayers.length >= playerObjects.length
+                isEveryoneBack: isEveryoneBack
             });
         });
 
@@ -330,18 +341,22 @@ module.exports = function ({ app, io, redisClient, db }) {
             if (!roomCode || !playerName) return;
             const roomKey = `room:${roomCode}`;
 
-            const cleanName = playerName.toString().trim().toLowerCase();
+            const cleanName = normalisePlayerName(playerName);
             await redisClient.sadd(`${roomKey}:returned_players`, cleanName);
 
             const roomData = await redisClient.hgetall(roomKey);
             let players = JSON.parse(roomData.players || '[]');
-            const returnedPlayers = await redisClient.smembers(`${roomKey}:returned_players`) || [];
+            const { returnedPlayers, isEveryoneBack } = await getLobbyReturnStatus(roomCode, players);
 
             console.log(`🟢 [LOBİ FLAG] ${playerName} lobiye döndü. Hazır olanlar: ${returnedPlayers.length}/${players.length}`);
 
             io.to(roomCode).emit('vk_lobby_status_updated', {
                 totalPlayersCount: players.length,
                 returnedPlayers: returnedPlayers
+            });
+            io.to(roomCode).emit('lobby_return_status', {
+                returnedPlayers: returnedPlayers,
+                isEveryoneBack: isEveryoneBack
             });
         });
 
@@ -360,6 +375,23 @@ module.exports = function ({ app, io, redisClient, db }) {
                 return;
             }
 
+            const players = JSON.parse(roomData.players || '[]');
+            const { isEveryoneBack } = await getLobbyReturnStatus(roomCode, players);
+            if (!isEveryoneBack) {
+                socket.emit('vk_start_game_error', {
+                    message: 'Yeni oyun için tüm oyuncuların lobiye dönmesi bekleniyor!'
+                });
+                return;
+            }
+
+            if (players.length < 3) {
+                socket.emit('vk_start_game_error', {
+                    message: 'Oyunu başlatmak için en az 3 oyuncu gereklidir!'
+                });
+                return;
+            }
+
+            // Every new round starts from a clean game state, then roles are shuffled again.
             await redisClient.del(`${roomKey}:vk_votes`);
             await redisClient.del(`${roomKey}:vk_locked_votes`);
             await redisClient.del(`${roomKey}:returned_players`);
@@ -429,7 +461,9 @@ module.exports = function ({ app, io, redisClient, db }) {
                 socket.emit('vk_players_updated', playerObjects);
             }
         });
-
+        // ==========================================
+        // 🌙 GECE AKSİYONLARI VE ZAFER KONTROLÜ
+        // ==========================================
         socket.on('submit_night_action', async (data) => {
             const { roomCode, playerName, role, target } = data;
 
@@ -534,19 +568,14 @@ module.exports = function ({ app, io, redisClient, db }) {
                 updatedPlayers = await handleHostTransferIfNeeded(roomCode, updatedPlayers);
                 await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
 
-                // MySQL'de ölen oyuncuların is_alive durumunu güncelle (Log kontrollü)
-                if (typeof db === 'undefined' || !db) {
-                    console.warn(`⚠️ [LOG - DB UYARI] db tanımsız! Gece ölenler MySQL'e işlenemedi.`);
-                } else {
+                if (typeof db !== 'undefined' && db) {
                     try {
-                        console.log(`📝 [LOG - SQL] Gece ölen oyuncular MySQL'de güncelleniyor:`, actualDeadNames);
                         for (const deadName of actualDeadNames) {
                             await db.query(
                                 'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
                                 [roomCode, deadName]
                             );
                         }
-                        console.log(`✅ [LOG - SQL] Ölen oyuncuların durumu MySQL'de güncellendi.`);
                     } catch (dbErr) {
                         console.error("❌ [MySQL Error - Ölenler Güncellenemedi]:", dbErr);
                     }
@@ -560,27 +589,73 @@ module.exports = function ({ app, io, redisClient, db }) {
                 });
                 io.to(roomCode).emit('vk_players_updated', updatedPlayers);
 
+                // 🎯 YENİ KÖTÜ / İYİ SAVAŞI ZAFER HESAPLAMASI
                 const updatedAlive = updatedPlayers.filter(p => p.isAlive !== false);
-                const aliveVampires = updatedAlive.filter(p => p.isVampire || (p.role && p.role.toLowerCase().includes('vampir'))).length;
-                const aliveVillagers = updatedAlive.filter(p => !p.isVampire && !(p.role && p.role.toLowerCase().includes('vampir'))).length;
+                const evilCount = updatedAlive.filter(p => isEvilPlayer(p)).length;
+                const goodCount = updatedAlive.filter(p => !isEvilPlayer(p)).length;
 
-                console.log(`🌅 [SABAH ZAFER KONTROLÜ] Kalan Vampir: ${aliveVampires} | Kalan Köylü: ${aliveVillagers}`);
+                console.log(`🌅 [SABAH ZAFER KONTROLÜ] Oda: ${roomCode} | Kalan Kötü: ${evilCount} | Kalan İyi: ${goodCount}`);
 
-                if (aliveVampires === 0) {
+                if (evilCount === 0) {
+                    console.log(">>> EMIT GAME OVER (KÖYLÜLER KAZANDI)");
                     await saveGameWinnerToDb(roomCode, 'KÖYLÜLER');
+                    await redisClient.hset(`room:${roomCode}`, 'status', 'finished');
+
                     io.to(roomCode).emit('vk_game_over', {
                         winner: 'KÖYLÜLER',
-                        eliminatedPlayer: actualDeadNames.join(', ') || 'Vampirler'
+                        eliminatedPlayer: actualDeadNames.join(', ') || 'Kötüler'
                     });
-                } else if (aliveVampires >= aliveVillagers) {
+
+                    delete nightVotes[roomCode];
+                    return; // 🎯 <<< EN ÖNEMLİ SATIR (RETURN)
+                } else if (evilCount >= goodCount) {
+                    console.log(">>> EMIT GAME OVER (VAMPİRLER KAZANDI)");
                     await saveGameWinnerToDb(roomCode, 'VAMPİRLER');
+                    await redisClient.hset(`room:${roomCode}`, 'status', 'finished');
+
                     io.to(roomCode).emit('vk_game_over', {
                         winner: 'VAMPİRLER',
                         eliminatedPlayer: actualDeadNames.join(', ') || 'Köy Kurbanı'
                     });
+
+                    delete nightVotes[roomCode];
+                    return; // 🎯 <<< EN ÖNEMLİ SATIR (RETURN)
                 }
 
                 delete nightVotes[roomCode];
+            }
+        });
+
+        // ==========================================
+        // 🔄 FAZ DEĞİŞİM DİNLENİCİSİ
+        // ==========================================
+        socket.on('vk_change_phase', async (data) => {
+            const { roomCode, nextPhase } = data;
+
+            // 🎯 ODA KONTROLÜ: Eğer oyun bittiyse (status === 'finished') faz değişimini tamamen kitle!
+            const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
+            if (savedRoom && savedRoom.status === 'finished') {
+                console.log(`⛔ [FAZ ENGLLENDİ] Oda ${roomCode} bittiği için "${nextPhase}" fazına geçiş isteği REDDEDİLDİ.`);
+                return; // 🎯 <<< OYUN BİTTİYSE FAZ DEĞİŞTİRME RETURN'Ü
+            }
+
+            console.log(`🔄 [FAZ TETİKLENDİ] Oda: ${roomCode} | Faz: ${nextPhase}`);
+
+            if (nextPhase === 'night') {
+                nightVotes[roomCode] = {
+                    vampires: {},
+                    killers: {},
+                    doctors: {},
+                    mathSolvedPlayers: []
+                };
+            }
+
+            if (nextPhase === 'voting') {
+                console.log(">>> EMIT VOTING");
+                io.to(roomCode).emit('vk_navigate_to_voting');
+            } else {
+                console.log(`>>> EMIT DAY / PHASE: ${nextPhase}`);
+                io.to(roomCode).emit('vk_phase_changed', { phase: nextPhase });
             }
         });
 
@@ -693,24 +768,31 @@ module.exports = function ({ app, io, redisClient, db }) {
                 await redisClient.del(voteKey);
                 await redisClient.del(lockKey);
 
+                // 🎯 YENİ KÖTÜ / İYİ SAVAŞI ZAFER HESAPLAMASI
                 const updatedAlive = players.filter(p => p.isAlive !== false);
-                const aliveVampires = updatedAlive.filter(p => p.isVampire || (p.role && p.role.toLowerCase().includes('vampir'))).length;
-                const aliveVillagers = updatedAlive.filter(p => !p.isVampire && !(p.role && p.role.toLowerCase().includes('vampir'))).length;
 
-                console.log(`📊 [VK OYLAMA SONUCU] Elenen: ${eliminatedPlayerName} | Kalan Vampir: ${aliveVampires} | Kalan Köylü: ${aliveVillagers}`);
+                // Kötüler: Vampir + Seri Katil
+                const evilCount = updatedAlive.filter(p => isEvilPlayer(p)).length;
 
-                if (aliveVampires === 0) {
+                // İyiler: Doktor + Köylü
+                const goodCount = updatedAlive.filter(p => !isEvilPlayer(p)).length;
+
+                console.log(`📊 [VK OYLAMA SONUCU] Elenen: ${eliminatedPlayerName} | Kalan Kötü: ${evilCount} | Kalan İyi: ${goodCount}`);
+
+                if (evilCount === 0) {
                     await saveGameWinnerToDb(roomCode, 'KÖYLÜLER');
                     io.to(roomCode).emit('vk_game_over', {
                         winner: 'KÖYLÜLER',
                         eliminatedPlayer: eliminatedPlayerName
                     });
-                } else if (aliveVampires >= aliveVillagers) {
+                    return; // 🎯 Zafer ilan edildiyse oylama bitti, devam etme!
+                } else if (evilCount >= goodCount) {
                     await saveGameWinnerToDb(roomCode, 'VAMPİRLER');
                     io.to(roomCode).emit('vk_game_over', {
                         winner: 'VAMPİRLER',
                         eliminatedPlayer: eliminatedPlayerName
                     });
+                    return; // 🎯 Zafer ilan edildiyse oylama bitti, devam etme!
                 } else {
                     io.to(roomCode).emit('vk_voting_results', {
                         eliminatedPlayer: eliminatedPlayerName,

@@ -25,8 +25,9 @@ class SocketService {
 
   void clearAllListeners() {
     if (socket == null) return;
-    socket?.off('vk_players_updated');
-    socket?.off('vk_game_started');
+    // During GameScreen -> LobbyScreen pushReplacement, GameScreen.dispose can
+    // run after the new lobby registered these listeners. They are removed by
+    // the next screen before it registers its own handlers.
     socket?.off('vk_vote_progress');
     socket?.off('vk_round_ended');
     socket?.off('vk_voting_results');

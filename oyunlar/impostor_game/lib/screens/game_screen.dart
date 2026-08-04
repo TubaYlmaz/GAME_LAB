@@ -1,279 +1,788 @@
-// lib/screens/game_screen.dart
-
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'voting_screen.dart';
+import '../services/socket_service.dart';
+import 'entry_screen.dart';
+import '../player_model.dart';
+import '../widgets/game_map.dart';
+import '../widgets/game_hud.dart';
+import '../widgets/game_dialogs.dart';
+import '../widgets/night_action_dialog.dart';
+import 'vk_voting_screen.dart';
+import 'lobby_screen.dart';
 
 class GameScreen extends StatefulWidget {
+  final String roomCode;
   final String playerName;
-  final String secretWord; // Köylünün kelimesi ya da İmpostor'ın yakın kelimesi buraya paslanıyor kanka!
-  final bool isImpostor;
-  final dynamic socket; 
-  final String roomCode; 
-  final List<String> players; 
+  final Gender gender;
+  final bool isHost;
+
+  final int vampireCount;
+  final int doctorCount;
+  final int serialKillerCount;
+  final int villagerCount;
 
   const GameScreen({
     super.key,
-    required this.playerName,
-    required this.secretWord,
-    required this.isImpostor,
-    required this.socket,
     required this.roomCode,
-    required this.players,
+    required this.playerName,
+    required this.gender,
+    required this.isHost,
+    required this.vampireCount,
+    required this.doctorCount,
+    required this.serialKillerCount,
+    required this.villagerCount,
   });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
-  bool _isWordVisible = false;
-  bool amIHost = false; 
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
+  GamePhase _phase = GamePhase.dayDiscussion;
+  bool _isAfterNight = false;
+  int _round = 1;
+  String? _selectedVoteTargetId;
+  bool _hasVotedInCurrentRound = false;
+  bool _hasActedAtNight = false;
+
+  bool _isNightDialogShowing = false;
+
+  late List<String> _logs;
+  List<PlayerModel> _players = [];
+  bool _positionsCalculated = false;
+
+  final SocketService _socketService = SocketService();
+  final TransformationController _transformationController =
+      TransformationController();
 
   @override
   void initState() {
     super.initState();
-    
-    if (widget.players.isNotEmpty && widget.players.first == widget.playerName) {
-      amIHost = true;
-    }
+    _logs = [
+      'System: Köy kuruldu (${widget.roomCode}).',
+      'System: Oyun başladı, gündüz tartışması aktif.',
+    ];
 
-    _listenForVotingTrigger();
+    _initSocket();
+
+    _phase = GamePhase.dayDiscussion;
+    _isAfterNight = false;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _centerCameraOnMap();
+    });
   }
 
-  void _listenForVotingTrigger() {
-    if (widget.socket != null) {
-      widget.socket.on('navigate_to_voting', (_) {
-        if (!mounted) return;
-        
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => VotingScreen(
-              socket: widget.socket,
-              roomCode: widget.roomCode,
-              myName: widget.playerName,
-              players: widget.players,
-              amIImpostor: widget.isImpostor,
-            ),
-          ),
+  void _showRoleCardModal() {
+    final myPlayer = _getMyPlayer();
+
+    List<String> teamMates = [];
+    if (myPlayer.isVampire) {
+      teamMates = _players
+          .where(
+            (p) => p.isVampire && p.name.trim() != widget.playerName.trim(),
+          )
+          .map((p) => p.name)
+          .toList();
+    }
+
+    GameDialogs.showMyRoleCard(
+      context,
+      myPlayer,
+      roomCode: widget.roomCode,
+      socketService: _socketService,
+      teamMates: teamMates,
+    );
+  }
+
+  void _closeNightDialogIfOpen() {
+    if (_isNightDialogShowing && mounted) {
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      _isNightDialogShowing = false;
+    }
+  }
+
+  void _initSocket() {
+    _socketService.currentRoomCode = widget.roomCode;
+    _socketService.connect();
+
+    // Dinleyicileri temizleme
+    _socketService.socket?.off('vk_players_updated');
+    _socketService.socket?.off('vk_game_started');
+    _socketService.socket?.off('vk_vote_progress');
+    _socketService.socket?.off('vk_round_ended');
+    _socketService.socket?.off('vk_voting_results');
+    _socketService.socket?.off('vk_game_over');
+    _socketService.socket?.off('vk_phase_changed');
+    _socketService.socket?.off('vk_navigate_to_voting');
+    _socketService.socket?.off('night_results');
+    _socketService.socket?.off('night_action_error');
+    _socketService.socket?.off('vk_show_role_card');
+
+    void updatePlayersFromData(dynamic data) {
+      if (!mounted) return;
+      final List serverPlayers = (data is Map ? data['players'] : data) ?? [];
+
+      if (serverPlayers.isNotEmpty) {
+        setState(() {
+          _players = _parseServerPlayers(serverPlayers);
+          _positionsCalculated = false;
+        });
+      }
+    }
+
+    _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
+    _socketService.socket?.on('vk_game_started', updatePlayersFromData);
+
+    _socketService.socket?.on('vk_vote_progress', (data) {
+      if (!mounted) return;
+      final int voted = (data is Map && data['votedCount'] != null)
+          ? data['votedCount']
+          : 0;
+      final int total = (data is Map && data['totalAlive'] != null)
+          ? data['totalAlive']
+          : 0;
+      setState(() {
+        _logs.add(
+          'System: Oylama devam ediyor... ($voted / $total oy kullanıldı)',
         );
       });
+    });
+
+    void handleRoundEnded(dynamic data) {
+      if (!mounted) return;
+      _closeNightDialogIfOpen();
+
+      final String? eliminated =
+          (data is Map && data['eliminatedPlayer'] != null)
+          ? data['eliminatedPlayer'].toString()
+          : null;
+      final bool isTie = (data is Map && data['isTie'] == true);
+      final bool isVampire = (data is Map && data['isVampire'] == true);
+      final List serverPlayers = (data is Map && data['players'] is List)
+          ? data['players']
+          : [];
+
+      setState(() {
+        if (serverPlayers.isNotEmpty) {
+          _players = _parseServerPlayers(serverPlayers);
+        } else if (eliminated != null && !isTie) {
+          _players = _players.map((p) {
+            final String cleanPName = p.name.trim().toLowerCase();
+            final String cleanEliminated = eliminated.trim().toLowerCase();
+
+            if (cleanPName == cleanEliminated ||
+                cleanPName.contains(cleanEliminated) ||
+                cleanEliminated.contains(cleanPName)) {
+              return PlayerModel(
+                id: p.id,
+                name: p.name,
+                avatarColor: p.avatarColor,
+                gender: p.gender,
+                role: p.role,
+                isVampire: p.isVampire,
+                isAlive: false,
+              );
+            }
+            return p;
+          }).toList();
+        }
+
+        _phase = GamePhase.dayDiscussion;
+        _isAfterNight = false;
+        _hasVotedInCurrentRound = false;
+        _selectedVoteTargetId = null;
+        _positionsCalculated = false;
+
+        if (isTie || eliminated == null) {
+          _logs.add(
+            '⚖️ Oylama sonucu: Eşitlik çıktı, kimse elenmedi. Geceye hazırlanılıyor... 🌙',
+          );
+        } else {
+          _logs.add(
+            '🗳️ Oylama sonucu: $eliminated elendi! (Rolü: ${isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾'}) - Geceye hazırlanılıyor... 🌙',
+          );
+        }
+      });
     }
+
+    _socketService.socket?.on('vk_round_ended', handleRoundEnded);
+    _socketService.socket?.on('vk_voting_results', handleRoundEnded);
+
+    // 🏆 OYUN BİTTİ DİNLENİCİSİ (DEBUG LOGLU VE GÜVENLİ NAVIGATOR)
+    _socketService.socket?.on('vk_game_over', (data) {
+      print("🔥🔥🔥 VK_GAME_OVER SOKETTEN ALINDI!");
+      print("Gelen Veri: $data");
+
+      if (!mounted) {
+        print("❌ [HATA] mounted = false (Ekran ağaçta değil!)");
+        return;
+      }
+
+      print("✅ mounted = true, işlemler başlıyor...");
+      _isNightDialogShowing = false;
+
+      // Açık modal/dialog varsa kapat
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        print("🚪 Açık modal/dialog kapatılıyor...");
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      final String winner = (data is Map && data['winner'] != null)
+          ? data['winner'].toString()
+          : 'KÖYLÜLER';
+      final String lastEliminated =
+          (data is Map && data['eliminatedPlayer'] != null)
+          ? data['eliminatedPlayer'].toString()
+          : 'Biri';
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print("🚀 _showGameOverDialog çağrılıyor!");
+        if (mounted) {
+          _showGameOverDialog(winner, lastEliminated);
+        }
+      });
+    });
+
+    // 🔄 FAZ DEĞİŞİM DİNLENİCİSİ
+    _socketService.socket?.on('vk_phase_changed', (data) {
+      if (!mounted) return;
+      final String? nextPhase = (data is Map && data['phase'] != null)
+          ? data['phase'].toString()
+          : null;
+
+      if (nextPhase == null) return;
+
+      if (nextPhase != 'night') {
+        _closeNightDialogIfOpen();
+      }
+
+      setState(() {
+        if (nextPhase == 'night') {
+          _phase = GamePhase.night;
+          _hasVotedInCurrentRound = false;
+          _hasActedAtNight = false;
+          _logs.add('System: Tur $_round - Gece çöktü... 🌙');
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _checkAndShowNightDialog();
+            }
+          });
+        } else if (nextPhase == 'day') {
+          _round++;
+          _phase = GamePhase.dayDiscussion;
+          _isAfterNight = true;
+          _logs.add('System: Tur $_round - Gün doğdu! ☀️');
+        } else if (nextPhase == 'voting') {
+          _phase = GamePhase.voting;
+          _logs.add(
+            'System: Tur $_round - Oylama başladı. Oyunuzu kullanın! 🗳️',
+          );
+        }
+      });
+    });
+
+    _socketService.socket?.on('night_results', (data) {
+      if (!mounted) return;
+      _closeNightDialogIfOpen();
+
+      final List deadPlayers = (data is Map && data['deadPlayers'] is List)
+          ? data['deadPlayers']
+          : [];
+      final String msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Gece sona erdi.';
+
+      setState(() {
+        _logs.add('System: $msg');
+        for (var p in _players) {
+          if (deadPlayers
+              .map((e) => e.toString().trim())
+              .contains(p.name.trim())) {
+            p.isAlive = false;
+          }
+        }
+        _positionsCalculated = false;
+      });
+    });
+
+    _socketService.socket?.on('night_action_error', (data) {
+      if (!mounted) return;
+      final String message = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Anlaşmazlık çıktı!';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade800,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      setState(() {
+        _hasActedAtNight = false;
+      });
+    });
+
+    _socketService.socket?.on('vk_navigate_to_voting', (_) {
+      if (!mounted) return;
+      _closeNightDialogIfOpen();
+
+      setState(() {
+        _phase = GamePhase.voting;
+      });
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => VKVotingScreen(
+            roomCode: widget.roomCode,
+            myName: widget.playerName,
+            players: _players,
+            amIVampire: _getMyPlayer().isVampire,
+            isHost: widget.isHost,
+          ),
+        ),
+      );
+    });
+
+    _socketService.socket?.emit('vk_get_players', {
+      'roomCode': widget.roomCode,
+    });
+  }
+
+  PlayerModel _getMyPlayer() {
+    return _players.firstWhere(
+      (p) => p.name.trim() == widget.playerName.trim(),
+      orElse: () => _players.isNotEmpty
+          ? _players[0]
+          : PlayerModel(
+              id: 'me',
+              name: widget.playerName,
+              avatarColor: Colors.blue,
+              gender: widget.gender,
+              role: 'Köylü 🧑‍🌾',
+            ),
+    );
+  }
+
+  void _checkAndShowNightDialog() {
+    final myPlayer = _getMyPlayer();
+    if (myPlayer.isAlive &&
+        !_hasActedAtNight &&
+        _phase == GamePhase.night &&
+        !_isNightDialogShowing) {
+      _showNightActionModal(myPlayer);
+    }
+  }
+
+  void _showNightActionModal(PlayerModel myPlayer) {
+    if (_isNightDialogShowing) return;
+    _isNightDialogShowing = true;
+
+    final aliveTargets = _players
+        .where((p) => p.isAlive)
+        .map((p) => {'id': p.name, 'name': p.name})
+        .toList();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (BuildContext context) {
+        return NightActionDialog(
+          myRole: myPlayer.role,
+          alivePlayers: aliveTargets,
+          onActionSubmitted: (target) {
+            setState(() {
+              _hasActedAtNight = true;
+            });
+
+            _socketService.socket?.emit('submit_night_action', {
+              'roomCode': widget.roomCode,
+              'playerName': widget.playerName,
+              'role': myPlayer.role,
+              'target': target,
+            });
+          },
+        );
+      },
+    ).then((_) {
+      _isNightDialogShowing = false;
+    });
+  }
+
+  List<PlayerModel> _parseServerPlayers(List serverPlayers) {
+    final colors = [
+      const Color(0xFF00D2FF),
+      const Color(0xFFE74C3C),
+      const Color(0xFF9B59B6),
+      const Color(0xFF3498DB),
+      const Color(0xFF2ECC71),
+      const Color(0xFFF39C12),
+      const Color(0xFF1ABC9C),
+      const Color(0xFFEC407A),
+      const Color(0xFFE67E22),
+    ];
+
+    List<PlayerModel> list = [];
+    for (int i = 0; i < serverPlayers.length; i++) {
+      final p = serverPlayers[i];
+      if (p == null) continue;
+
+      final String name = (p is Map && p['name'] != null)
+          ? p['name'].toString()
+          : (p is Map && p['playerName'] != null)
+          ? p['playerName'].toString()
+          : 'Oyuncu ${i + 1}';
+
+      final String rawRole = (p is Map && p['role'] != null)
+          ? p['role'].toString()
+          : (p is Map && p['roleName'] != null)
+          ? p['roleName'].toString()
+          : '';
+
+      final bool isVampire =
+          (p is Map && p['isVampire'] == true) ||
+          rawRole.toLowerCase().contains('vampir');
+
+      String roleStr = rawRole;
+      if (roleStr.isEmpty) {
+        roleStr = isVampire ? 'Vampir 🧛' : 'Köylü 🧑‍🌾';
+      }
+
+      final Gender gender = (p is Map && p['gender']?.toString() == 'female')
+          ? Gender.female
+          : Gender.male;
+
+      Color avatarColor = colors[i % colors.length];
+      if (p is Map && p['avatarColor'] != null) {
+        try {
+          final String rawColor = p['avatarColor'].toString();
+          if (rawColor.startsWith('0x') || rawColor.startsWith('#')) {
+            avatarColor = Color(int.parse(rawColor.replaceAll('#', '0x')));
+          } else if (int.tryParse(rawColor) != null) {
+            avatarColor = Color(int.parse(rawColor));
+          }
+        } catch (_) {
+          avatarColor = colors[i % colors.length];
+        }
+      }
+
+      final String id = (p is Map && p['id'] != null)
+          ? p['id'].toString()
+          : (p is Map && p['socketId'] != null)
+          ? p['socketId'].toString()
+          : 'p_$i';
+
+      final bool isAlive = (p is Map && p['isAlive'] != null)
+          ? (p['isAlive'] == true)
+          : true;
+
+      list.add(
+        PlayerModel(
+          id: id,
+          name: name,
+          avatarColor: avatarColor,
+          gender: gender,
+          role: roleStr,
+          isVampire: isVampire,
+          isAlive: isAlive,
+        ),
+      );
+    }
+    return list;
+  }
+
+  void _centerCameraOnMap() {
+    final screenSize = MediaQuery.of(context).size;
+    final double xOffset = (GameMap.worldSize.width - screenSize.width) / 2;
+    final double yOffset = (GameMap.worldSize.height - screenSize.height) / 2;
+
+    _transformationController.value = Matrix4.identity()
+      ..translate(-xOffset, -yOffset);
   }
 
   @override
   void dispose() {
-    if (widget.socket != null) {
-      widget.socket.off('navigate_to_voting');
-    }
+    _socketService.clearAllListeners();
+    _transformationController.dispose();
     super.dispose();
   }
 
-  void _triggerVotingOnServer() {
-    if (widget.socket != null) {
-      widget.socket.emit('start_voting', {
-        'roomCode': widget.roomCode,
-      });
+  void _calculatePlayerPositions() {
+    if (_positionsCalculated || _players.isEmpty) return;
+
+    final double worldW = GameMap.worldSize.width;
+    final double worldH = GameMap.worldSize.height;
+
+    final cx = worldW / 2;
+    final cy = worldH / 2 + 28;
+
+    const double squareRadius = 180.0;
+
+    final double minX = worldW * 0.08;
+    final double maxX = worldW * 0.92;
+    final double minY = worldH * 0.10;
+    final double maxY = worldH * 0.88;
+
+    final rand = Random(1337);
+
+    for (int i = 0; i < _players.length; i++) {
+      double x = 0;
+      double y = 0;
+      bool validPosition = false;
+      int attempts = 0;
+
+      final double currentW = _players[i].isAlive ? 180.0 : 110.0;
+      final double currentH = _players[i].isAlive ? 150.0 : 90.0;
+
+      while (!validPosition && attempts < 4000) {
+        attempts++;
+        x = minX + rand.nextDouble() * (maxX - minX);
+        y = minY + rand.nextDouble() * (maxY - minY);
+
+        final distanceToCenter = sqrt(pow(x - cx, 2) + pow(y - cy, 2));
+        if (distanceToCenter <
+            (squareRadius + max(currentW, currentH) / 2 + 20)) {
+          continue;
+        }
+
+        bool overlaps = false;
+        for (int j = 0; j < i; j++) {
+          final other = _players[j];
+          if (other.posX == null || other.posY == null) continue;
+
+          final double otherW = other.isAlive ? 180.0 : 110.0;
+          final double otherH = other.isAlive ? 150.0 : 90.0;
+
+          final bool xOverlap =
+              (x - currentW / 2 < other.posX! + otherW / 2 + 15) &&
+              (x + currentW / 2 > other.posX! - otherW / 2 - 15);
+          final bool yOverlap =
+              (y - currentH / 2 < other.posY! + otherH / 2 + 15) &&
+              (y + currentH / 2 > other.posY! - otherH / 2 - 15);
+
+          if (xOverlap && yOverlap) {
+            overlaps = true;
+            break;
+          }
+        }
+
+        if (!overlaps) validPosition = true;
+      }
+
+      _players[i].posX = x;
+      _players[i].posY = y;
     }
+
+    _positionsCalculated = true;
+  }
+
+  void _startNight() {
+    if (!widget.isHost) return;
+    _socketService.socket?.emit('vk_change_phase', {
+      'roomCode': widget.roomCode,
+      'nextPhase': 'night',
+    });
+  }
+
+  void _startDay() {
+    if (!widget.isHost) return;
+    _socketService.socket?.emit('vk_change_phase', {
+      'roomCode': widget.roomCode,
+      'nextPhase': 'day',
+    });
+  }
+
+  void _startVoting() {
+    if (!widget.isHost) return;
+    _socketService.socket?.emit('vk_change_phase', {
+      'roomCode': widget.roomCode,
+      'nextPhase': 'voting',
+    });
+  }
+
+  void _submitVote() {
+    if (_selectedVoteTargetId == null || _hasVotedInCurrentRound) return;
+    final target = _players.firstWhere((p) => p.id == _selectedVoteTargetId);
+
+    final myPlayerName = _getMyPlayer().name;
+
+    _socketService.socket?.emit('vk_submit_vote', {
+      'roomCode': widget.roomCode,
+      'voterName': myPlayerName,
+      'votedTargetName': target.name,
+      'isLocking': true,
+    });
+
+    setState(() {
+      _hasVotedInCurrentRound = true;
+      _logs.add(
+        'System: Oyunuzu ${target.name} kişisine verdiniz. Diğerlerinin oyları bekleniyor...',
+      );
+      _selectedVoteTargetId = null;
+    });
+  }
+
+  void _showGameOverDialog(String winner, String lastEliminated) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (ctx) {
+        final bool isVillagerWin = winner == 'KÖYLÜLER';
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0D0D2A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: isVillagerWin
+                  ? const Color(0xFF2ECC71)
+                  : const Color(0xFFE74C3C),
+              width: 2,
+            ),
+          ),
+          title: Text(
+            isVillagerWin ? '🎉 KÖYLÜLER KAZANDI!' : '🧛 VAMPİRLER KAZANDI!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isVillagerWin
+                  ? const Color(0xFF2ECC71)
+                  : const Color(0xFFE74C3C),
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$lastEliminated elendi ve kader tayin edildi!',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isVillagerWin
+                    ? 'Köydeki tüm vampirler temizlendi, adalet yerini buldu! ☀️'
+                    : 'Vampirler köyün kontrolünü tamamen ele geçirdi! 🌑',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ],
+          ),
+          actions: [
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00D2FF),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx, rootNavigator: true).pop();
+
+                  // 🌟 DOĞRU VE EKSİKSİZ LOBİYE DÖNÜŞ GEÇİŞİ (Tüm parametreler aktarıldı)
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => LobbyScreen(
+                        roomCode: widget.roomCode,
+                        playerName: widget.playerName,
+                        gender: widget.gender,
+                        isHost: widget.isHost,
+                        vampireCount: widget.vampireCount,
+                        doctorCount: widget.doctorCount,
+                        serialKillerCount: widget.serialKillerCount,
+                        villagerCount: widget.villagerCount,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'LOBİYE DÖN',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
+    _calculatePlayerPositions();
+
+    final PlayerModel myPlayer = _getMyPlayer();
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B1A),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true, 
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1E1E38), Color(0xFF13132B), Color(0xFF0B0B1A)],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Hoş geldin, ${widget.playerName}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  // 🎯 DÜZELTME: Üstteki alt başlığı da tamamen eşitledik kanka. 
-                  // İmpostor buraya bakıp "Aha bende kırmızı yazmıyor, kesin köylüyüm" diyecek!
-                  'Kelimeyi arkadaşlarına anlatmaya hazır ol!',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF8E8EAF),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 40),
-
-                // GİZLİ KELİME KARTI
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _isWordVisible = !_isWordVisible;
-                    });
-                  },
-                  child: Container(
-                    height: 250,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF181832).withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        // 🎯 DÜZELTME: Kart açıldığında İmpostor için kırmızı çerçeve yanmıyor,
-                        // herkesle aynı şık köylü mavisi yanıyor ki durum çakılmasın!
-                        color: _isWordVisible
-                            ? const Color(0xFF00D2FF)
-                            : const Color(0xFF2E2E5C),
-                        width: 2,
-                      ),
-                      boxShadow: _isWordVisible
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
-                                blurRadius: 15,
-                                spreadRadius: 2,
-                              ),
-                            ]
-                          : [],
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (!_isWordVisible) ...[
-                          const Icon(
-                            Icons.lock_rounded,
-                            color: Color(0xFF8E8EAF),
-                            size: 50,
-                          ),
-                          const SizedBox(height: 15),
-                          const Text(
-                            'KELİMENİ GÖRMEK İÇİN TIKLA',
-                            style: TextStyle(
-                              color: Color(0xFF8E8EAF),
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ] else ...[
-                          // 🎯 DÜZELTME: Kartın içindeki "ROLÜN: IMPOSTER" ibaresini tamamen sildik.
-                          // Herkes için sadece "GİZLİ KELİMEN" yazıyor kanka.
-                          const Text(
-                            'GİZLİ KELİMEN',
-                            style: TextStyle(
-                              color: Color(0xFF8E8EAF),
-                              fontSize: 13,
-                              letterSpacing: 1.5,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            // 🎯 DÜZELTME: Artık İmpostor'a da doğrudan kendi yakın kelimesi (widget.secretWord)
-                            // köylülerin yazı stilinde ve pürüzsüz mavi renkte gösteriliyor!
-                            widget.secretWord,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xFF00D2FF),
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E2E5C),
-                          side: const BorderSide(
-                            color: Color(0xFF00D2FF),
-                            width: 1,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'LOBİYE DÖN',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (amIHost) ...[
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            _triggerVotingOnServer(); 
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E2E5C),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: const BorderSide(
-                              color: Colors.redAccent,
-                              width: 1,
-                            ),
-                          ),
-                          child: const Text(
-                            'OYLAMAYA GİT',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+      backgroundColor: const Color(0xFF13132B),
+      body: Stack(
+        children: [
+          if (_players.isNotEmpty)
+            GameMap(
+              screenSize: size,
+              isNight: _phase == GamePhase.night,
+              phase: _phase,
+              players: _players,
+              transformationController: _transformationController,
             ),
-          ),
-        ),
+
+          if (_players.isNotEmpty)
+            GameHud(
+              screenSize: size,
+              round: _round,
+              phase: _phase,
+              isAfterNight: _isAfterNight,
+              logs: _logs,
+              players: _players,
+              selectedVoteTargetId: _selectedVoteTargetId,
+              myPlayer: myPlayer,
+              hasVotedInCurrentRound: _hasVotedInCurrentRound,
+              onShowRoleCard: () => _showRoleCardModal(),
+              onShowDebugDialog: () =>
+                  GameDialogs.showRoleDistributionDebug(context, _players),
+              onSelectPlayer: (id) =>
+                  setState(() => _selectedVoteTargetId = id),
+              onStartNight: _startNight,
+              onStartDay: _startDay,
+              onStartVoting: _startVoting,
+              onSubmitVote: _submitVote,
+            ),
+
+          if (_players.isEmpty)
+            const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF00D2FF)),
+                  SizedBox(height: 16),
+                  Text(
+                    'Köy yükleniyor...',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

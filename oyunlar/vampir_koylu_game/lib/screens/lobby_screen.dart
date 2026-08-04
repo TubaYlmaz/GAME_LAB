@@ -36,6 +36,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   List<Map<String, dynamic>> _players = [];
   final SocketService _socketService = SocketService();
   bool _isGameStarting = false;
+  bool _isStartRequestInFlight = false;
 
   // Lobi dönüş ve eşzamanlılık takip değişkenleri
   bool _isEveryoneBackToLobby = false;
@@ -146,6 +147,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
         setState(() {
           _isGameStarting = true;
+          _isStartRequestInFlight = false;
         });
       }
     });
@@ -153,6 +155,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     // 5. Herkes Dönmeden Başlatma Hatası
     _socketService.socket?.on('vk_start_game_error', (data) {
       if (mounted) {
+        setState(() {
+          _isStartRequestInFlight = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -172,7 +177,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
       });
 
       _socketService.socket?.emit('vk_player_returned_to_lobby', {
-        'roomCode': widget.roomCode,
+        'roomCode': _currentRoomCode,
         'playerName': widget.playerName,
       });
     }
@@ -197,6 +202,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.socket?.off('vk_players_updated');
     _socketService.socket?.off('vk_game_started');
     _socketService.socket?.off('vk_lobby_status_updated');
+    _socketService.socket?.off('vk_lobby_return_status');
     _socketService.socket?.off('vk_start_game_error');
     _socketService.socket?.off('vk_redirect_to_new_room');
     super.dispose();
@@ -228,8 +234,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
   void _startGame() {
     if (widget.isHost) {
-      // 🌟 DÜZELTME: Lobiye dönmeyen oyuncu kalmadıysa VEYA oyuncu listesi henüz tam dolmadıysa güvenli başlatma sağlandı.
-      bool canStart = _isEveryoneBackToLobby || (_players.isEmpty);
+      if (_isStartRequestInFlight) return;
+
+      final bool canStart =
+          _isEveryoneBackToLobby && _players.isNotEmpty;
 
       if (!canStart) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -242,6 +250,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
         return;
       }
 
+      setState(() {
+        _isStartRequestInFlight = true;
+      });
       _socketService.socket?.emit('vk_start_game', {
         'roomCode': _currentRoomCode,
       });
@@ -526,7 +537,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     padding: const EdgeInsets.all(24),
                     child: _NeonButton(
                       label: widget.isHost
-                          ? ((_isEveryoneBackToLobby || _players.isEmpty)
+                          ? ((_isEveryoneBackToLobby && _players.isNotEmpty)
                                 ? 'YENİ OYUNU BAŞLAT 🚀'
                                 : 'OYUNCULARIN LOBİYE DÖNMESİ BEKLENİYOR...')
                           : 'MUHTAR BEKLENİYOR...',
@@ -534,7 +545,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
                       color: const Color(0xFF00D2FF),
                       enabled:
                           widget.isHost &&
-                          (_isEveryoneBackToLobby || _players.isEmpty),
+                          _isEveryoneBackToLobby &&
+                          _players.isNotEmpty &&
+                          !_isStartRequestInFlight,
                       large: true,
                       onPressed: _startGame,
                     ),
