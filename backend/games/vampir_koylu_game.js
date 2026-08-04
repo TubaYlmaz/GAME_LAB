@@ -943,6 +943,7 @@ module.exports = function ({ app, io, redisClient, db }) {
             const currentVotes = await redisClient.hgetall(`room:${roomCode}:vk_votes`) || {};
             await emitTeamVoteStatus(roomCode, players, currentVotes);
         });
+
         // ==========================================
         // 🌙 GECE AKSİYONLARI VE ZAFER KONTROLÜ
         // ==========================================
