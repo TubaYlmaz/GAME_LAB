@@ -101,6 +101,19 @@ module.exports = function ({ app, io, redisClient, db }) {
 
         await redisClient.hset(`room:${roomCode}`, 'host', originalHostName);
         await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
+        if (db) {
+            try {
+                await db.query(
+                    `UPDATE room_players rp
+                     INNER JOIN players p ON p.id = rp.player_id
+                     SET rp.is_host = (p.player_name = ?)
+                     WHERE rp.room_code = ?`,
+                    [originalHostName, roomCode]
+                );
+            } catch (dbErr) {
+                console.error('MySQL host restore failed:', dbErr);
+            }
+        }
 
         io.to(roomCode).emit('vk_host_changed', {
             newHost: originalHostName,
@@ -121,8 +134,6 @@ module.exports = function ({ app, io, redisClient, db }) {
         io.to(roomCode).emit('vk_game_over', {
             winner,
             eliminatedPlayer,
-            // The client uses this authoritative snapshot to decide whether
-            // the local player won or lost.
             players: JSON.parse(room.players || '[]')
         });
         delete nightVotes[roomCode];
@@ -183,10 +194,7 @@ module.exports = function ({ app, io, redisClient, db }) {
 
             if (db) {
                 try {
-                    await db.query(
-                        'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
-                        [roomCode, eliminatedPlayerName]
-                    );
+                    await setRoomPlayerAlive(roomCode, eliminatedPlayerName, false);
                 } catch (dbErr) {
                     console.error('❌ [MySQL Error - Elenen Oyuncu Güncellenemedi]:', dbErr);
                 }
@@ -360,10 +368,7 @@ module.exports = function ({ app, io, redisClient, db }) {
         if (db) {
             try {
                 for (const deadName of actualDeadNames) {
-                    await db.query(
-                        'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
-                        [roomCode, deadName]
-                    );
+                    await setRoomPlayerAlive(roomCode, deadName, false);
                 }
             } catch (dbErr) {
                 console.error('❌ [MySQL Error - Gece Ölüleri Güncellenemedi]:', dbErr);
@@ -391,9 +396,6 @@ module.exports = function ({ app, io, redisClient, db }) {
         return true;
     }
 
-    // ==========================================
-    // 👑 MUHTAR/HOST DEVİR YARDIMCISI (RASTGELE DEVİR)
-    // ==========================================
     async function handleHostTransferIfNeeded(roomCode, updatedPlayers) {
         const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
         if (!savedRoom) return updatedPlayers;
@@ -403,20 +405,15 @@ module.exports = function ({ app, io, redisClient, db }) {
             const name = typeof player === 'object' ? player.name : player;
             return normalisePlayerName(name) === currentHostKey;
         });
-        // Only fall back to a player flag when the room has no usable host
-        // record. Do not let an old, stale isHost flag hide a dead host.
         const currentHost = currentHostByRoom || updatedPlayers.find(player =>
             typeof player === 'object' && player.isHost === true
         );
 
-        // A host assignment is valid only while that player is alive.  If the
-        // host dies (including a replacement host), make a fresh assignment.
         if (currentHost && currentHost.isAlive !== false) return updatedPlayers;
 
         const alivePlayers = updatedPlayers.filter(player => player.isAlive !== false);
         if (alivePlayers.length === 0) return updatedPlayers;
 
-        // Prefer real players. Bots are allowed only when no human remains.
         const humanPlayers = alivePlayers.filter(player => player.isBot !== true);
         const eligiblePlayers = humanPlayers.length > 0 ? humanPlayers : alivePlayers;
         const newHost = eligiblePlayers[
@@ -442,6 +439,20 @@ module.exports = function ({ app, io, redisClient, db }) {
             JSON.stringify(reassignedPlayers)
         );
 
+        if (db) {
+            try {
+                await db.query(
+                    `UPDATE room_players rp
+                     INNER JOIN players p ON p.id = rp.player_id
+                     SET rp.is_host = (p.player_name = ?)
+                     WHERE rp.room_code = ?`,
+                    [newHostName, roomCode]
+                );
+            } catch (dbErr) {
+                console.error('MySQL host update failed:', dbErr);
+            }
+        }
+
         console.log(`👑 [MUHTAR DEĞİŞTİ] Eski Muhtar (${previousHostName}) öldü. Yeni Muhtar: ${newHostName}`);
         io.to(roomCode).emit('vk_host_changed', {
             newHost: newHostName,
@@ -451,9 +462,6 @@ module.exports = function ({ app, io, redisClient, db }) {
         return reassignedPlayers;
     }
 
-    // ==========================================
-    // 💾 OYUN KAZANANINI VERİTABANINA KAYDETME YARDIMCISI
-    // ==========================================
     async function saveGameWinnerToDb(roomCode, winnerTeam) {
         console.log(`🔍 [LOG - DB] saveGameWinnerToDb tetiklendi. Oda: ${roomCode}, Kazanan: ${winnerTeam}`);
         if (typeof db === 'undefined' || !db) {
@@ -462,8 +470,6 @@ module.exports = function ({ app, io, redisClient, db }) {
         }
         try {
             const query = `UPDATE rooms SET game_status = 'finished', winner_team = ? WHERE room_code = ?`;
-            console.log(`📝 [LOG - SQL] Çalıştırılıyor: ${query} | Parametreler: [${winnerTeam}, ${roomCode}]`);
-
             const [result] = await db.query(query, [winnerTeam, roomCode]);
             console.log(`🏆 [MySQL] Oda ${roomCode} bitti. Kazanan kaydedildi. Etkilenen satır: ${result.affectedRows}`);
         } catch (err) {
@@ -471,22 +477,101 @@ module.exports = function ({ app, io, redisClient, db }) {
         }
     }
 
-    // ==========================================
-    // 🛠️ ROL DAĞITIM VE KURALLAR YARDIMCISI
-    // ==========================================
+    function getRoleStatistic(role) {
+        const value = String(role || '').toLocaleLowerCase('tr-TR');
+        if (value.includes('vampir')) return 'vampir_count';
+        if (value.includes('doktor')) return 'doktor_count';
+        if (value.includes('seri') || value.includes('katil')) return 'serial_killer_count';
+        return 'koylu_count';
+    }
+
+    // Oyuncu adı kalıcı profilin anahtarıdır. İleride giriş sistemi eklenirse
+    // player_name yerine kullanıcı hesabının id'si kullanılmalıdır.
+    async function ensurePlayerId(playerName, connection = db) {
+        const cleanName = String(playerName || '').trim();
+        if (!connection || !cleanName) return null;
+
+        const [result] = await connection.query(
+            `INSERT INTO players (player_name)
+             VALUES (?)
+             ON DUPLICATE KEY UPDATE
+                id = LAST_INSERT_ID(id),
+                last_seen_at = CURRENT_TIMESTAMP`,
+            [cleanName]
+        );
+        return result.insertId;
+    }
+
+    async function saveRoomPlayerState(roomCode, playerName, role, isHost, isAlive, connection = db) {
+        const playerId = await ensurePlayerId(playerName, connection);
+        if (!playerId) return null;
+
+        await connection.query(
+            `INSERT INTO room_players (room_code, player_id, current_role, is_host, is_alive)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                current_role = VALUES(current_role),
+                is_host = VALUES(is_host),
+                is_alive = VALUES(is_alive),
+                joined_at = CURRENT_TIMESTAMP`,
+            [roomCode, playerId, role, Boolean(isHost), Boolean(isAlive)]
+        );
+        return playerId;
+    }
+
+    async function recordRoleStatistic(roomCode, playerId, role, connection = db) {
+        const roleColumn = getRoleStatistic(role);
+        const roleCounts = {
+            koylu_count: 0,
+            vampir_count: 0,
+            doktor_count: 0,
+            serial_killer_count: 0
+        };
+        roleCounts[roleColumn] = 1;
+
+        await connection.query(
+            `INSERT INTO room_player_stats
+                (room_code, player_id, koylu_count, vampir_count, doktor_count, serial_killer_count, total_games)
+             VALUES (?, ?, ?, ?, ?, ?, 1)
+             ON DUPLICATE KEY UPDATE
+                koylu_count = koylu_count + VALUES(koylu_count),
+                vampir_count = vampir_count + VALUES(vampir_count),
+                doktor_count = doktor_count + VALUES(doktor_count),
+                serial_killer_count = serial_killer_count + VALUES(serial_killer_count),
+                total_games = total_games + 1,
+                last_played_at = CURRENT_TIMESTAMP`,
+            [
+                roomCode,
+                playerId,
+                roleCounts.koylu_count,
+                roleCounts.vampir_count,
+                roleCounts.doktor_count,
+                roleCounts.serial_killer_count
+            ]
+        );
+    }
+
+    async function setRoomPlayerAlive(roomCode, playerName, isAlive) {
+        await db.query(
+            `UPDATE room_players rp
+             INNER JOIN players p ON p.id = rp.player_id
+             SET rp.is_alive = ?
+             WHERE rp.room_code = ? AND p.player_name = ?`,
+            [Boolean(isAlive), roomCode, String(playerName || '').trim()]
+        );
+    }
+
     async function distributeAndSaveRoles(roomCode) {
-        console.log(`🔍 [LOG - ROL] distributeAndSaveRoles başladı. Oda: ${roomCode}`);
         const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
         if (!savedRoom || !savedRoom.players) {
-            console.warn(`⚠️ [LOG - ROL UYARI] Oda Redis'te bulunamadı veya oyuncu listesi boş! Oda: ${roomCode}`);
             return { error: "Oda bulunamadı!" };
+        }
+        if (savedRoom.status === 'started') {
+            return { error: "Oyun zaten devam ediyor." };
         }
 
         let players = JSON.parse(savedRoom.players || '[]');
-        console.log(`👥 [LOG - ROL] Dağıtım yapılacak oyuncu sayısı: ${players.length}`);
-
         if (players.length < 3) {
-            console.warn(`⚠️ [LOG - ROL UYARI] Oyuncu sayısı yetersiz (<3): ${players.length}`);
             return { error: "Oyunu başlatmak için en az 3 oyuncu gereklidir!" };
         }
 
@@ -550,44 +635,42 @@ module.exports = function ({ app, io, redisClient, db }) {
             };
         });
 
+        if (db) {
+            let connection;
+            try {
+                connection = await db.getConnection();
+                await connection.beginTransaction();
+                for (const p of updatedPlayers) {
+                    const playerId = await saveRoomPlayerState(
+                        roomCode, p.name, p.role, p.isHost, p.isAlive, connection
+                    );
+                    await recordRoleStatistic(roomCode, playerId, p.role, connection);
+                }
+                await connection.query(
+                    `UPDATE rooms SET game_status = 'playing', winner_team = NULL WHERE room_code = ?`,
+                    [roomCode]
+                );
+                await connection.commit();
+            } catch (dbErr) {
+                if (connection) await connection.rollback();
+                console.error('MySQL role persistence failed:', dbErr);
+                return { error: 'Oyun istatistikleri kaydedilemedi. Lütfen tekrar dene.' };
+            } finally {
+                if (connection) connection.release();
+            }
+        }
+
         await redisClient.hset(`room:${roomCode}`, 'status', 'started');
         await redisClient.hset(`room:${roomCode}`, 'phase', 'role_reveal');
         await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
-        console.log(`✅ [LOG - REDIS] Roller ve oyun durumu Redis'e kaydedildi.`);
-
-        // 🎯 MySQL: Dağıtılan rolleri ve oyun durumunu güncelle (Log kontrollü)
-        if (typeof db === 'undefined' || !db) {
-            console.warn(`⚠️ [LOG - DB UYARI] db nesnesi tanımsız! Roller MySQL'e yazılamadı.`);
-        } else {
-            try {
-                console.log(`📝 [LOG - SQL] Oyuncu rolleri MySQL'e işleniyor... Toplam oyuncu: ${updatedPlayers.length}`);
-                for (const p of updatedPlayers) {
-                    await db.query(
-                        `INSERT INTO players (room_code, player_name, role, is_alive, is_host) 
-                         VALUES (?, ?, ?, ?, ?)
-                         ON DUPLICATE KEY UPDATE role = VALUES(role), is_alive = VALUES(is_alive), is_host = VALUES(is_host)`,
-                        [roomCode, p.name, p.role, p.isAlive, p.isHost]
-                    );
-                }
-                await db.query(`UPDATE rooms SET game_status = ? WHERE room_code = ?`, ['playing', roomCode]);
-                console.log(`✅ [LOG - SQL] Tüm roller ve oda durumu ('playing') MySQL veritabanına başarıyla yazıldı.`);
-            } catch (dbErr) {
-                console.error("❌ [MySQL Error - Roller Yazılamadı]:", dbErr);
-            }
-        }
 
         return { success: true, players: updatedPlayers };
     }
 
-    // ==========================================
-    // 🚀 SOKET EVENT DİNLEYİCİLERİ
-    // ==========================================
     io.on('connection', (socket) => {
 
         socket.on('vk_create_room', async (data) => {
             const { roomCode, hostName, gender, vampireCount, doctorCount, serialKillerCount, villagerCount } = data;
-            console.log(`📥 [LOG - SOCKET] 'vk_create_room' alındı. Oda: ${roomCode}, Host: ${hostName}`);
-
             const initialPlayers = [{ name: hostName, gender: gender || 'male', isHost: true }];
             socket.data.vkRoomCode = roomCode;
             socket.data.vkPlayerName = normalisePlayerName(hostName);
@@ -609,25 +692,23 @@ module.exports = function ({ app, io, redisClient, db }) {
             await redisClient.hmset(`room:${roomCode}`, roomData);
             await redisClient.expire(`room:${roomCode}`, 7200);
             await redisClient.sadd(`room:${roomCode}:returned_players`, hostName.trim());
-            console.log(`✅ [LOG - REDIS] Oda ${roomCode} için Redis kayıtları oluşturuldu.`);
 
-            if (typeof db === 'undefined' || !db) {
-                console.warn(`⚠️ [LOG - DB UYARI] db nesnesi tanımsız! Oda MySQL'e kaydedilemedi.`);
-            } else {
+            if (db) {
                 try {
-                    console.log(`📝 [LOG - SQL] Oda ve Host MySQL'e kaydediliyor...`);
                     await db.query(
-                        `INSERT INTO rooms (room_code, game_status) VALUES (?, ?)
-                         ON DUPLICATE KEY UPDATE game_status = VALUES(game_status)`,
-                        [roomCode, 'waiting']
+                        `INSERT INTO rooms
+                            (room_code, game_status, game_mode, vampire_count, doctor_count, serial_killer_count, is_active)
+                         VALUES (?, 'waiting', 'Klasik', ?, ?, ?, TRUE)
+                         ON DUPLICATE KEY UPDATE
+                            game_status = 'waiting',
+                            winner_team = NULL,
+                            vampire_count = VALUES(vampire_count),
+                            doctor_count = VALUES(doctor_count),
+                            serial_killer_count = VALUES(serial_killer_count),
+                            is_active = TRUE`,
+                        [roomCode, roomData.vampireCount, roomData.doctorCount, roomData.serialKillerCount]
                     );
-                    await db.query(
-                        `INSERT INTO players (room_code, player_name, role, is_host, is_alive) 
-                         VALUES (?, ?, 'Köylü 🧑‍🌾', true, true)
-                         ON DUPLICATE KEY UPDATE is_host = TRUE, is_alive = TRUE`,
-                        [roomCode, hostName]
-                    );
-                    console.log(`✅ [LOG - SQL] Oda (${roomCode}) ve Host (${hostName}) başarıyla MySQL'e yazıldı.`);
+                    await saveRoomPlayerState(roomCode, hostName, 'Köylü 🧑‍🌾', true, true);
                 } catch (dbErr) {
                     console.error("❌ [MySQL Error - Oda Kurulamadı]:", dbErr);
                 }
@@ -646,11 +727,8 @@ module.exports = function ({ app, io, redisClient, db }) {
 
         socket.on('vk_join_room', async (data) => {
             const { roomCode, playerName, gender } = data;
-            console.log(`📥 [LOG - SOCKET] 'vk_join_room' alındı. Oda: ${roomCode}, Oyuncu: ${playerName}`);
-
             const roomExists = await redisClient.exists(`room:${roomCode}`);
             if (!roomExists) {
-                console.warn(`⚠️ [LOG - REDIS UYARI] Katılınmak istenen oda Redis'te bulunamadı! Oda: ${roomCode}`);
                 socket.emit('error_message', { message: '❌ Böyle bir oda bulunamadı.' });
                 return;
             }
@@ -674,24 +752,20 @@ module.exports = function ({ app, io, redisClient, db }) {
                     isHost: false,
                     isAlive: true
                 });
-                console.log(`➕ [LOG] Oyuncu listeye eklendi: ${playerName}`);
-            } else {
-                console.log(`ℹ️ [LOG] Oyuncu zaten listede varmış: ${playerName}`);
             }
 
-            // MySQL Kaydı / Güncellemesi Her Durumda Garanti Edilir ve Loglanır
-            if (typeof db === 'undefined' || !db) {
-                console.warn(`⚠️ [LOG - DB UYARI] db nesnesi tanımsız! Oyuncu MySQL'e eklenemedi: ${playerName}`);
-            } else {
+            if (db) {
                 try {
-                    console.log(`📝 [LOG - SQL] Oyuncu MySQL'e yazılıyor/güncelleniyor: ${playerName} (Oda: ${roomCode})`);
-                    await db.query(
-                        `INSERT INTO players (room_code, player_name, role, is_host, is_alive) 
-                         VALUES (?, ?, 'Köylü 🧑‍🌾', false, true)
-                         ON DUPLICATE KEY UPDATE player_name = VALUES(player_name)`,
-                        [roomCode, playerName]
+                    const existingPlayer = playerObjects.find(player =>
+                        normalisePlayerName(player.name) === normalisePlayerName(playerName)
                     );
-                    console.log(`✅ [LOG - SQL] Oyuncu başarıyla MySQL'e işlendi: ${playerName}`);
+                    await saveRoomPlayerState(
+                        roomCode,
+                        playerName,
+                        existingPlayer && existingPlayer.role ? existingPlayer.role : 'Köylü 🧑‍🌾',
+                        Boolean(existingPlayer && existingPlayer.isHost),
+                        true
+                    );
                 } catch (dbErr) {
                     console.error(`❌ [MySQL Error - Oyuncu Eklenemedi (${playerName})]:`, dbErr);
                 }
@@ -702,7 +776,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             socket.join(roomCode);
             socket.data.vkRoomCode = roomCode;
             socket.data.vkPlayerName = normalisePlayerName(playerName);
-            console.log(`🏃‍♂️ ${playerName} (${gender}), ${roomCode} odasına katıldı.`);
 
             io.to(roomCode).emit('room_updated', {
                 roomCode,
@@ -734,9 +807,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             const roomData = await redisClient.hgetall(roomKey);
             let players = JSON.parse((roomData && roomData.players) || '[]');
             if (roomData && roomData.status === 'finished') {
-                // Bots are game-hand placeholders only.  Clear them on the
-                // first return to the finished lobby, then restore the room
-                // creator as the normal lobby host.
                 const bots = players.filter(player => player && player.isBot === true);
                 if (bots.length > 0) {
                     players = players.filter(player => !player || player.isBot !== true);
@@ -753,8 +823,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
             const { returnedPlayers, isEveryoneBack } = await getLobbyReturnStatus(roomCode, players);
 
-            console.log(`🟢 [LOBİ FLAG] ${playerName} lobiye döndü. Hazır olanlar: ${returnedPlayers.length}/${players.length}`);
-
             io.to(roomCode).emit('vk_lobby_status_updated', {
                 totalPlayersCount: players.length,
                 returnedPlayers: returnedPlayers
@@ -765,7 +833,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             });
         });
 
-        // 🎯 KESİNTİSİZ VE GARANTİLİ YENİ EL BAŞLATMA
         socket.on('vk_update_room_config', async (data) => {
             const { roomCode, vampireCount, doctorCount, serialKillerCount, villagerCount } = data;
             if (!roomCode) return;
@@ -797,6 +864,18 @@ module.exports = function ({ app, io, redisClient, db }) {
                 villagerCount: parseCount(villagerCount, 0).toString()
             };
             await redisClient.hmset(roomKey, config);
+            if (db) {
+                try {
+                    await db.query(
+                        `UPDATE rooms
+                         SET vampire_count = ?, doctor_count = ?, serial_killer_count = ?
+                         WHERE room_code = ?`,
+                        [config.vampireCount, config.doctorCount, config.serialKillerCount, roomCode]
+                    );
+                } catch (dbErr) {
+                    console.error('❌ [MySQL Error - Oda Ayarları Güncellenemedi]:', dbErr);
+                }
+            }
             io.to(roomCode).emit('vk_room_config_updated', config);
         });
 
@@ -804,20 +883,13 @@ module.exports = function ({ app, io, redisClient, db }) {
             const { roomCode } = data;
             if (!roomCode) return;
 
-            console.log(`📥 [LOG - SOCKET] 'vk_start_game' tetiklendi. Oda: ${roomCode}`);
             const roomKey = `room:${roomCode}`;
-
             const roomData = await redisClient.hgetall(roomKey);
             if (!roomData || !roomData.players) {
-                console.warn(`⚠️ [LOG - UYARI] Başlatılmak istenen odanın verisi Redis'te bulunamadı! Oda: ${roomCode}`);
                 socket.emit('vk_start_game_error', { message: 'Oda verisi bulunamadı!' });
                 return;
             }
 
-            // Only the current in-game/lobby host can launch the next round.
-            // We deliberately check this before restoring the room creator as
-            // host: a temporary host remains in charge until the next game is
-            // actually launched.
             const requestingPlayer = normalisePlayerName(socket.data.vkPlayerName);
             if (!requestingPlayer || requestingPlayer !== normalisePlayerName(roomData.host)) {
                 socket.emit('vk_start_game_error', {
@@ -849,7 +921,6 @@ module.exports = function ({ app, io, redisClient, db }) {
                 return;
             }
 
-            // Every new round starts from a clean game state, then roles are shuffled again.
             await redisClient.del(`${roomKey}:vk_votes`);
             await redisClient.del(`${roomKey}:vk_locked_votes`);
             await redisClient.del(`${roomKey}:returned_players`);
@@ -859,7 +930,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             const result = await distributeAndSaveRoles(roomCode);
 
             if (result.error) {
-                console.warn(`⚠️ [LOG - UYARI] Oyun başlatılamadı hatası: ${result.error}`);
                 socket.emit('vk_start_game_error', { message: result.error });
                 return;
             }
@@ -895,10 +965,7 @@ module.exports = function ({ app, io, redisClient, db }) {
             let players = JSON.parse(roomData.players || '[]');
             const seenPlayers = await redisClient.smembers(`${roomKey}:roles_seen_players`) || [];
 
-            console.log(`🃏 [ROL ONAYI] Oda: ${roomCode} | Oyuncu: ${playerName} (${seenPlayers.length}/${players.length})`);
-
             if (seenPlayers.length >= players.length) {
-                console.log(`🚀 [OYUN BAŞLIYOR] Tüm oyuncular rolünü onayladı! Kartlar kapatılıyor...`);
                 await redisClient.del(`${roomKey}:roles_seen_players`);
                 await redisClient.hset(roomKey, 'phase', 'day');
                 io.to(roomCode).emit('vk_all_roles_seen');
@@ -944,9 +1011,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             await emitTeamVoteStatus(roomCode, players, currentVotes);
         });
 
-        // ==========================================
-        // 🌙 GECE AKSİYONLARI VE ZAFER KONTROLÜ
-        // ==========================================
         socket.on('submit_night_action', async (data) => {
             const { roomCode, playerName, target } = data;
 
@@ -962,7 +1026,6 @@ module.exports = function ({ app, io, redisClient, db }) {
                 normalisePlayerName(typeof player === 'object' ? player.name : player) === playerKey
             );
 
-            // Do not trust a role or player name sent from the client.
             if (!actingPlayer || !socketPlayerKey || playerKey !== socketPlayerKey || actingPlayer.isAlive === false) {
                 socket.emit('night_action_error', {
                     message: 'Bu gece eylemini gerçekleştiremezsin.'
@@ -987,7 +1050,7 @@ module.exports = function ({ app, io, redisClient, db }) {
                 normalisePlayerName(typeof player === 'object' ? player.name : player) === targetKey
             );
 
-            if (!rStr.includes('k\u00f6yl\u00fc') && !validTarget) {
+            if (!rStr.includes('köylü') && !validTarget) {
                 socket.emit('night_action_error', {
                     message: 'Geçerli ve hayatta olan bir oyuncu seçmelisin.'
                 });
@@ -1014,8 +1077,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             const uniqueVampireTargets = [...new Set(vampireChoices)];
             const totalVampiresInGame = alivePlayers.filter(p => p.role && p.role.toLowerCase().includes('vampir')).length;
 
-            // Vampire choices are intentionally shared with the vampire team
-            // so they can coordinate on the same target before the night ends.
             const vampireSelections = {};
             Object.entries(nightVotes[roomCode].vampires).forEach(([voter, selectedTarget]) => {
                 const targetName = String(selectedTarget);
@@ -1094,13 +1155,10 @@ module.exports = function ({ app, io, redisClient, db }) {
                 updatedPlayers = await handleHostTransferIfNeeded(roomCode, updatedPlayers);
                 await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(updatedPlayers));
 
-                if (typeof db !== 'undefined' && db) {
+                if (db) {
                     try {
                         for (const deadName of actualDeadNames) {
-                            await db.query(
-                                'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
-                                [roomCode, deadName]
-                            );
+                            await setRoomPlayerAlive(roomCode, deadName, false);
                         }
                     } catch (dbErr) {
                         console.error("❌ [MySQL Error - Ölenler Güncellenemedi]:", dbErr);
@@ -1115,15 +1173,11 @@ module.exports = function ({ app, io, redisClient, db }) {
                 });
                 io.to(roomCode).emit('vk_players_updated', updatedPlayers);
 
-                // 🎯 YENİ KÖTÜ / İYİ SAVAŞI ZAFER HESAPLAMASI
                 const updatedAlive = updatedPlayers.filter(p => p.isAlive !== false);
                 const evilCount = updatedAlive.filter(p => isEvilPlayer(p)).length;
                 const goodCount = updatedAlive.filter(p => !isEvilPlayer(p)).length;
 
-                console.log(`🌅 [SABAH ZAFER KONTROLÜ] Oda: ${roomCode} | Kalan Kötü: ${evilCount} | Kalan İyi: ${goodCount}`);
-
                 if (evilCount === 0) {
-                    console.log(">>> EMIT GAME OVER (KÖYLÜLER KAZANDI)");
                     await finishGame(
                         roomCode,
                         'KÖYLÜLER',
@@ -1131,7 +1185,6 @@ module.exports = function ({ app, io, redisClient, db }) {
                     );
                     return;
                 } else if (evilCount >= goodCount) {
-                    console.log(">>> EMIT GAME OVER (VAMPİRLER KAZANDI)");
                     await finishGame(
                         roomCode,
                         'VAMPİRLER',
@@ -1144,19 +1197,14 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
         });
 
-        // ==========================================
-        // 🔄 FAZ DEĞİŞİM DİNLENİCİSİ
-        // ==========================================
         socket.on('vk_change_phase', async (data) => {
             const { roomCode, nextPhase } = data;
 
-            // 🎯 ODA KONTROLÜ: Eğer oyun bittiyse (status === 'finished') faz değişimini tamamen kitle!
             const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
             const requestingPlayer = normalisePlayerName(socket.data.vkPlayerName);
             const currentHost = normalisePlayerName(savedRoom && savedRoom.host);
 
             if (!savedRoom || !requestingPlayer || requestingPlayer !== currentHost) {
-                console.warn(`⛔ [FAZ ENGELLENDİ] Yetkisiz faz isteği. Oda: ${roomCode}, Oyuncu: ${requestingPlayer || 'bilinmiyor'}`);
                 socket.emit('vk_phase_error', {
                     message: 'Faz geçişlerini yalnızca güncel muhtar yönetebilir.'
                 });
@@ -1164,11 +1212,8 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
 
             if (savedRoom.status === 'finished') {
-                console.log(`⛔ [FAZ ENGLLENDİ] Oda ${roomCode} bittiği için "${nextPhase}" fazına geçiş isteği REDDEDİLDİ.`);
-                return; // 🎯 <<< OYUN BİTTİYSE FAZ DEĞİŞTİRME RETURN'Ü
+                return;
             }
-
-            console.log(`🔄 [FAZ TETİKLENDİ] Oda: ${roomCode} | Faz: ${nextPhase}`);
 
             await redisClient.hset(`room:${roomCode}`, 'phase', nextPhase);
 
@@ -1182,13 +1227,11 @@ module.exports = function ({ app, io, redisClient, db }) {
             }
 
             if (nextPhase === 'voting') {
-                console.log(">>> EMIT VOTING");
                 io.to(roomCode).emit('vk_navigate_to_voting');
                 const phasePlayers = JSON.parse(savedRoom.players || '[]');
                 await emitTeamVoteStatus(roomCode, phasePlayers, {});
                 await addBotVotes(roomCode);
             } else {
-                console.log(`>>> EMIT DAY / PHASE: ${nextPhase}`);
                 io.to(roomCode).emit('vk_phase_changed', { phase: nextPhase });
             }
         });
@@ -1308,17 +1351,9 @@ module.exports = function ({ app, io, redisClient, db }) {
                     players = await handleHostTransferIfNeeded(roomCode, players);
                     await redisClient.hset(`room:${roomCode}`, 'players', JSON.stringify(players));
 
-                    // MySQL'de oylama ile elenen oyuncunun is_alive durumunu false yap (Log kontrollü)
-                    if (typeof db === 'undefined' || !db) {
-                        console.warn(`⚠️ [LOG - DB UYARI] db tanımsız! Elenen oyuncu MySQL'de güncellenemedi: ${eliminatedPlayerName}`);
-                    } else {
+                    if (db) {
                         try {
-                            console.log(`📝 [LOG - SQL] Oylama ile elenen oyuncu MySQL'de güncelleniyor: ${eliminatedPlayerName}`);
-                            await db.query(
-                                'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
-                                [roomCode, eliminatedPlayerName]
-                            );
-                            console.log(`✅ [LOG - SQL] Elenen oyuncu MySQL'de güncellendi: ${eliminatedPlayerName}`);
+                            await setRoomPlayerAlive(roomCode, eliminatedPlayerName, false);
                         } catch (dbErr) {
                             console.error("❌ [MySQL Error - Elenen Oyuncu Güncellenemedi]:", dbErr);
                         }
@@ -1328,16 +1363,9 @@ module.exports = function ({ app, io, redisClient, db }) {
                 await redisClient.del(voteKey);
                 await redisClient.del(lockKey);
 
-                // 🎯 YENİ KÖTÜ / İYİ SAVAŞI ZAFER HESAPLAMASI
                 const updatedAlive = players.filter(p => p.isAlive !== false);
-
-                // Kötüler: Vampir + Seri Katil
                 const evilCount = updatedAlive.filter(p => isEvilPlayer(p)).length;
-
-                // İyiler: Doktor + Köylü
                 const goodCount = updatedAlive.filter(p => !isEvilPlayer(p)).length;
-
-                console.log(`📊 [VK OYLAMA SONUCU] Elenen: ${eliminatedPlayerName} | Kalan Kötü: ${evilCount} | Kalan İyi: ${goodCount}`);
 
                 if (evilCount === 0) {
                     await finishGame(roomCode, 'KÖYLÜLER', eliminatedPlayerName);
@@ -1381,9 +1409,6 @@ module.exports = function ({ app, io, redisClient, db }) {
             );
             if (!disconnectedPlayer) return;
 
-            // During a live hand, the player is replaced by a bot that keeps
-            // the same role and plays until the game finishes.  In the lobby,
-            // disconnected players are still removed immediately.
             const markedPlayers = players.map(player =>
                 normalisePlayerName(typeof player === 'object' ? player.name : player) === normalisePlayerName(playerName)
                     ? { ...player, isAlive: false }
@@ -1420,10 +1445,7 @@ module.exports = function ({ app, io, redisClient, db }) {
 
             if (db) {
                 try {
-                    await db.query(
-                        'UPDATE players SET is_alive = FALSE WHERE room_code = ? AND player_name = ?',
-                        [roomCode, disconnectedPlayer.name]
-                    );
+                    await setRoomPlayerAlive(roomCode, disconnectedPlayer.name, false);
                 } catch (dbErr) {
                     console.error('❌ [MySQL Error - Bağlantısı Kopan Oyuncu Güncellenemedi]:', dbErr);
                 }
@@ -1461,13 +1483,9 @@ module.exports = function ({ app, io, redisClient, db }) {
 
     });
 
-    // ==========================================
-    // 🏁 API ENDPOINT'LERİ
-    // ==========================================
     app.post('/api/vk/start-game', async (req, res) => {
         try {
             const { roomCode } = req.body;
-            console.log(`📥 [LOG - API] POST /api/vk/start-game çağrıldı. Oda: ${roomCode}`);
             const result = await distributeAndSaveRoles(roomCode);
 
             if (result.error) {
@@ -1477,6 +1495,7 @@ module.exports = function ({ app, io, redisClient, db }) {
             const updatedPlayers = result.players;
 
             io.to(roomCode).emit('vk_game_started', { players: updatedPlayers });
+            io.to(roomCode).emit('vk_players_source', updatedPlayers);
             io.to(roomCode).emit('vk_players_updated', updatedPlayers);
 
             return res.json({
