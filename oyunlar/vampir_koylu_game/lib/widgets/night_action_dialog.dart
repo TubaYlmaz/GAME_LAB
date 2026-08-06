@@ -1,23 +1,25 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
+typedef NightActionSelections = Map<String, Map<String, List<String>>>;
+
 class NightActionDialog extends StatefulWidget {
   final String
   myRole; // 'Vampir 🧛', 'Doktor 🩺', 'Seri Katil 🔪', 'Köylü 🧑‍🌾'
   final List<dynamic> alivePlayers; // Yaşayan oyuncular [{id, name}]
   final Function(String targetId) onActionSubmitted;
-  final Function(String targetId)? onVampireTargetSelected;
+  final ValueChanged<String> onTargetSelected;
   final Stream<String>? errorStream;
-  final Stream<Map<String, List<String>>>? vampireVotesStream;
+  final Stream<NightActionSelections>? roleVotesStream;
 
   const NightActionDialog({
     Key? key,
     required this.myRole,
     required this.alivePlayers,
     required this.onActionSubmitted,
-    this.onVampireTargetSelected,
+    required this.onTargetSelected,
     this.errorStream,
-    this.vampireVotesStream,
+    this.roleVotesStream,
   }) : super(key: key);
 
   @override
@@ -36,7 +38,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
 
   bool isSubmitted = false;
   String? errorMessage;
-  Map<String, List<String>> vampireVotesMap = {};
+  NightActionSelections roleVotesByRole = {};
 
   bool get isVampire {
     final r = widget.myRole.toLowerCase();
@@ -56,6 +58,17 @@ class _NightActionDialogState extends State<NightActionDialog> {
   bool get isVillager {
     return !isVampire && !isDoctor && !isSerialKiller;
   }
+  String get _selectionKey {
+    if (isVampire) return 'vampireSelections';
+    if (isDoctor) return 'doctorSelections';
+    if (isSerialKiller) return 'killerSelections';
+    return '';
+  }
+
+  Map<String, List<String>> get _roleVotesMap {
+    return roleVotesByRole[_selectionKey] ?? const <String, List<String>>{};
+  }
+
 
   @override
   void initState() {
@@ -73,15 +86,14 @@ class _NightActionDialogState extends State<NightActionDialog> {
       }
     });
 
-    if (isVampire) {
-      widget.vampireVotesStream?.listen((votes) {
-        if (mounted) {
-          setState(() {
-            vampireVotesMap = votes;
-          });
-        }
-      });
-    }
+    // 🎯 Özel roldeki tüm oyuncular (Vampir, Doktor, Katil) için seçim akışını dinliyoruz
+    widget.roleVotesStream?.listen((votes) {
+      if (mounted) {
+        setState(() {
+          roleVotesByRole = votes;
+        });
+      }
+    });
   }
 
   void _generateMathQuestion() {
@@ -352,7 +364,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
                 final String pId = (player['id'] ?? player['name']).toString();
                 final String pName = (player['name'] ?? 'Oyuncu').toString();
                 final isSelected = selectedPlayerId == pId;
-                final vampireVoters = vampireVotesMap[pId] ?? [];
+                final voters = _roleVotesMap[pId] ?? [];
 
                 return Container(
                   margin: const EdgeInsets.symmetric(vertical: 3),
@@ -373,7 +385,9 @@ class _NightActionDialogState extends State<NightActionDialog> {
                       vertical: 0,
                     ),
                     title: Text(
-                      pName,
+                      voters.isNotEmpty
+                          ? "$pName (${voters.length} Seçim)"
+                          : pName,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -382,11 +396,11 @@ class _NightActionDialogState extends State<NightActionDialog> {
                             : FontWeight.normal,
                       ),
                     ),
-                    subtitle: isVampire && vampireVoters.isNotEmpty
+                    subtitle: voters.isNotEmpty
                         ? Text(
-                            "Vampir oyları: ${vampireVoters.join(', ')}",
+                            "Seçenler: ${voters.join(', ')}",
                             style: const TextStyle(
-                              color: Colors.redAccent,
+                              color: Colors.amberAccent,
                               fontSize: 10,
                             ),
                           )
@@ -408,10 +422,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
                           selectedPlayerId = pId;
                           errorMessage = null;
                         });
-                        if (isVampire &&
-                            widget.onVampireTargetSelected != null) {
-                          widget.onVampireTargetSelected!(pId);
-                        }
+                        widget.onTargetSelected(pId);
                       }
                     },
                   ),

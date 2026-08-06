@@ -5,7 +5,7 @@ const mysql = require('mysql2');
 const impostorPool = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: '1234',
+    password: 'My2003.SQL.root-',
     database: 'impostor_game',
     waitForConnections: true,
     connectionLimit: 10,
@@ -16,7 +16,7 @@ const impostorPool = mysql.createPool({
 const vampirPool = mysql.createPool({
     host: 'localhost',
     user: 'root',
-    password: '1234',
+    password: 'My2003.SQL.root-',
     database: 'vampir_koylu_game', // Workbench'te oluşturduğun yeni veri tabanı adı
     waitForConnections: true,
     connectionLimit: 10,

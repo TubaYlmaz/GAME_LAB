@@ -62,15 +62,31 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     _socketService.socket?.off('vk_vote_progress');
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
-    _socketService.socket?.off('vk_round_ended');
     _socketService.socket?.off('vk_team_vote_status');
     _socketService.socket?.off('vk_player_disconnected');
 
     void handleProgress(dynamic data) {
-      if (!mounted) return;
+      if (!mounted || data is! Map) return;
       setState(() {
         votedCount = data['votedCount'] ?? 0;
 
+        // 🎯 Backend'den gelen anlık toplam oyları `playerVotes` haritasına işliyoruz
+        if (data['voteCounts'] != null && data['voteCounts'] is Map) {
+          final Map rawCounts = data['voteCounts'] as Map;
+
+          // Önce tüm canlı oyuncuların oyunu sıfırla
+          for (var key in playerVotes.keys) {
+            playerVotes[key] = 0;
+          }
+
+          // Gelen oyları eşleştir
+          rawCounts.forEach((target, count) {
+            final targetName = target.toString();
+            playerVotes[targetName] = (count is int)
+                ? count
+                : int.tryParse(count.toString()) ?? 0;
+          });
+        }
       });
     }
 
@@ -80,7 +96,8 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     _socketService.socket?.on('vk_host_changed', (data) {
       if (!mounted || data is! Map || data['newHost'] == null) return;
       setState(() {
-        _isHost = data['newHost'].toString().trim().toLowerCase() ==
+        _isHost =
+            data['newHost'].toString().trim().toLowerCase() ==
             widget.myName.trim().toLowerCase();
       });
     });
@@ -92,8 +109,8 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
         _teamName = data['team']?.toString();
         _teamMembers = data['teamMembers'] is List
             ? (data['teamMembers'] as List)
-                .map((member) => member.toString())
-                .toList()
+                  .map((member) => member.toString())
+                  .toList()
             : [];
         _teamVotes = rawVotes.map<String, List<String>>(
           (target, voters) => MapEntry(
@@ -145,7 +162,9 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text((data['message'] ?? 'Bir oyuncu oyundan ayrıldı.').toString()),
+          content: Text(
+            (data['message'] ?? 'Bir oyuncu oyundan ayrıldı.').toString(),
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -156,42 +175,43 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     });
 
     void handleResults(dynamic data) {
-          if (!mounted || isDialogShown) return;
+      if (!mounted || isDialogShown) return;
 
-          _timer?.cancel();
-          setState(() {
-            isVotingClosed = true;
-            isDialogShown = true;
-          });
+      _timer?.cancel();
+      setState(() {
+        isVotingClosed = true;
+        isDialogShown = true;
+      });
 
-          String? eliminated = data['eliminatedPlayer'];
-          String? eliminatedRole = data['eliminatedRole'];
-          bool isTie = data['isTie'] ?? false;
-          bool isVampire = data['isVampire'] ?? (eliminatedRole != null && eliminatedRole.toLowerCase().contains('vampir'));
+      String? eliminated = data['eliminatedPlayer'];
+      String? eliminatedRole = data['eliminatedRole'];
+      bool isTie = data['isTie'] ?? false;
+      bool isVampire =
+          data['isVampire'] ??
+          (eliminatedRole != null &&
+              eliminatedRole.toLowerCase().contains('vampir'));
 
-          // 🎯 Sunucu güncel oyuncu listesini fırlattıysa bizim widget.players listemizi de güncelliyoruz
-          if (data['players'] != null && data['players'] is List) {
-            final List serverPlayers = data['players'];
-            for (var pObj in serverPlayers) {
-              if (pObj is Map) {
-                final String name = pObj['name'] ?? '';
-                final bool isAlive = pObj['isAlive'] ?? true;
-                final match = widget.players.where(
-                  (p) => p.name.trim().toLowerCase() == name.trim().toLowerCase(),
-                );
-                if (match.isNotEmpty) {
-                  match.first.isAlive = isAlive;
-                }
-              }
+      // 🎯 Sunucu güncel oyuncu listesini fırlattıysa bizim widget.players listemizi de güncelliyoruz
+      if (data['players'] != null && data['players'] is List) {
+        final List serverPlayers = data['players'];
+        for (var pObj in serverPlayers) {
+          if (pObj is Map) {
+            final String name = pObj['name'] ?? '';
+            final bool isAlive = pObj['isAlive'] ?? true;
+            final match = widget.players.where(
+              (p) => p.name.trim().toLowerCase() == name.trim().toLowerCase(),
+            );
+            if (match.isNotEmpty) {
+              match.first.isAlive = isAlive;
             }
           }
-
-          showRoundResultsDialog(eliminated, eliminatedRole, isTie, isVampire);
         }
+      }
+
+      showRoundResultsDialog(eliminated, eliminatedRole, isTie, isVampire);
+    }
 
     _socketService.socket?.on('vk_voting_results', handleResults);
-    _socketService.socket?.on('vk_round_ended', handleResults);
-
   }
 
   void startTimer() {
@@ -201,7 +221,9 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
 
     final bool amIAlive = _isMyPlayerAlive();
 
-    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (timer) {
+    _timer = Timer.periodic(const Duration(milliseconds: milliseconds), (
+      timer,
+    ) {
       if (!mounted) return;
       setState(() {
         if (progress < 1.0) {
@@ -220,7 +242,9 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
   bool _isMyPlayerAlive() {
     if (widget.players.isEmpty) return false;
     final myPlayer = widget.players.firstWhere(
-      (p) => p.name.trim() == widget.myName.trim() || p.name.contains(widget.myName),
+      (p) =>
+          p.name.trim() == widget.myName.trim() ||
+          p.name.contains(widget.myName),
       orElse: () => widget.players[0],
     );
     return myPlayer.isAlive;
@@ -247,7 +271,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     });
   }
 
-void showRoundResultsDialog(
+  void showRoundResultsDialog(
     String? eliminatedPlayer,
     String? eliminatedRole,
     bool isTie,
@@ -261,7 +285,8 @@ void showRoundResultsDialog(
       subtitle = "Oylamada eşitlik çıktı, bu tur kimse elenmedi!";
     } else {
       title = "OYLAMA BİTTİ! 🗳️";
-      final roleText = eliminatedRole ?? (isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾');
+      final roleText =
+          eliminatedRole ?? (isVampire ? 'VAMPİR 🧛' : 'MASUM KÖYLÜ 🧑‍🌾');
       subtitle = "$eliminatedPlayer köy kararıyla elendi!\n\nRolü: $roleText";
     }
 
@@ -313,7 +338,11 @@ void showRoundResultsDialog(
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, color: Colors.white70, height: 1.3),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.white70,
+                    height: 1.3,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 const Text(
@@ -396,8 +425,18 @@ void showRoundResultsDialog(
 
                     // 🎯 Benim Host olup olmadığımı oyuncu listesinden buluyoruz
                     final myPlayerObj = widget.players.firstWhere(
-                      (p) => p.name.trim() == widget.myName.trim() || p.name.contains(widget.myName),
-                      orElse: () => widget.players.isNotEmpty ? widget.players[0] : PlayerModel(id: 'me', name: widget.myName, avatarColor: Colors.blue, gender: Gender.female, role: 'Köylü'),
+                      (p) =>
+                          p.name.trim() == widget.myName.trim() ||
+                          p.name.contains(widget.myName),
+                      orElse: () => widget.players.isNotEmpty
+                          ? widget.players[0]
+                          : PlayerModel(
+                              id: 'me',
+                              name: widget.myName,
+                              avatarColor: Colors.blue,
+                              gender: Gender.female,
+                              role: 'Köylü',
+                            ),
                     );
 
                     // 🎯 Sunucuya Lobiye Döndüm Bildirimi Atıyoruz
@@ -405,7 +444,7 @@ void showRoundResultsDialog(
                       'roomCode': widget.roomCode,
                       'playerName': widget.myName,
                     });
-                    
+
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
@@ -442,7 +481,6 @@ void showRoundResultsDialog(
     _socketService.socket?.off('vk_vote_progress');
     _socketService.socket?.off('vk_vote_status_updated');
     _socketService.socket?.off('vk_voting_results');
-    _socketService.socket?.off('vk_round_ended');
     _socketService.socket?.off('vk_team_vote_status');
     _socketService.socket?.off('vk_player_disconnected');
     super.dispose();

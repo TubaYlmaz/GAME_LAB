@@ -58,8 +58,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final SocketService _socketService = SocketService();
   final TransformationController _transformationController =
       TransformationController();
-  final StreamController<Map<String, List<String>>> _vampireChoicesController =
-      StreamController<Map<String, List<String>>>.broadcast();
+  final StreamController<NightActionSelections>
+  _nightActionChoicesController =
+      StreamController<NightActionSelections>.broadcast();
 
   @override
   void initState() {
@@ -119,7 +120,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.off('vk_players_updated');
     _socketService.socket?.off('vk_game_started');
     _socketService.socket?.off('vk_vote_progress');
-    _socketService.socket?.off('vk_round_ended');
     _socketService.socket?.off('vk_voting_results');
     _socketService.socket?.off('vk_game_over');
     _socketService.socket?.off('vk_phase_changed');
@@ -131,6 +131,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.off('vk_host_status');
     _socketService.socket?.off('vk_phase_error');
     _socketService.socket?.off('vk_night_action_choices');
+    _socketService.socket?.off('vk_game_state');
+    _socketService.socket?.off('connect');
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -156,6 +158,48 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
     _socketService.socket?.on('vk_game_started', updatePlayersFromData);
+
+    void reclaimGameControl() {
+      _socketService.socket?.emit('vk_join_room', {
+        'roomCode': widget.roomCode,
+        'playerName': widget.playerName,
+        'gender': widget.gender.name,
+      });
+    }
+
+    _socketService.socket?.on('connect', (_) => reclaimGameControl());
+
+    _socketService.socket?.on('vk_game_state', (data) {
+      if (!mounted || data is! Map) return;
+      updatePlayersFromData(data);
+
+      final String phase = data['phase']?.toString() ?? 'day';
+      setState(() {
+        _isHost = data['isHost'] == true;
+        _isAfterNight = data['isAfterNight'] == true;
+        if (phase == 'night') {
+          _phase = GamePhase.night;
+          _hasActedAtNight = false;
+        } else if (phase == 'voting') {
+          _phase = GamePhase.voting;
+        } else {
+          _phase = GamePhase.dayDiscussion;
+        }
+        _logs.add(
+          'System: Bağlantı geri geldi; oyun durumu senkronize edildi.',
+        );
+      });
+
+      if (phase == 'night') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _checkAndShowNightDialog();
+        });
+      } else if (phase == 'voting') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _openVotingScreenIfCurrent();
+        });
+      }
+    });
 
     _socketService.socket?.on('vk_host_changed', (data) {
       if (!mounted || data is! Map || data['newHost'] == null) return;
@@ -286,7 +330,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       });
     }
 
-    _socketService.socket?.on('vk_round_ended', handleRoundEnded);
     _socketService.socket?.on('vk_voting_results', handleRoundEnded);
 
     // 🏆 OYUN BİTTİ DİNLENİCİSİ (EntryScreen hatasını tamamen engelleyen güvenli yapı)
@@ -379,6 +422,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
       setState(() {
         _logs.add('System: $msg');
+        _round++;
+        _phase = GamePhase.dayDiscussion;
+        _isAfterNight = true;
+        _hasActedAtNight = false;
         for (var p in _players) {
           if (deadPlayers
               .map((e) => e.toString().trim())
@@ -404,10 +451,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         ),
       );
 
-      final String roleTarget =
-          (data is Map && data['roleTarget'] != null)
-              ? data['roleTarget'].toString().toLowerCase()
-              : '';
+      final String roleTarget = (data is Map && data['roleTarget'] != null)
+          ? data['roleTarget'].toString().toLowerCase()
+          : '';
       final String myRole = _getMyPlayer().role.toLowerCase();
       final bool mustChooseAgain =
           (roleTarget.contains('vampir') && myRole.contains('vampir')) ||
@@ -428,40 +474,37 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     });
 
     _socketService.socket?.on('vk_night_action_choices', (data) {
-      if (data is! Map || data['vampireSelections'] is! Map) return;
+      if (data is! Map) return;
 
-      final selections = <String, List<String>>{};
-      (data['vampireSelections'] as Map).forEach((target, voters) {
-        selections[target.toString()] = voters is List
-            ? voters.map((voter) => voter.toString()).toList()
-            : <String>[];
-      });
-      if (!_vampireChoicesController.isClosed) {
-        _vampireChoicesController.add(selections);
+      final selectionsByRole = <String, Map<String, List<String>>>{};
+      for (final selectionKey in const [
+        'vampireSelections',
+        'doctorSelections',
+        'killerSelections',
+      ]) {
+        final rawSelections = data[selectionKey];
+        final selections = <String, List<String>>{};
+        if (rawSelections is Map) {
+          rawSelections.forEach((target, voters) {
+            selections[target.toString()] = voters is List
+                ? voters.map((voter) => voter.toString()).toList()
+                : <String>[];
+          });
+        }
+        selectionsByRole[selectionKey] = selections;
+      }
+      if (!_nightActionChoicesController.isClosed) {
+        _nightActionChoicesController.add(selectionsByRole);
       }
     });
 
     _socketService.socket?.on('vk_navigate_to_voting', (_) {
-      if (!mounted) return;
-      _closeNightDialogIfOpen();
-
-      setState(() {
-        _phase = GamePhase.voting;
-      });
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VKVotingScreen(
-            roomCode: widget.roomCode,
-            myName: widget.playerName,
-            players: _players,
-            amIVampire: _getMyPlayer().isVampire,
-            isHost: _isHost,
-          ),
-        ),
-      );
+      _openVotingScreenIfCurrent();
     });
+
+    if (_socketService.socket?.connected ?? false) {
+      reclaimGameControl();
+    }
 
     _socketService.socket?.emit('vk_get_players', {
       'roomCode': widget.roomCode,
@@ -469,6 +512,35 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.emit('vk_get_host_status', {
       'roomCode': widget.roomCode,
     });
+  }
+
+  void _openVotingScreenIfCurrent() {
+    if (!mounted) return;
+    if (_isNightDialogShowing) {
+      _closeNightDialogIfOpen();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openVotingScreenIfCurrent();
+      });
+      return;
+    }
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+
+    setState(() {
+      _phase = GamePhase.voting;
+    });
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VKVotingScreen(
+          roomCode: widget.roomCode,
+          myName: widget.playerName,
+          players: _players,
+          amIVampire: _getMyPlayer().isVampire,
+          isHost: _isHost,
+        ),
+      ),
+    );
   }
 
   PlayerModel _getMyPlayer() {
@@ -512,7 +584,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         return NightActionDialog(
           myRole: myPlayer.role,
           alivePlayers: aliveTargets,
-          vampireVotesStream: _vampireChoicesController.stream,
+          roleVotesStream: _nightActionChoicesController.stream,
+
+          // 🎯 EKLENEN KISIM: İsime tıklandığı an (onaylamadan) socket'e canlı seçim atar
+          onTargetSelected: (target) {
+            _socketService.socket?.emit('submit_night_action', {
+              'roomCode': widget.roomCode,
+              'playerName': widget.playerName,
+              'role': myPlayer.role,
+              'target': target,
+            });
+          },
+
           onActionSubmitted: (target) {
             setState(() {
               _hasActedAtNight = true;
@@ -625,64 +708,102 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _socketService.socket?.off('vk_game_state');
+    _socketService.socket?.off('connect');
     _socketService.clearAllListeners();
-    _vampireChoicesController.close();
+    _nightActionChoicesController.close();
     _transformationController.dispose();
     super.dispose();
+  }
+
+  /// Returns a stable, uniformly random position in the annulus bounded by
+  /// [minRadius] and [maxRadius]. The player index owns an angular sector so
+  /// players cannot bunch up in one direction, while the square-root radius
+  /// keeps density uniform across the whole ring area.
+  Offset _positionInAnnulus({
+    required double cx,
+    required double cy,
+    required int index,
+    required int totalPlayers,
+    required double minRadius,
+    required double maxRadius,
+    required int seed,
+  }) {
+    final random = Random(seed);
+    final sectorAngle = (2 * pi) / totalPlayers;
+    final angle = (index * sectorAngle) + random.nextDouble() * sectorAngle;
+    final areaSample = random.nextDouble();
+    final radius = sqrt(
+      minRadius * minRadius +
+          areaSample * (maxRadius * maxRadius - minRadius * minRadius),
+    );
+
+    return Offset(cx + radius * cos(angle), cy + radius * sin(angle));
   }
 
   void _calculatePlayerPositions() {
     if (_positionsCalculated || _players.isEmpty) return;
 
-    final double worldW = GameMap.worldSize.width;
-    final double worldH = GameMap.worldSize.height;
-
+    final worldW = GameMap.worldSize.width;
+    final worldH = GameMap.worldSize.height;
     final cx = worldW / 2;
     final cy = worldH / 2 + 28;
 
-    const double squareRadius = 180.0;
-
-    final double minX = worldW * 0.08;
-    final double maxX = worldW * 0.92;
-    final double minY = worldH * 0.10;
-    final double maxY = worldH * 0.88;
-
-    final rand = Random(1337);
+    const plazaRadius = 180.0;
+    const mapPadding = 24.0;
+    const houseGap = 15.0;
 
     for (int i = 0; i < _players.length; i++) {
-      double x = 0;
-      double y = 0;
-      bool validPosition = false;
-      int attempts = 0;
+      final player = _players[i];
+      final houseWidth = player.isAlive ? 180.0 : 110.0;
+      final houseHeight = player.isAlive ? 150.0 : 90.0;
+      final houseHalfDiagonal = sqrt(
+        pow(houseWidth / 2, 2) + pow(houseHeight / 2, 2),
+      );
 
-      final double currentW = _players[i].isAlive ? 180.0 : 110.0;
-      final double currentH = _players[i].isAlive ? 150.0 : 90.0;
+      // The complete house stays outside the plaza and inside all map edges.
+      final minRadius = plazaRadius + houseHalfDiagonal + mapPadding;
+      final maxRadius = min(
+        min(
+          cx - houseWidth / 2 - mapPadding,
+          worldW - cx - houseWidth / 2 - mapPadding,
+        ),
+        min(
+          cy - houseHeight / 2 - mapPadding,
+          worldH - cy - houseHeight / 2 - mapPadding,
+        ),
+      );
 
-      while (!validPosition && attempts < 4000) {
-        attempts++;
-        x = minX + rand.nextDouble() * (maxX - minX);
-        y = minY + rand.nextDouble() * (maxY - minY);
+      Offset position = _positionInAnnulus(
+        cx: cx,
+        cy: cy,
+        index: i,
+        totalPlayers: _players.length,
+        minRadius: minRadius,
+        maxRadius: maxRadius,
+        seed: 1337 + (i * 7919) + (_players.length * 104729),
+      );
 
-        final distanceToCenter = sqrt(pow(x - cx, 2) + pow(y - cy, 2));
-        if (distanceToCenter <
-            (squareRadius + max(currentW, currentH) / 2 + 20)) {
-          continue;
-        }
-
+      // Keep the annular placement, but retry its seeded random sample if a
+      // neighbouring house would overlap this one.
+      for (int attempt = 1; attempt <= 120; attempt++) {
         bool overlaps = false;
         for (int j = 0; j < i; j++) {
           final other = _players[j];
           if (other.posX == null || other.posY == null) continue;
 
-          final double otherW = other.isAlive ? 180.0 : 110.0;
-          final double otherH = other.isAlive ? 150.0 : 90.0;
-
-          final bool xOverlap =
-              (x - currentW / 2 < other.posX! + otherW / 2 + 15) &&
-              (x + currentW / 2 > other.posX! - otherW / 2 - 15);
-          final bool yOverlap =
-              (y - currentH / 2 < other.posY! + otherH / 2 + 15) &&
-              (y + currentH / 2 > other.posY! - otherH / 2 - 15);
+          final otherWidth = other.isAlive ? 180.0 : 110.0;
+          final otherHeight = other.isAlive ? 150.0 : 90.0;
+          final xOverlap =
+              (position.dx - houseWidth / 2 <
+                  other.posX! + otherWidth / 2 + houseGap) &&
+              (position.dx + houseWidth / 2 >
+                  other.posX! - otherWidth / 2 - houseGap);
+          final yOverlap =
+              (position.dy - houseHeight / 2 <
+                  other.posY! + otherHeight / 2 + houseGap) &&
+              (position.dy + houseHeight / 2 >
+                  other.posY! - otherHeight / 2 - houseGap);
 
           if (xOverlap && yOverlap) {
             overlaps = true;
@@ -690,11 +811,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           }
         }
 
-        if (!overlaps) validPosition = true;
+        if (!overlaps) break;
+        position = _positionInAnnulus(
+          cx: cx,
+          cy: cy,
+          index: i,
+          totalPlayers: _players.length,
+          minRadius: minRadius,
+          maxRadius: maxRadius,
+          seed: 1337 + (i * 7919) + (_players.length * 104729) + attempt,
+        );
       }
 
-      _players[i].posX = x;
-      _players[i].posY = y;
+      player.posX = position.dx;
+      player.posY = position.dy;
     }
 
     _positionsCalculated = true;

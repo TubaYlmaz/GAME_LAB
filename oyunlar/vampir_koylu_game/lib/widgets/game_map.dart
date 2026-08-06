@@ -1,7 +1,44 @@
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../screens/entry_screen.dart';
 import '../player_model.dart';
+
+// 🎯 ÇİFT HALKA (SİMİT / ANNULUS) EV KONUMU HESAPLAYICI
+Offset placeHouseInAnnulus({
+  required double cx,
+  required double cy,
+  required int index,
+  required int totalPlayers,
+  required double minRadius,
+  required double maxRadius,
+  int seed = 0,
+}) {
+  assert(totalPlayers > 0);
+  assert(index >= 0 && index < totalPlayers);
+  assert(minRadius >= 0);
+  assert(maxRadius > minRadius);
+
+  // Aynı index için tekrar üretildiğinde aynı konumu verir.
+  final random = Random(seed + index * 1009 + totalPlayers * 9176);
+
+  // Oyuncular açısal sektörlere bölünür; sektör içinde küçük rastgelelik vardır.
+  final sectorAngle = 2 * pi / totalPlayers;
+  final angle = (index * sectorAngle) + random.nextDouble() * sectorAngle;
+
+  // Simit alanında homojen dağılım:
+  // r = sqrt(Rmin² + U * (Rmax² - Rmin²))
+  final u = random.nextDouble();
+  final radius = sqrt(
+    minRadius * minRadius +
+        u * (maxRadius * maxRadius - minRadius * minRadius),
+  );
+
+  return Offset(
+    cx + radius * cos(angle),
+    cy + radius * sin(angle),
+  );
+}
 
 class GameMap extends StatelessWidget {
   final Size screenSize;
@@ -84,8 +121,20 @@ class GameMap extends StatelessWidget {
     required double cy,
     required bool inSquare,
   }) {
-    final hx = player.posX ?? cx;
-    final hy = player.posY ?? cy;
+    // 🎯 Eğer dışarıdan posX / posY atanmamışsa simit alanından merkez pozisyonu hesaplıyoruz
+    final houseCenter = placeHouseInAnnulus(
+      cx: cx,
+      cy: cy,
+      index: index,
+      totalPlayers: total,
+      minRadius: 260.0, // İç Çember (Meydan sınırı)
+      maxRadius: 520.0, // Dış Çember (Köy sınırı)
+      seed: 42,
+    );
+
+    final hx = player.posX ?? houseCenter.dx;
+    final hy = player.posY ?? houseCenter.dy;
+
     final double houseWidth = player.isAlive ? 180.0 : 110.0;
     final double houseHeight = player.isAlive ? 150.0 : 90.0;
 

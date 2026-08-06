@@ -29,7 +29,6 @@ class SocketService {
     // run after the new lobby registered these listeners. They are removed by
     // the next screen before it registers its own handlers.
     socket?.off('vk_vote_progress');
-    socket?.off('vk_round_ended');
     socket?.off('vk_voting_results');
     socket?.off('vk_game_over');
     socket?.off('vk_host_status');

@@ -122,69 +122,40 @@ class GameHud extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.article_outlined,
-                              color: Color(0xFF00D2FF),
-                              size: 28,
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00D2FF),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
                             ),
-                            onPressed: onShowRoleCard,
-                            tooltip: 'Rol Kartım',
+                            elevation: 4,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: SizedBox(
-                              height: 46,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF00D2FF),
-                                  foregroundColor: Colors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                  elevation: 4,
-                                ),
-                                // The server is the authority for phase
-                                // changes. Keeping this interactive prevents
-                                // the newly assigned host from being trapped
-                                // by a delayed local host-status update.
-                                onPressed: () {
-                                  if (phase == GamePhase.dayDiscussion) {
-                                    if (isAfterNight) {
-                                      onStartVoting();
-                                    } else {
-                                      onStartNight();
-                                    }
-                                  } else if (phase == GamePhase.night) {
-                                    onStartDay();
-                                  } else if (phase == GamePhase.voting) {
-                                    onStartNight();
-                                  }
-                                },
-                                child: Text(
-                                  _getActionButtonText(),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
+                          onPressed: () {
+                            if (phase == GamePhase.dayDiscussion) {
+                              if (isAfterNight) {
+                                onStartVoting();
+                              } else {
+                                onStartNight();
+                              }
+                            } else if (phase == GamePhase.night) {
+                              onStartDay();
+                            } else if (phase == GamePhase.voting) {
+                              onStartNight();
+                            }
+                          },
+                          child: Text(
+                            _getActionButtonText(),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              letterSpacing: 0.5,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.people_alt_outlined,
-                              color: Color(0xFF00D2FF),
-                              size: 28,
-                            ),
-                            onPressed: onShowDebugDialog,
-                            tooltip: 'Oyuncular & Debug',
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
