@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/entry_screen.dart';
+import 'services/socket_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,8 +12,34 @@ void main() {
   runApp(const VampireVillagerApp());
 }
 
-class VampireVillagerApp extends StatelessWidget {
+class VampireVillagerApp extends StatefulWidget {
   const VampireVillagerApp({super.key});
+
+  @override
+  State<VampireVillagerApp> createState() => _VampireVillagerAppState();
+}
+
+class _VampireVillagerAppState extends State<VampireVillagerApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final isBackgrounded = state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached;
+    SocketService().notifyAppLifecycle(isBackgrounded);
+  }
 
   @override
   Widget build(BuildContext context) {

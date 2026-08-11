@@ -188,13 +188,26 @@ class GameMap extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: player.avatarColor.withOpacity(0.5)),
                       ),
-                      child: Text(
-                        player.name,
-                        style: TextStyle(
-                          color: player.avatarColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (player.isHost) ...[
+                            const Icon(
+                              Icons.account_balance_rounded,
+                              color: Color(0xFFFFD54F),
+                              size: 12,
+                            ),
+                            const SizedBox(width: 3),
+                          ],
+                          Text(
+                            player.name,
+                            style: TextStyle(
+                              color: player.avatarColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 3),

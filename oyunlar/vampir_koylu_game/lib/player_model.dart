@@ -11,6 +11,7 @@ class PlayerModel {
   final Gender gender;
   final String role;
   final bool isVampire;
+  final bool isHost;
   bool isAlive;
 
   double? posX;
@@ -23,6 +24,7 @@ class PlayerModel {
     required this.gender,
     required this.role,
     this.isVampire = false,
+    this.isHost = false,
     this.isAlive = true,
     this.posX,
     this.posY,
@@ -36,6 +38,7 @@ class PlayerModel {
     Gender? gender,
     String? role,
     bool? isVampire,
+    bool? isHost,
     bool? isAlive,
     double? posX,
     double? posY,
@@ -47,6 +50,7 @@ class PlayerModel {
       gender: gender ?? this.gender,
       role: role ?? this.role,
       isVampire: isVampire ?? this.isVampire,
+      isHost: isHost ?? this.isHost,
       isAlive: isAlive ?? this.isAlive,
       posX: posX ?? this.posX,
       posY: posY ?? this.posY,

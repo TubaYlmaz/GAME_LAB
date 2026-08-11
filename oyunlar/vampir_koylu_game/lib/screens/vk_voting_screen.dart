@@ -140,6 +140,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
             gender: previousPlayer.gender,
             role: previousPlayer.role,
             isVampire: previousPlayer.isVampire,
+            isHost: previousPlayer.isHost,
             isAlive: true,
           );
           playerVotes.remove(previousPlayer.name);

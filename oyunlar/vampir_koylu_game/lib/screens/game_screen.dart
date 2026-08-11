@@ -113,7 +113,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _initSocket() {
-    _socketService.currentRoomCode = widget.roomCode;
+    _socketService.setPlayerSession(
+      roomCode: widget.roomCode,
+      playerName: widget.playerName,
+      gender: widget.gender.name,
+    );
     _socketService.connect();
 
     // Dinleyicileri temizleme
@@ -132,7 +136,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _socketService.socket?.off('vk_phase_error');
     _socketService.socket?.off('vk_night_action_choices');
     _socketService.socket?.off('vk_game_state');
-    _socketService.socket?.off('connect');
 
     void updatePlayersFromData(dynamic data) {
       if (!mounted) return;
@@ -158,16 +161,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     _socketService.socket?.on('vk_players_updated', updatePlayersFromData);
     _socketService.socket?.on('vk_game_started', updatePlayersFromData);
-
-    void reclaimGameControl() {
-      _socketService.socket?.emit('vk_join_room', {
-        'roomCode': widget.roomCode,
-        'playerName': widget.playerName,
-        'gender': widget.gender.name,
-      });
-    }
-
-    _socketService.socket?.on('connect', (_) => reclaimGameControl());
 
     _socketService.socket?.on('vk_game_state', (data) {
       if (!mounted || data is! Map) return;
@@ -502,10 +495,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _openVotingScreenIfCurrent();
     });
 
-    if (_socketService.socket?.connected ?? false) {
-      reclaimGameControl();
-    }
-
     _socketService.socket?.emit('vk_get_players', {
       'roomCode': widget.roomCode,
     });
@@ -681,6 +670,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       final bool isAlive = (p is Map && p['isAlive'] != null)
           ? (p['isAlive'] == true)
           : true;
+      final bool isHost = p is Map && p['isHost'] == true;
 
       list.add(
         PlayerModel(
@@ -690,6 +680,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           gender: gender,
           role: roleStr,
           isVampire: isVampire,
+          isHost: isHost,
           isAlive: isAlive,
         ),
       );
@@ -709,7 +700,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _socketService.socket?.off('vk_game_state');
-    _socketService.socket?.off('connect');
     _socketService.clearAllListeners();
     _nightActionChoicesController.close();
     _transformationController.dispose();

@@ -134,19 +134,21 @@ class GameHud extends StatelessWidget {
                             ),
                             elevation: 4,
                           ),
-                          onPressed: () {
-                            if (phase == GamePhase.dayDiscussion) {
-                              if (isAfterNight) {
-                                onStartVoting();
-                              } else {
-                                onStartNight();
-                              }
-                            } else if (phase == GamePhase.night) {
-                              onStartDay();
-                            } else if (phase == GamePhase.voting) {
-                              onStartNight();
-                            }
-                          },
+                          onPressed: !isHost
+                              ? null
+                              : () {
+                                  if (phase == GamePhase.dayDiscussion) {
+                                    if (isAfterNight) {
+                                      onStartVoting();
+                                    } else {
+                                      onStartNight();
+                                    }
+                                  } else if (phase == GamePhase.night) {
+                                    onStartDay();
+                                  } else if (phase == GamePhase.voting) {
+                                    onStartNight();
+                                  }
+                                },
                           child: Text(
                             _getActionButtonText(),
                             style: const TextStyle(

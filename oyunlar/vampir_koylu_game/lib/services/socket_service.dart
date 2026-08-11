@@ -8,19 +8,63 @@ class SocketService {
 
   io.Socket? socket;
   String? currentRoomCode;
+  String? _playerName;
+  String? _gender;
 
   void connect() {
-    if (socket != null && socket!.connected) return;
+    if (socket == null) {
+      socket = io.io(
+        AppConfig.serverUrl,
+        io.OptionBuilder()
+            .setTransports(['websocket'])
+            .disableAutoConnect()
+            .enableReconnection()
+            .setReconnectionDelay(1000)
+            .setReconnectionDelayMax(5000)
+            .build(),
+      );
+      // This listener is registered once and must not be removed by screens.
+      socket!.on('connect', (_) => rejoinCurrentSession());
+    }
 
-    socket = io.io(
-      AppConfig.serverUrl,
-      io.OptionBuilder()
-          .setTransports(['websocket'])
-          .enableAutoConnect()
-          .build(),
-    );
+    if (!socket!.connected) socket!.connect();
+  }
 
-    socket?.connect();
+  void setPlayerSession({
+    required String roomCode,
+    required String playerName,
+    required String gender,
+  }) {
+    currentRoomCode = roomCode;
+    _playerName = playerName;
+    _gender = gender;
+    rejoinCurrentSession();
+  }
+
+  void rejoinCurrentSession() {
+    if (!(socket?.connected ?? false) ||
+        currentRoomCode == null ||
+        _playerName == null ||
+        _gender == null) {
+      return;
+    }
+
+    socket!.emit('vk_join_room', {
+      'roomCode': currentRoomCode,
+      'playerName': _playerName,
+      'gender': _gender,
+    });
+  }
+
+  void notifyAppLifecycle(bool isBackgrounded) {
+    if (isBackgrounded) {
+      socket?.emit('vk_app_lifecycle', {'state': 'background'});
+      return;
+    }
+
+    connect();
+    socket?.emit('vk_app_lifecycle', {'state': 'foreground'});
+    rejoinCurrentSession();
   }
 
   void clearAllListeners() {
@@ -39,6 +83,10 @@ class SocketService {
 
   void disconnect() {
     socket?.disconnect();
+    socket?.dispose();
     socket = null;
+    currentRoomCode = null;
+    _playerName = null;
+    _gender = null;
   }
 }
