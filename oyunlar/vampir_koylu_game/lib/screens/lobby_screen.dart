@@ -69,7 +69,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
   }
 
   void _initSocket() {
-    _socketService.currentRoomCode = _currentRoomCode;
+    _socketService.setPlayerSession(
+      roomCode: _currentRoomCode,
+      playerName: widget.playerName,
+      gender: widget.gender.name,
+    );
     _socketService.connect();
 
     // Dinleyicileri temizleme
@@ -80,9 +84,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.socket?.off('vk_start_game_error');
     _socketService.socket?.off('vk_redirect_to_new_room');
     _socketService.socket?.off('vk_host_changed');
+    _socketService.socket?.off('vk_host_status');
     _socketService.socket?.off('vk_room_config_updated');
     _socketService.socket?.off('vk_room_config_error');
-    _socketService.socket?.off('connect');
 
     // 1. Oyuncu Listesi Güncellendiğinde
     _socketService.socket?.on('vk_players_updated', (data) {
@@ -125,9 +129,35 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
     _socketService.socket?.on('vk_host_changed', (data) {
       if (!mounted || data is! Map || data['newHost'] == null) return;
+      final newHost = data['newHost'].toString().trim().toLowerCase();
       setState(() {
-        _isHost = data['newHost'].toString().trim().toLowerCase() ==
-            widget.playerName.trim().toLowerCase();
+        _isHost = newHost == widget.playerName.trim().toLowerCase();
+        _players = _players
+            .map(
+              (player) => {
+                ...player,
+                'isHost': player['name']?.toString().trim().toLowerCase() == newHost,
+              },
+            )
+            .toList();
+      });
+    });
+
+    // The lobby can be opened after the host-change broadcast. Ask Redis for
+    // the authoritative owner so the room creator is immediately active.
+    _socketService.socket?.on('vk_host_status', (data) {
+      if (!mounted || data is! Map || data['host'] == null) return;
+      final host = data['host'].toString().trim().toLowerCase();
+      setState(() {
+        _isHost = data['isHost'] == true;
+        _players = _players
+            .map(
+              (player) => {
+                ...player,
+                'isHost': player['name']?.toString().trim().toLowerCase() == host,
+              },
+            )
+            .toList();
       });
     });
 
@@ -159,14 +189,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
         if (newCode != _currentRoomCode) {
           setState(() {
             _currentRoomCode = newCode;
-            _socketService.currentRoomCode = newCode;
           });
           // Yeni odaya socket üzerinden resmi katılım sağla
-          _socketService.socket?.emit('vk_join_room', {
-            'roomCode': newCode,
-            'playerName': widget.playerName,
-            'gender': widget.gender.name,
-          });
+          _socketService.setPlayerSession(
+            roomCode: newCode,
+            playerName: widget.playerName,
+            gender: widget.gender.name,
+          );
         }
       }
     });
@@ -256,11 +285,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     });
 
     void sendJoinRoomAndLobbyStatus() {
-      _socketService.socket?.emit('vk_join_room', {
-        'roomCode': _currentRoomCode,
-        'playerName': widget.playerName,
-        'gender': widget.gender.name,
-      });
+      _socketService.rejoinCurrentSession();
 
       _socketService.socket?.emit('vk_player_returned_to_lobby', {
         'roomCode': _currentRoomCode,
@@ -273,11 +298,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
       _socketService.socket?.emit('vk_get_players', {
         'roomCode': _currentRoomCode,
       });
+      _socketService.socket?.emit('vk_get_host_status', {
+        'roomCode': _currentRoomCode,
+      });
     }
 
     _socketService.socket?.on('connect', (_) {
       sendJoinRoomAndLobbyStatus();
       _socketService.socket?.emit('vk_get_players', {
+        'roomCode': _currentRoomCode,
+      });
+      _socketService.socket?.emit('vk_get_host_status', {
         'roomCode': _currentRoomCode,
       });
     });
@@ -292,6 +323,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.socket?.off('vk_start_game_error');
     _socketService.socket?.off('vk_redirect_to_new_room');
     _socketService.socket?.off('vk_host_changed');
+    _socketService.socket?.off('vk_host_status');
     _socketService.socket?.off('vk_room_config_updated');
     _socketService.socket?.off('vk_room_config_error');
     super.dispose();
