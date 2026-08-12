@@ -10,6 +10,7 @@ const db = require('./db');
 // Oyun modüllerini içe aktarıyoruz
 const impostorGame = require('./games/impostor_game');
 const vampirKoyluGame = require('./games/vampir_koylu_game');
+const chanceGames = require('./games/chance_games');
 
 const app = express();
 
@@ -79,6 +80,11 @@ if (fs.existsSync(oyunlarDizini)) {
                 aciklama = "Karanlık çöktüğünde vampirler avlanacak, gündüz olduğunda ise köy meydanında adalet aranacak!";
             }
 
+            if (oyunAd\u0131 === 'sans_oyunlari_game') {
+                ikon = 'fa-solid fa-dice';
+                aciklama = 'Yaz\u0131-tura at veya bir ya da iki zarla \u015fans\u0131n\u0131 dene!';
+            }
+
             dinamikAktifOyunlar.push({
                 id: oyunAdı,
                 isim: oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
@@ -108,6 +114,10 @@ if (typeof impostorGame === 'function') {
 
 if (typeof vampirKoyluGame === 'function') {
     vampirKoyluGame(vampirContext);
+}
+
+if (typeof chanceGames === 'function') {
+    chanceGames({ app, io, redisClient, path, fs });
 }
 
 // Ortak WebSocket Bağlantı Logu

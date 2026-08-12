@@ -76,6 +76,77 @@
             overflow: hidden;
         }
 
+        /* Square chance-game card: split action area + play button. */
+        .chance-game-card {
+            aspect-ratio: 1 / 1;
+            min-height: 390px;
+            padding: 0;
+            display: block;
+            border-color: #4B4679;
+            background: linear-gradient(145deg, #19182F 0%, #11111F 100%);
+        }
+
+        .chance-game-split {
+            position: absolute;
+            inset: 0 0 96px;
+            overflow: hidden;
+        }
+
+        .chance-game-split::after {
+            content: "";
+            position: absolute;
+            z-index: 1;
+            width: 150%;
+            height: 3px;
+            top: 50%;
+            left: -25%;
+            transform: rotate(-45deg);
+            background: linear-gradient(90deg, #8F6BFF, #44B7FF, #FF754B);
+            box-shadow: 0 0 14px rgba(143, 107, 255, .7);
+        }
+
+        .chance-side {
+            position: absolute;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 1.15rem;
+            line-height: 1.05;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .chance-side i { font-size: 2.8rem; }
+        .chance-coin {
+            top: 28px;
+            left: 28px;
+            align-items: flex-start;
+            background: linear-gradient(135deg, #A575FF, #35BAFF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .chance-dice {
+            right: 28px;
+            bottom: 24px;
+            align-items: flex-end;
+            text-align: right;
+            background: linear-gradient(135deg, #FF4D7D, #FF9E34);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .chance-game-card .chance-play-btn {
+            position: absolute;
+            z-index: 3;
+            right: 24px;
+            bottom: 24px;
+            left: 24px;
+            width: auto;
+            margin: 0;
+        }
+
         /* Hover durumunda kartın etrafında turkuaz neon parlasın */
         .game-card:hover {
             transform: translateY(-8px);
@@ -190,14 +261,31 @@
                     card.className = "game-card";
                     const oyunGidisLinki = window.location.origin + oyun.alt_yol;
 
-                    card.innerHTML = `
-                        <div class="game-icon-container">
-                            <i class="${oyun.ikon_class}"></i>
-                        </div>
-                        <h2 class="game-title">${oyun.isim}</h2>
-                        <p class="game-desc">${oyun.aciklama}</p>
-                        <a href="${oyunGidisLinki}" class="play-btn">Oyna</a>
-                    `;
+                    if (oyun.id === "sans_oyunlari_game") {
+                        card.classList.add("chance-game-card");
+                        card.innerHTML = `
+                            <div class="chance-game-split">
+                                <div class="chance-side chance-coin">
+                                    <i class="fa-solid fa-coins"></i>
+                                    <span>YAZI<br>TURA</span>
+                                </div>
+                                <div class="chance-side chance-dice">
+                                    <i class="fa-solid fa-dice"></i>
+                                    <span>ZAR<br>AT</span>
+                                </div>
+                            </div>
+                            <a href="${oyunGidisLinki}" class="play-btn chance-play-btn">OYNA</a>
+                        `;
+                    } else {
+                        card.innerHTML = `
+                            <div class="game-icon-container">
+                                <i class="${oyun.ikon_class}"></i>
+                            </div>
+                            <h2 class="game-title">${oyun.isim}</h2>
+                            <p class="game-desc">${oyun.aciklama}</p>
+                            <a href="${oyunGidisLinki}" class="play-btn">Oyna</a>
+                        `;
+                    }
                     container.appendChild(card);
                 });
             })
