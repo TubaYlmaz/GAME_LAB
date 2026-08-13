@@ -26,7 +26,7 @@ class _DiceRollComponentState extends State<DiceRollComponent>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1400),
     );
   }
 
@@ -72,38 +72,42 @@ class _DiceRollComponentState extends State<DiceRollComponent>
           onSelectionChanged: _isRolling
               ? null
               : (selection) => setState(() {
-                  _diceCount = selection.first;
-                  _values = List<int>.filled(_diceCount, 1);
-                }),
+                    _diceCount = selection.first;
+                    _values = List<int>.filled(_diceCount, 1);
+                  }),
         ),
-        const SizedBox(height: 30),
-        AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < _diceCount; index++) ...[
-                  if (index > 0) const SizedBox(width: 18),
-                  _DiceCube(
-                    value: _values[index],
-                    progress: _controller.value,
-                    isRolling: _isRolling,
-                    index: index,
-                  ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 150,
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final progress = Curves.easeOutCubic.transform(_controller.value);
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var index = 0; index < _diceCount; index++) ...[
+                    if (index > 0) const SizedBox(width: 24),
+                    _DiceCube3D(
+                      targetValue: _values[index],
+                      progress: progress,
+                      isRolling: _isRolling,
+                      index: index,
+                    ),
+                  ],
                 ],
-              ],
-            );
-          },
+              );
+            },
+          ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 14),
         FilledButton.icon(
           onPressed: _isRolling ? null : _roll,
           icon: const Icon(Icons.casino_rounded),
-          label: Text(_isRolling ? 'ZARLAR D\u00d6N\u00dcYOR...' : 'ZAR AT'),
+          label: Text(_isRolling ? 'ZARLAR DÖNÜYOR...' : 'ZAR AT'),
           style: FilledButton.styleFrom(
-            minimumSize: const Size(190, 52),
-            backgroundColor: const Color(0xFFFF6547),
+            minimumSize: const Size(190, 48),
+            backgroundColor: const Color(0xFFFF523B),
             textStyle: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
@@ -112,63 +116,209 @@ class _DiceRollComponentState extends State<DiceRollComponent>
   }
 }
 
-class _DiceCube extends StatelessWidget {
-  const _DiceCube({
-    required this.value,
+class _DiceCube3D extends StatelessWidget {
+  const _DiceCube3D({
+    required this.targetValue,
     required this.progress,
     required this.isRolling,
     required this.index,
   });
 
-  final int value;
+  final int targetValue;
   final double progress;
   final bool isRolling;
   final int index;
 
+  static const double cubeSize = 92.0;
+  static const double halfSize = cubeSize / 2.0;
+
   @override
   Widget build(BuildContext context) {
-    final spinProgress = isRolling ? progress : 0.0;
-    final phase = (spinProgress * 18 + index * 2.7).floor();
-    final visibleValue = isRolling ? (phase % 6) + 1 : value;
-    final wobble = math.sin(spinProgress * math.pi * 14 + index) * 10;
+    if (!isRolling) {
+      return Semantics(
+        label: '$targetValue geldi',
+        child: Container(
+          decoration: const BoxDecoration(
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _DiceFaceView(value: targetValue, size: cubeSize),
+        ),
+      );
+    }
 
-    return Transform.translate(
-      offset: Offset(wobble, math.cos(spinProgress * math.pi * 10 + index) * 7),
-      child: Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.0022)
-          ..rotateX(spinProgress * math.pi * 7 + index * .18)
-          ..rotateY(spinProgress * math.pi * 8 + index * .32)
-          ..rotateZ(spinProgress * math.pi * 4 + index * .14),
-        child: Semantics(
-          label: isRolling ? 'Zar donuyor' : '$value geldi',
-          child: SizedBox(
-            width: 124,
-            height: 124,
-            child: CustomPaint(painter: _DiceCubePainter(value: visibleValue)),
+    final (targetRotX, targetRotY) = _getTargetRotation(targetValue);
+
+    final spinsX = 4 + index * 2;
+    final spinsY = 6 + index * 2;
+    final spinsZ = 2 + index;
+
+    final rotX = isRolling
+        ? (1.0 - progress) * (spinsX * math.pi * 2 + index * 0.5) + targetRotX
+        : targetRotX;
+    final rotY = isRolling
+        ? (1.0 - progress) * (spinsY * math.pi * 2 + index * 0.7) + targetRotY
+        : targetRotY;
+    final rotZ = isRolling
+        ? (1.0 - progress) * (spinsZ * math.pi * 2 + index * 0.3)
+        : 0.0;
+
+    final jumpHeight = isRolling ? math.sin(progress * math.pi) * 35.0 : 0.0;
+    final wobbleX = isRolling ? math.sin(progress * math.pi * 5 + index) * 18.0 : 0.0;
+
+    final shadowScale = 1.0 - (isRolling ? math.sin(progress * math.pi) * 0.4 : 0.0);
+    final shadowOpacity = 0.4 - (isRolling ? math.sin(progress * math.pi) * 0.25 : 0.0);
+
+    // Compute depth z' for each face to depth-sort in the stack
+    final cosX = math.cos(rotX);
+    final sinX = math.sin(rotX);
+    final cosY = math.cos(rotY);
+    final sinY = math.sin(rotY);
+
+    final faceDepths = <_FaceData>[
+      _FaceData(val: 1, depth: halfSize * cosY * cosX, transform: Matrix4.identity()..translate(0.0, 0.0, halfSize)),
+      _FaceData(val: 6, depth: -halfSize * cosY * cosX, transform: Matrix4.identity()..translate(0.0, 0.0, -halfSize)..rotateY(math.pi)),
+      _FaceData(val: 2, depth: halfSize * sinX, transform: Matrix4.identity()..translate(0.0, -halfSize, 0.0)..rotateX(-math.pi / 2)),
+      _FaceData(val: 5, depth: -halfSize * sinX, transform: Matrix4.identity()..translate(0.0, halfSize, 0.0)..rotateX(math.pi / 2)),
+      _FaceData(val: 3, depth: halfSize * sinY * cosX, transform: Matrix4.identity()..translate(halfSize, 0.0, 0.0)..rotateY(math.pi / 2)),
+      _FaceData(val: 4, depth: -halfSize * sinY * cosX, transform: Matrix4.identity()..translate(-halfSize, 0.0, 0.0)..rotateY(-math.pi / 2)),
+    ]..sort((a, b) => a.depth.compareTo(b.depth));
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Ground Shadow
+        Positioned(
+          bottom: 12,
+          child: Transform.scale(
+            scale: shadowScale,
+            child: Container(
+              width: cubeSize * 0.9,
+              height: 18,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: shadowOpacity),
+                    blurRadius: 14,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
+        // 3D Cube Container
+        Transform.translate(
+          offset: Offset(wobbleX, -jumpHeight),
+          child: Semantics(
+            label: isRolling ? 'Zar dönüyor' : '$targetValue geldi',
+            child: SizedBox(
+              width: cubeSize,
+              height: cubeSize,
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.0018)
+                  ..rotateX(rotX)
+                  ..rotateY(rotY)
+                  ..rotateZ(rotZ),
+                child: Stack(
+                  children: [
+                    for (final face in faceDepths)
+                      Transform(
+                        alignment: Alignment.center,
+                        transform: face.transform,
+                        child: _DiceFaceView(value: face.val, size: cubeSize),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  (double, double) _getTargetRotation(int val) {
+    return switch (val) {
+      1 => (0.0, 0.0),
+      6 => (0.0, math.pi),
+      2 => (math.pi / 2, 0.0),
+      5 => (-math.pi / 2, 0.0),
+      3 => (0.0, -math.pi / 2),
+      4 => (0.0, math.pi / 2),
+      _ => (0.0, 0.0),
+    };
+  }
+}
+
+class _FaceData {
+  _FaceData({required this.val, required this.depth, required this.transform});
+  final int val;
+  final double depth;
+  final Matrix4 transform;
+}
+
+class _DiceFaceView extends StatelessWidget {
+  const _DiceFaceView({required this.value, required this.size});
+
+  final int value;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFDFB),
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFFFFF),
+            Color(0xFFF4ECE6),
+          ],
+        ),
+        border: Border.all(color: const Color(0xFFD6C7BB), width: 2.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x20000000),
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: CustomPaint(
+        painter: _DicePipPainter(value: value),
       ),
     );
   }
 }
 
-class _DiceCubePainter extends CustomPainter {
-  const _DiceCubePainter({required this.value});
+class _DicePipPainter extends CustomPainter {
+  const _DicePipPainter({required this.value});
 
   final int value;
 
-  static const _pipOffsets = <Offset>[
-    Offset(.23, .23),
-    Offset(.5, .23),
-    Offset(.77, .23),
-    Offset(.23, .5),
-    Offset(.5, .5),
-    Offset(.77, .5),
-    Offset(.23, .77),
-    Offset(.5, .77),
-    Offset(.77, .77),
+  static const _pipPositions = <Offset>[
+    Offset(.26, .26), // 0: Top-Left
+    Offset(.50, .26), // 1: Top-Center
+    Offset(.74, .26), // 2: Top-Right
+    Offset(.26, .50), // 3: Mid-Left
+    Offset(.50, .50), // 4: Center
+    Offset(.74, .50), // 5: Mid-Right
+    Offset(.26, .74), // 6: Bot-Left
+    Offset(.50, .74), // 7: Bot-Center
+    Offset(.74, .74), // 8: Bot-Right
   ];
 
   static const _pipsByValue = <int, Set<int>>{
@@ -182,85 +332,22 @@ class _DiceCubePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final primaryPair = value > 3 ? 7 - value : value;
-    final remainingPairs = <int>[1, 2, 3]..remove(primaryPair);
-    final sideValue = remainingPairs[0];
-    final topValue = remainingPairs[1];
+    final pips = _pipsByValue[value] ?? {};
+    final isOne = value == 1;
 
-    final front = <Offset>[
-      Offset(size.width * .16, size.height * .34),
-      Offset(size.width * .72, size.height * .34),
-      Offset(size.width * .72, size.height * .84),
-      Offset(size.width * .16, size.height * .84),
-    ];
-    final top = <Offset>[
-      front[0],
-      Offset(size.width * .42, size.height * .12),
-      Offset(size.width * .94, size.height * .12),
-      front[1],
-    ];
-    final side = <Offset>[
-      front[1],
-      top[2],
-      Offset(size.width * .94, size.height * .62),
-      front[2],
-    ];
+    final pipColor = isOne ? const Color(0xFFE53935) : const Color(0xFF2C222E);
+    final pipPaint = Paint()..color = pipColor;
+    final pipRadius = isOne ? size.width * 0.12 : size.width * 0.075;
 
-    _paintFace(canvas, top, topValue, const Color(0xFFFFFCFA));
-    _paintFace(canvas, side, sideValue, const Color(0xFFF4B1A0));
-    _paintFace(
-      canvas,
-      front,
-      value,
-      const Color(0xFFFFF7F4),
-      castsShadow: true,
-    );
-  }
-
-  void _paintFace(
-    Canvas canvas,
-    List<Offset> vertices,
-    int faceValue,
-    Color color, {
-    bool castsShadow = false,
-  }) {
-    final path = Path()
-      ..moveTo(vertices[0].dx, vertices[0].dy)
-      ..lineTo(vertices[1].dx, vertices[1].dy)
-      ..lineTo(vertices[2].dx, vertices[2].dy)
-      ..lineTo(vertices[3].dx, vertices[3].dy)
-      ..close();
-    if (castsShadow) {
-      canvas.drawShadow(path, const Color(0x44000000), 8, false);
+    for (final idx in pips) {
+      final pos = _pipPositions[idx];
+      final center = Offset(size.width * pos.dx, size.height * pos.dy);
+      canvas.drawCircle(center, pipRadius, pipPaint);
     }
-    canvas.drawPath(path, Paint()..color = color);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xFFFF9A81)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-
-    final pips = _pipsByValue[faceValue]!;
-    final pipPaint = Paint()..color = const Color(0xFF3A2630);
-    for (var index = 0; index < _pipOffsets.length; index++) {
-      if (!pips.contains(index)) continue;
-      canvas.drawCircle(
-        _bilinearPoint(vertices, _pipOffsets[index]),
-        7,
-        pipPaint,
-      );
-    }
-  }
-
-  Offset _bilinearPoint(List<Offset> vertices, Offset fraction) {
-    final top = Offset.lerp(vertices[0], vertices[1], fraction.dx)!;
-    final bottom = Offset.lerp(vertices[3], vertices[2], fraction.dx)!;
-    return Offset.lerp(top, bottom, fraction.dy)!;
   }
 
   @override
-  bool shouldRepaint(covariant _DiceCubePainter oldDelegate) =>
+  bool shouldRepaint(covariant _DicePipPainter oldDelegate) =>
       value != oldDelegate.value;
 }
+
