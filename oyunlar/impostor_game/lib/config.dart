@@ -9,6 +9,6 @@ class AppConfig {
       // Tarayıcının bağlandığı origin'i alır (Örn: http://localhost:3000)
       return html.window.location.origin;
     }
-    return 'http://10.7.9.2:3000'; // Mobil/Emulator için varsayılan IP
+    return 'http://10.7.9.35:3000'; // Mobil/Emulator için varsayılan IP
   }
 }
