@@ -11,6 +11,7 @@ const db = require('./db');
 const impostorGame = require('./games/impostor_game');
 const vampirKoyluGame = require('./games/vampir_koylu_game');
 const chanceGames = require('./games/chance_games');
+const jackOfHeartsGame = require('./games/jack_of_hearts_game');
 
 const app = express();
 
@@ -85,6 +86,10 @@ if (fs.existsSync(oyunlarDizini)) {
                 aciklama = 'Yaz\u0131-tura at veya bir ya da iki zarla \u015fans\u0131n\u0131 dene!';
             }
 
+            if (oyunAd\u0131 === 'kupa_valesi_game') {
+                ikon = 'fa-solid fa-heart';
+                aciklama = 'Ensendeki sembol\u00FC do\u011Fru tahmin et; gizli Kupa Valesi\u0027ni bul!';
+            }
             dinamikAktifOyunlar.push({
                 id: oyunAdı,
                 isim: oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
@@ -107,6 +112,7 @@ app.get('/api/aktif-oyunlar', (req, res) => {
 // ==========================================
 const vampirContext = { app, io, redisClient, db: db.vampirDb, path, fs };
 const impostorContext = { app, io, redisClient, db: db.impostorDb, path, fs };
+const jackOfHeartsContext = { app, io, redisClient, path, fs };
 
 if (typeof impostorGame === 'function') {
     impostorGame(impostorContext);
@@ -114,6 +120,10 @@ if (typeof impostorGame === 'function') {
 
 if (typeof vampirKoyluGame === 'function') {
     vampirKoyluGame(vampirContext);
+}
+
+if (typeof jackOfHeartsGame === 'function') {
+    jackOfHeartsGame(jackOfHeartsContext);
 }
 
 if (typeof chanceGames === 'function') {
