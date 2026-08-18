@@ -197,4 +197,3 @@ class _CoinFace extends StatelessWidget {
     );
   }
 }
-

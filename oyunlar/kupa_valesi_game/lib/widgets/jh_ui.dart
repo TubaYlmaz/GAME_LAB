@@ -53,7 +53,11 @@ class _Glow extends StatelessWidget {
 }
 
 class JhPanel extends StatelessWidget {
-  const JhPanel({super.key, required this.child, this.padding = const EdgeInsets.all(20)});
+  const JhPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+  });
 
   final Widget child;
   final EdgeInsets padding;
@@ -103,16 +107,17 @@ class JhButton extends StatelessWidget {
         disabledBackgroundColor: active.withValues(alpha: .45),
         disabledForegroundColor: Colors.white70,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: .4),
+        textStyle: const TextStyle(
+          fontWeight: FontWeight.w800,
+          letterSpacing: .4,
+        ),
       ),
     );
   }
 }
 
-String remainingText(int endAt) {
-  final seconds = ((endAt - DateTime.now().millisecondsSinceEpoch) / 1000)
-      .ceil()
-      .clamp(0, 999)
-      .toInt();
+String remainingText(int endAt, {int? nowMilliseconds}) {
+  final now = nowMilliseconds ?? DateTime.now().millisecondsSinceEpoch;
+  final seconds = ((endAt - now) / 1000).ceil().clamp(0, 999).toInt();
   return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
 }

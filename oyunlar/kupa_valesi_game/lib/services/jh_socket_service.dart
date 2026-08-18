@@ -26,7 +26,7 @@ class JhSocketService {
     if (!(socket?.connected ?? false)) socket!.connect();
   }
 
-  void setSession({
+  Future<void> setSession({
     required String newRoomCode,
     required String newPlayerName,
     required String newGender,
@@ -35,6 +35,7 @@ class JhSocketService {
     playerName = newPlayerName;
     gender = newGender;
     _rejoin();
+    return Future.value();
   }
 
   void _rejoin() {
@@ -49,5 +50,19 @@ class JhSocketService {
       'playerName': playerName,
       'gender': gender,
     });
+  }
+
+  Future<void> clearSession() {
+    roomCode = null;
+    playerName = null;
+    gender = null;
+    return Future.value();
+  }
+
+  /// Reconnect after returning to the foreground. Session data only lives in
+  /// memory, so a full app/browser restart always opens the entry screen.
+  void resumeActiveSession() {
+    connect();
+    _rejoin();
   }
 }

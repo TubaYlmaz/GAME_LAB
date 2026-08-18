@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/jh_socket_service.dart';
 import '../widgets/jh_ui.dart';
@@ -43,14 +44,16 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
   String get _gender => _female ? 'female' : 'male';
 
   String _newRoomCode() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final random = Random.secure();
-    return List.generate(6, (_) => alphabet[random.nextInt(alphabet.length)]).join();
+    return List.generate(6, (_) => random.nextInt(10)).join();
   }
 
   void _onRoomCreated(dynamic data) {
     if (data is! Map) return;
-    _enterLobby((data['roomCode'] ?? '').toString(), _nameController.text.trim());
+    _enterLobby(
+      (data['roomCode'] ?? '').toString(),
+      _nameController.text.trim(),
+    );
   }
 
   void _onRoomJoined(dynamic data) {
@@ -62,30 +65,35 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
   }
 
   void _onError(dynamic data) {
-    if (!mounted) return;
     final message = data is Map ? data['message']?.toString() : null;
+    if (!mounted) return;
+    setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message ?? 'Ba\u011Flant\u0131 hatas\u0131 olu\u015ftu.'), backgroundColor: Colors.redAccent),
+      SnackBar(
+        content: Text(message ?? 'Bağlantı hatası oluştu.'),
+        backgroundColor: Colors.redAccent,
+      ),
     );
   }
 
-  void _enterLobby(String roomCode, String playerName) {
+  Future<void> _enterLobby(String roomCode, String playerName) async {
     if (!mounted || _moving || roomCode.isEmpty) return;
     _moving = true;
-    _socket.setSession(
+    await _socket.setSession(
       newRoomCode: roomCode,
       newPlayerName: playerName.trim(),
-      newGender: _gender,
+      newGender: _socket.gender ?? _gender,
     );
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const JhLobbyScreen()),
-    );
+    if (!mounted) return;
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const JhLobbyScreen()));
   }
 
   void _continue() {
     final name = _nameController.text.trim();
     if (name.length < 2) {
-      _onError({'message': 'L\u00FCtfen en az 2 karakterlik bir isim girin.'});
+      _onError({'message': 'Lütfen en az 2 karakterlik bir isim girin.'});
       return;
     }
     if (_creating) {
@@ -96,9 +104,9 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
       });
       return;
     }
-    final roomCode = _roomController.text.trim().toUpperCase();
-    if (roomCode.length < 4) {
-      _onError({'message': 'Ge\u00E7erli oda kodunu girin.'});
+    final roomCode = _roomController.text.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(roomCode)) {
+      _onError({'message': '6 haneli sayı olan oda kodunu girin.'});
       return;
     }
     _socket.socket?.emit('jh_join_room', {
@@ -123,11 +131,19 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.favorite_rounded, color: Color(0xFFFF426E), size: 58),
+                      const Icon(
+                        Icons.favorite_rounded,
+                        color: Color(0xFFFF426E),
+                        size: 58,
+                      ),
                       const SizedBox(height: 12),
                       const Text(
-                        'KUPA VALES?',
-                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: 2),
+                        'KUPA VALES\u0130',
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
@@ -138,11 +154,20 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                       const SizedBox(height: 28),
                       SegmentedButton<bool>(
                         segments: const [
-                          ButtonSegment(value: true, label: Text('ODA KUR'), icon: Icon(Icons.add_home_rounded)),
-                          ButtonSegment(value: false, label: Text('ODAYA KATIL'), icon: Icon(Icons.login_rounded)),
+                          ButtonSegment(
+                            value: true,
+                            label: Text('ODA KUR'),
+                            icon: Icon(Icons.add_home_rounded),
+                          ),
+                          ButtonSegment(
+                            value: false,
+                            label: Text('ODAYA KATIL'),
+                            icon: Icon(Icons.login_rounded),
+                          ),
                         ],
                         selected: {_creating},
-                        onSelectionChanged: (value) => setState(() => _creating = value.first),
+                        onSelectionChanged: (value) =>
+                            setState(() => _creating = value.first),
                       ),
                       const SizedBox(height: 18),
                       TextField(
@@ -150,7 +175,7 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                         maxLength: 24,
                         textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(
-                          labelText: 'Oyuncu ad?',
+                          labelText: 'Oyuncu ad\u0131',
                           prefixIcon: Icon(Icons.person_rounded),
                           border: OutlineInputBorder(),
                         ),
@@ -159,10 +184,13 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                         const SizedBox(height: 12),
                         TextField(
                           controller: _roomController,
-                          maxLength: 8,
-                          textCapitalization: TextCapitalization.characters,
+                          maxLength: 6,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           decoration: const InputDecoration(
-                            labelText: 'Oda kodu',
+                            labelText: '6 haneli oda kodu',
                             prefixIcon: Icon(Icons.vpn_key_rounded),
                             border: OutlineInputBorder(),
                           ),
@@ -171,7 +199,10 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                       const SizedBox(height: 10),
                       const Align(
                         alignment: Alignment.centerLeft,
-                        child: Text('Avatar', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'Avatar',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -181,7 +212,8 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                               label: const Text('ERKEK'),
                               avatar: const Icon(Icons.person, size: 18),
                               selected: !_female,
-                              onSelected: (_) => setState(() => _female = false),
+                              onSelected: (_) =>
+                                  setState(() => _female = false),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -197,8 +229,12 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                       ),
                       const SizedBox(height: 26),
                       JhButton(
-                        label: _creating ? 'ODA OLU\u015ETUR' : 'LOB\u0130YE KATIL',
-                        icon: _creating ? Icons.meeting_room_rounded : Icons.arrow_forward_rounded,
+                        label: _creating
+                            ? 'ODA OLU\u015ETUR'
+                            : 'LOB\u0130YE KATIL',
+                        icon: _creating
+                            ? Icons.meeting_room_rounded
+                            : Icons.arrow_forward_rounded,
                         onPressed: _continue,
                       ),
                     ],

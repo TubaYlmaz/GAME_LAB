@@ -1,14 +1,41 @@
 import 'package:flutter/material.dart';
+
+import 'services/jh_socket_service.dart';
 import 'screens/jh_entry_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   // This widget is the root of your application.
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      JhSocketService.instance.resumeActiveSession();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -31,7 +58,11 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: const ColorScheme.dark(primary: Color(0xFFFF426E), secondary: Color(0xFF77E6FF), surface: Color(0xFF181A2C)),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFFF426E),
+          secondary: Color(0xFF77E6FF),
+          surface: Color(0xFF181A2C),
+        ),
       ),
       home: const JhEntryScreen(),
     );

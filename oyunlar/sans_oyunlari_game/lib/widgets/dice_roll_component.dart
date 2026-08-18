@@ -350,4 +350,3 @@ class _DicePipPainter extends CustomPainter {
   bool shouldRepaint(covariant _DicePipPainter oldDelegate) =>
       value != oldDelegate.value;
 }
-

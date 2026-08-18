@@ -11,18 +11,22 @@ class JhGuessDialog extends StatefulWidget {
     required this.roomCode,
     required this.playerName,
     required this.cellEndsAt,
+    required this.serverTimeOffsetMs,
+    required this.initiallyLocked,
   });
 
   final String roomCode;
   final String playerName;
   final int cellEndsAt;
+  final int serverTimeOffsetMs;
+  final bool initiallyLocked;
 
   @override
   State<JhGuessDialog> createState() => _JhGuessDialogState();
 }
 
 class _JhGuessDialogState extends State<JhGuessDialog> {
-  static const _symbols = ['?', '?', '?', '?'];
+  static const _symbols = ['\u2665', '\u2660', '\u2666', '\u2663'];
   Timer? _ticker;
   String? _selected;
   bool _locked = false;
@@ -30,9 +34,10 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
   @override
   void initState() {
     super.initState();
+    _locked = widget.initiallyLocked;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      if (widget.cellEndsAt <= DateTime.now().millisecondsSinceEpoch) {
+      if (widget.cellEndsAt <= _serverNow) {
         _ticker?.cancel();
       }
       setState(() {});
@@ -44,6 +49,9 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
     _ticker?.cancel();
     super.dispose();
   }
+
+  int get _serverNow =>
+      DateTime.now().millisecondsSinceEpoch + widget.serverTimeOffsetMs;
 
   void _lockGuess() {
     if (_selected == null || _locked) return;
@@ -57,14 +65,14 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
   }
 
   Color _symbolColor(String symbol) {
-    return symbol == '?' || symbol == '?'
+    return symbol == '\u2665' || symbol == '\u2666'
         ? const Color(0xFFFF426E)
         : const Color(0xFFE9EEF7);
   }
 
   @override
   Widget build(BuildContext context) {
-    final expired = widget.cellEndsAt <= DateTime.now().millisecondsSinceEpoch;
+    final expired = widget.cellEndsAt <= _serverNow;
     return Dialog(
       backgroundColor: const Color(0xFF141524),
       insetPadding: const EdgeInsets.all(18),
@@ -79,18 +87,30 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_rounded, color: Color(0xFFFF426E), size: 38),
+              const Icon(
+                Icons.lock_rounded,
+                color: Color(0xFFFF426E),
+                size: 38,
+              ),
               const SizedBox(height: 8),
               const Text(
                 'H\u00DCCRE: SEMBOL\u00DCN\u00DC TAHM\u0130N ET',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19, letterSpacing: .6),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 19,
+                  letterSpacing: .6,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                expired ? 'S\u00FCre doldu; sonu\u00E7 bekleniyor.' : 'Kalan s\u00FCre: ${remainingText(widget.cellEndsAt)}',
+                expired
+                    ? 'S\u00FCre doldu; sonu\u00E7 bekleniyor.'
+                    : 'Kalan s\u00FCre: ${remainingText(widget.cellEndsAt, nowMilliseconds: _serverNow)}',
                 style: TextStyle(
-                  color: expired ? const Color(0xFFFFD166) : const Color(0xFF77E6FF),
+                  color: expired
+                      ? const Color(0xFFFFD166)
+                      : const Color(0xFF77E6FF),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -102,7 +122,9 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
                 children: _symbols.map((symbol) {
                   final selected = _selected == symbol;
                   return InkWell(
-                    onTap: _locked || expired ? null : () => setState(() => _selected = symbol),
+                    onTap: _locked || expired
+                        ? null
+                        : () => setState(() => _selected = symbol),
                     borderRadius: BorderRadius.circular(18),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
@@ -110,16 +132,24 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
                       height: 104,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: selected ? const Color(0x33FF426E) : const Color(0xFF202238),
+                        color: selected
+                            ? const Color(0x33FF426E)
+                            : const Color(0xFF202238),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: selected ? const Color(0xFFFF426E) : const Color(0x55FFFFFF),
+                          color: selected
+                              ? const Color(0xFFFF426E)
+                              : const Color(0x55FFFFFF),
                           width: selected ? 3 : 1,
                         ),
                       ),
                       child: Text(
                         symbol,
-                        style: TextStyle(fontSize: 58, color: _symbolColor(symbol), height: 1),
+                        style: TextStyle(
+                          fontSize: 58,
+                          color: _symbolColor(symbol),
+                          height: 1,
+                        ),
                       ),
                     ),
                   );
@@ -127,14 +157,19 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
               ),
               const SizedBox(height: 22),
               JhButton(
-                label: _locked ? 'OYUN K\u0130L\u0130TLEND\u0130' : 'OYU K\u0130L\u0130TLE',
+                label: _locked
+                    ? 'OYUN K\u0130L\u0130TLEND\u0130'
+                    : 'OYU K\u0130L\u0130TLE',
                 icon: _locked ? Icons.lock : Icons.lock_open_rounded,
                 enabled: _selected != null && !_locked && !expired,
                 onPressed: _lockGuess,
               ),
               if (_locked) ...[
                 const SizedBox(height: 10),
-                const Text('Se\u00E7imin de\u011Fi\u015ftirilemez.', style: TextStyle(color: Colors.white70)),
+                const Text(
+                  'Se\u00E7imin de\u011Fi\u015ftirilemez.',
+                  style: TextStyle(color: Colors.white70),
+                ),
               ],
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'jh_entry_screen.dart';
 import '../services/jh_socket_service.dart';
 import '../widgets/jh_ui.dart';
 import 'jh_game_screen.dart';
@@ -16,15 +17,24 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
   List<Map<String, dynamic>> _players = [];
   bool _starting = false;
   bool _moving = false;
+  bool _leaving = false;
+  String _roomStatus = 'waiting';
+  int _returnedCount = 0;
+  int _totalPlayers = 0;
 
+  List<String> _returnedPlayers = [];
   String get _myName => _socket.playerName ?? '';
   String get _roomCode => _socket.roomCode ?? '';
 
   bool get _isHost => _players.any(
-        (player) =>
-            player['isHost'] == true &&
-            player['name']?.toString().toLowerCase() == _myName.toLowerCase(),
-      );
+    (player) =>
+        player['isHost'] == true &&
+        player['name']?.toString().toLowerCase() == _myName.toLowerCase(),
+  );
+
+  bool get _hasReturnedToLobby => _returnedPlayers.any(
+    (name) => name.toLowerCase() == _myName.toLowerCase(),
+  );
 
   @override
   void initState() {
@@ -34,6 +44,7 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     _socket.socket?.on('jh_game_started', _onGameStarted);
     _socket.socket?.on('jh_game_state', _onGameState);
     _socket.socket?.on('jh_error', _onError);
+    _socket.socket?.on('jh_left_room', _onLeftRoom);
     _socket.socket?.emit('jh_get_state', {'roomCode': _roomCode});
   }
 
@@ -43,6 +54,7 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     _socket.socket?.off('jh_game_started', _onGameStarted);
     _socket.socket?.off('jh_game_state', _onGameState);
     _socket.socket?.off('jh_error', _onError);
+    _socket.socket?.off('jh_left_room', _onLeftRoom);
     super.dispose();
   }
 
@@ -50,6 +62,14 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     if (!mounted || data is! Map) return;
     final raw = data['players'];
     setState(() {
+      _roomStatus = data['status']?.toString() ?? _roomStatus;
+      _returnedCount = _number(data['returnedCount']);
+      _totalPlayers = _number(data['totalPlayers']);
+      _returnedPlayers = data['returnedPlayers'] is List
+          ? (data['returnedPlayers'] as List)
+                .map((item) => item.toString())
+                .toList()
+          : [];
       _players = raw is List
           ? raw.map((item) => Map<String, dynamic>.from(item as Map)).toList()
           : [];
@@ -57,17 +77,45 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
   }
 
   void _onGameState(dynamic data) {
-    if (data is! Map || data['status']?.toString() != 'started') return;
-    _goToGame();
+    if (!mounted || data is! Map) return;
+    final raw = data['players'];
+    setState(() {
+      _roomStatus = data['status']?.toString() ?? _roomStatus;
+      _returnedCount = _number(data['returnedCount']);
+      _totalPlayers = _number(data['totalPlayers']);
+      _returnedPlayers = data['returnedPlayers'] is List
+          ? (data['returnedPlayers'] as List)
+                .map((item) => item.toString())
+                .toList()
+          : [];
+      if (raw is List) {
+        _players = raw
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+    });
+    if (_roomStatus != 'started') return;
+    _goToGame(_matchId(data));
   }
 
-  void _onGameStarted(dynamic _) => _goToGame();
+  int _number(dynamic value) =>
+      value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
 
-  void _goToGame() {
+  void _onGameStarted(dynamic data) => _goToGame(_matchId(data));
+
+  String? _matchId(dynamic data) {
+    if (data is! Map) return null;
+    final matchId = data['matchId']?.toString();
+    return matchId == null || matchId.isEmpty ? null : matchId;
+  }
+
+  void _goToGame([String? expectedMatchId]) {
     if (!mounted || _moving) return;
     _moving = true;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const JhGameScreen()),
+      MaterialPageRoute(
+        builder: (_) => JhGameScreen(expectedMatchId: expectedMatchId),
+      ),
     );
   }
 
@@ -75,9 +123,13 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     if (!mounted) return;
     final message = data is Map ? data['message']?.toString() : null;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message ?? 'Bir hata olu\u015ftu.'), backgroundColor: Colors.redAccent),
+      SnackBar(
+        content: Text(message ?? 'Bir hata olu\u015ftu.'),
+        backgroundColor: Colors.redAccent,
+      ),
     );
     setState(() => _starting = false);
+    setState(() => _leaving = false);
   }
 
   void _startGame() {
@@ -85,9 +137,52 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     _socket.socket?.emit('jh_start_game', {'roomCode': _roomCode});
   }
 
+  void _returnToLobby() {
+    _socket.socket?.emit('jh_return_to_lobby', {'roomCode': _roomCode});
+  }
+
+  Future<void> _leaveRoom() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1B1C2F),
+        title: const Text('Odadan cikilsin mi?'),
+        content: const Text(
+          'Odadan cikarsan oyuncu listesinden silinirsin. Tekrar girmek icin oda kodunu kullanman gerekir.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('VAZGEC'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('ODADAN CIK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _leaving = true);
+    _socket.socket?.emit('jh_leave_room', {'roomCode': _roomCode});
+  }
+
+  Future<void> _onLeftRoom(dynamic _) async {
+    await _socket.clearSession();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const JhEntryScreen()),
+      (_) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canStart = _isHost && _players.length >= 2 && !_starting;
+    final canStart =
+        _isHost &&
+        _roomStatus == 'waiting' &&
+        _players.length >= 2 &&
+        !_starting;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: JhBackground(
@@ -102,22 +197,41 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.favorite_rounded, color: Color(0xFFFF426E), size: 32),
+                          const Icon(
+                            Icons.favorite_rounded,
+                            color: Color(0xFFFF426E),
+                            size: 32,
+                          ),
                           const SizedBox(width: 10),
                           const Expanded(
                             child: Text(
                               'KUPA VALES\u0130 LOB\u0130S\u0130',
-                              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                              style: TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
+                              ),
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0x22FFFFFF),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0x44FFFFFF)),
+                              border: Border.all(
+                                color: const Color(0x44FFFFFF),
+                              ),
                             ),
-                            child: Text(_roomCode, style: const TextStyle(letterSpacing: 2, fontWeight: FontWeight.w900)),
+                            child: Text(
+                              _roomCode,
+                              style: const TextStyle(
+                                letterSpacing: 2,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -127,38 +241,58 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
                         style: TextStyle(color: Colors.white70),
                       ),
                       const SizedBox(height: 20),
-                      SizedBox(height: 300,
+                      SizedBox(
+                        height: 300,
                         child: ListView.separated(
                           itemCount: _players.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (_, index) {
                             final player = _players[index];
                             final female = player['gender'] == 'female';
                             final host = player['isHost'] == true;
                             return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0x55101524),
                                 borderRadius: BorderRadius.circular(15),
-                                border: Border.all(color: host ? const Color(0x66FF426E) : const Color(0x33FFFFFF)),
+                                border: Border.all(
+                                  color: host
+                                      ? const Color(0x66FF426E)
+                                      : const Color(0x33FFFFFF),
+                                ),
                               ),
                               child: Row(
                                 children: [
                                   CircleAvatar(
-                                    backgroundColor: female ? const Color(0xFF7654D9) : const Color(0xFF1679B9),
-                                    child: Icon(female ? Icons.person_2 : Icons.person, color: Colors.white),
+                                    backgroundColor: female
+                                        ? const Color(0xFF7654D9)
+                                        : const Color(0xFF1679B9),
+                                    child: Icon(
+                                      female ? Icons.person_2 : Icons.person,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
                                       player['name']?.toString() ?? 'Oyuncu',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ),
                                   if (host)
                                     const Chip(
                                       label: Text('KURUCU'),
-                                      avatar: Icon(Icons.star_rounded, size: 16),
+                                      avatar: Icon(
+                                        Icons.star_rounded,
+                                        size: 16,
+                                      ),
                                       visualDensity: VisualDensity.compact,
                                     ),
                                 ],
@@ -171,15 +305,53 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
                       if (_isHost && _players.length < 2)
                         const Padding(
                           padding: EdgeInsets.only(bottom: 10),
-                          child: Text('Ba\u015flamak i\u00E7in en az 2 oyuncu gerekir.', style: TextStyle(color: Color(0xFFFFD166))),
+                          child: Text(
+                            'Ba\u015flamak i\u00E7in en az 2 oyuncu gerekir.',
+                            style: TextStyle(color: Color(0xFFFFD166)),
+                          ),
+                        ),
+                      if (_roomStatus != 'waiting')
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Text(
+                            'Yeni oyun için tüm oyuncuların lobiye dönmesi bekleniyor ($_returnedCount / $_totalPlayers).',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xFFFFD166),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      if (_roomStatus == 'finished' && !_hasReturnedToLobby)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: JhButton(
+                            label: 'LOBİYE DÖN',
+                            icon: Icons.home_rounded,
+                            onPressed: _returnToLobby,
+                            color: const Color(0xFF13B98B),
+                          ),
                         ),
                       JhButton(
-                        label: _isHost ? 'OYUNU BA\u015ELAT' : 'KURUCU OYUNU BA\u015ELATACAK',
+                        label: _isHost
+                            ? 'OYUNU BA\u015ELAT'
+                            : 'KURUCU OYUNU BA\u015ELATACAK',
                         icon: Icons.play_arrow_rounded,
                         enabled: canStart,
                         onPressed: _startGame,
                         color: const Color(0xFF13B98B),
                       ),
+                      if (_roomStatus != 'started') ...[
+                        const SizedBox(height: 10),
+                        TextButton.icon(
+                          onPressed: _leaving ? null : _leaveRoom,
+                          icon: const Icon(Icons.logout_rounded),
+                          label: Text(_leaving ? 'ÇIKILIYOR...' : 'ODADAN ÇIK'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFFF8A9D),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
