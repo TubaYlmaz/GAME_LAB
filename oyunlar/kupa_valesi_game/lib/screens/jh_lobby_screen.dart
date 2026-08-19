@@ -23,6 +23,7 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
   int _totalPlayers = 0;
 
   List<String> _returnedPlayers = [];
+  String _inspectionMode = 'free';
   String get _myName => _socket.playerName ?? '';
   String get _roomCode => _socket.roomCode ?? '';
 
@@ -63,6 +64,7 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     final raw = data['players'];
     setState(() {
       _roomStatus = data['status']?.toString() ?? _roomStatus;
+      _inspectionMode = data['inspectionMode']?.toString() ?? _inspectionMode;
       _returnedCount = _number(data['returnedCount']);
       _totalPlayers = _number(data['totalPlayers']);
       _returnedPlayers = data['returnedPlayers'] is List
@@ -81,6 +83,7 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     final raw = data['players'];
     setState(() {
       _roomStatus = data['status']?.toString() ?? _roomStatus;
+      _inspectionMode = data['inspectionMode']?.toString() ?? _inspectionMode;
       _returnedCount = _number(data['returnedCount']);
       _totalPlayers = _number(data['totalPlayers']);
       _returnedPlayers = data['returnedPlayers'] is List
@@ -131,6 +134,19 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     setState(() => _starting = false);
     setState(() => _leaving = false);
   }
+
+  void _setInspectionMode(String mode) {
+    _socket.socket?.emit('jh_update_settings', {
+      'roomCode': _roomCode,
+      'inspectionMode': mode,
+    });
+  }
+
+  String _modeLabel(String mode) => switch (mode) {
+    'single' => 'Tek inceleme',
+    'random' => 'Rastgele inceleme',
+    _ => 'Serbest inceleme',
+  };
 
   void _startGame() {
     setState(() => _starting = true);
@@ -239,6 +255,46 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
                       const Text(
                         'Oda kodunu arkada\u015flar\u0131nla payla\u015f. Oyun ba\u015flad\u0131ktan sonra yeni oyuncu giremez.',
                         style: TextStyle(color: Colors.white70),
+                      ),
+                      ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                        collapsedIconColor: const Color(0xFF77E6FF),
+                        iconColor: const Color(0xFF77E6FF),
+                        title: const Text(
+                          'OYUN AYARLARI',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .8,
+                          ),
+                        ),
+                        subtitle: Text(
+                          _modeLabel(_inspectionMode),
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _isHost && _roomStatus == 'waiting'
+                                ? Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: ['free', 'single', 'random']
+                                        .map(
+                                          (mode) => ChoiceChip(
+                                            label: Text(_modeLabel(mode)),
+                                            selected: _inspectionMode == mode,
+                                            onSelected: (_) =>
+                                                _setInspectionMode(mode),
+                                          ),
+                                        )
+                                        .toList(),
+                                  )
+                                : const Text(
+                                    'Bu ayarı yalnızca kurucu, oyun başlamadan önce değiştirebilir.',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       SizedBox(

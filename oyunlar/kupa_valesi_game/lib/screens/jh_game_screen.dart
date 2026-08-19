@@ -1,5 +1,6 @@
 // ignore_for_file: unnecessary_brace_in_string_interps, prefer_interpolation_to_compose_strings
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -37,6 +38,11 @@ class _JhGameScreenState extends State<JhGameScreen> {
   bool _resultDialogOpen = false;
   bool _gameOverDialogOpen = false;
   bool _returning = false;
+  int _myNumber = 0;
+  String _inspectionMode = 'free';
+  List<int> _visibleNumbers = [];
+  List<Map<String, dynamic>> _inspectionNotes = [];
+  int? _openedNumber;
 
   String get _roomCode => _socket.roomCode ?? '';
   String get _myName => _socket.playerName ?? '';
@@ -47,6 +53,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
     _socket.connect();
     _socket.socket?.on('jh_game_state', _onGameState);
     _socket.socket?.on('jh_phase_changed', _onPhaseChanged);
+    _socket.socket?.on('jh_inspection_result', _onInspectionResult);
     _socket.socket?.on('jh_ready_status', _onReadyStatus);
     _socket.socket?.on('jh_guess_status', _onGuessStatus);
     _socket.socket?.on('jh_round_result', _onRoundResult);
@@ -65,6 +72,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
     _socket.socket?.off('jh_game_state', _onGameState);
     _socket.socket?.off('jh_phase_changed', _onPhaseChanged);
     _socket.socket?.off('jh_ready_status', _onReadyStatus);
+    _socket.socket?.off('jh_inspection_result', _onInspectionResult);
     _socket.socket?.off('jh_guess_status', _onGuessStatus);
     _socket.socket?.off('jh_round_result', _onRoundResult);
     _socket.socket?.off('jh_game_over', _onGameOver);
@@ -146,6 +154,26 @@ class _JhGameScreenState extends State<JhGameScreen> {
       _readyCount = _number(data['readyCount']);
       _lockedCount = _number(data['lockedCount']);
       _totalAlive = _number(data['totalAlive']);
+      _myNumber = _number(data['myNumber']);
+      _inspectionMode = data['inspectionMode']?.toString() ?? _inspectionMode;
+      _visibleNumbers = data['visibleNumbers'] is List
+          ? (data['visibleNumbers'] as List)
+                .map(_number)
+                .where((number) => number > 0)
+                .toList()
+          : [];
+      _inspectionNotes = data['inspectionNotes'] is List
+          ? (data['inspectionNotes'] as List)
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+          : [];
+      if (_openedNumber != null &&
+          !_inspectionNotes.any(
+            (note) => _number(note['number']) == _openedNumber,
+          )) {
+        _openedNumber = null;
+      }
       _readyPlayers = data['readyPlayers'] is List
           ? (data['readyPlayers'] as List)
                 .map((item) => item.toString())
@@ -163,6 +191,254 @@ class _JhGameScreenState extends State<JhGameScreen> {
     }
   }
 
+  void _onInspectionResult(dynamic data) {
+    if (!mounted || data is! Map || !_isCurrentMatch(data)) return;
+    final number = _number(data['number']);
+    final symbol = data['symbol']?.toString();
+    if (number <= 0 || symbol == null || symbol.isEmpty) return;
+    setState(() {
+      if (!_inspectionNotes.any((note) => _number(note['number']) == number)) {
+        _inspectionNotes.add({'number': number, 'symbol': symbol});
+      }
+    });
+    _showInspectionCard(number);
+  }
+
+  Map<String, dynamic>? _inspectionFor(int number) {
+    for (final item in _inspectionNotes) {
+      if (_number(item['number']) == number) return item;
+    }
+    return null;
+  }
+
+  void _showInspectionCard(int number) {
+    if (_inspectionFor(number) == null) return;
+    setState(() => _openedNumber = number);
+  }
+
+  Widget _tableToken(int number) {
+    final known = _inspectionFor(number) != null;
+    final selected = _openedNumber == number;
+    final canInspect =
+        _amAlive &&
+        _phase == 'discussion' &&
+        _inspectionMode != 'random' &&
+        !(_inspectionMode == 'single' && _inspectionNotes.isNotEmpty && !known);
+    final action = known
+        ? () => setState(() => _openedNumber = selected ? null : number)
+        : (canInspect ? () => _inspectNumber(number) : null);
+    final accent = known ? const Color(0xFFFFD166) : const Color(0xFF77E6FF);
+
+    return InkWell(
+      onTap: action,
+      borderRadius: BorderRadius.circular(46),
+      child: Opacity(
+        opacity: action == null ? .42 : 1,
+        child: Container(
+          width: 82,
+          height: 82,
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF3A2B39) : const Color(0xE61A2334),
+            shape: BoxShape.circle,
+            border: Border.all(color: accent, width: selected ? 2.4 : 1.4),
+            boxShadow: [
+              BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 14),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '$number',
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Icon(
+                known ? Icons.visibility_rounded : Icons.touch_app_rounded,
+                size: 14,
+                color: accent,
+              ),
+              Text(
+                selected
+                    ? 'GİZLE'
+                    : known
+                    ? 'AÇ'
+                    : 'İNCELE',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _myTableToken() => Container(
+    width: 90,
+    height: 90,
+    decoration: BoxDecoration(
+      color: const Color(0xFF4A1F3D),
+      shape: BoxShape.circle,
+      border: Border.all(color: const Color(0xFFFF426E), width: 2.5),
+      boxShadow: const [BoxShadow(color: Color(0x66FF426E), blurRadius: 16)],
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text(
+          'SEN',
+          style: TextStyle(
+            color: Color(0xFFFFD166),
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        Text(
+          _myNumber == 0 ? '?' : '$_myNumber',
+          style: const TextStyle(fontSize: 31, fontWeight: FontWeight.w900),
+        ),
+        const Text(
+          'GİZLİ',
+          style: TextStyle(
+            color: Colors.white60,
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _tableCenter() {
+    final note = _openedNumber == null ? null : _inspectionFor(_openedNumber!);
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      child: note == null
+          ? const Column(
+              key: ValueKey('table-idle'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.favorite_rounded,
+                  color: Color(0x55FF426E),
+                  size: 54,
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'KUPA VALESİ',
+                  style: TextStyle(
+                    color: Color(0xFFBDB5C8),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Bir jetona dokun.',
+                  style: TextStyle(color: Colors.white54, fontSize: 11),
+                ),
+              ],
+            )
+          : Column(
+              key: ValueKey('table-opened-$_openedNumber'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'NUMARA $_openedNumber',
+                  style: const TextStyle(
+                    color: Color(0xFFFFD166),
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .8,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  note['symbol'].toString(),
+                  style: const TextStyle(fontSize: 74, height: 1),
+                ),
+                const SizedBox(height: 9),
+                OutlinedButton.icon(
+                  onPressed: () => setState(() => _openedNumber = null),
+                  icon: const Icon(Icons.visibility_off_rounded, size: 17),
+                  label: const Text('GİZLE'),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _tableScene() => LayoutBuilder(
+    builder: (context, constraints) {
+      final maxTableSize = math.min(
+        constraints.maxWidth - 24,
+        constraints.maxHeight - 8,
+      );
+      final tableSize = math.min(560.0, maxTableSize);
+      final tokenRadius = tableSize * .34;
+      final count = _visibleNumbers.length;
+      final arc = count > 4 ? math.pi * 4 / 3 : math.pi * 2 / 3;
+      final startAngle = math.pi * 3 / 2 - arc / 2;
+      double tokenAngle(int index) {
+        if (count <= 1) return math.pi * 3 / 2;
+        return startAngle + arc * index / (count - 1);
+      }
+
+      return Center(
+        child: SizedBox(
+          width: tableSize,
+          height: tableSize,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const RadialGradient(
+                      center: Alignment(-.18, -.3),
+                      colors: [Color(0xFF3A3446), Color(0xFF181827)],
+                    ),
+                    border: Border.all(
+                      color: const Color(0xAA77E6FF),
+                      width: 2,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x99000000), blurRadius: 30),
+                    ],
+                  ),
+                ),
+              ),
+              Center(child: _tableCenter()),
+              for (var index = 0; index < count; index++)
+                Positioned(
+                  left:
+                      tableSize / 2 +
+                      math.cos(tokenAngle(index)) * tokenRadius -
+                      41,
+                  top:
+                      tableSize / 2 +
+                      math.sin(tokenAngle(index)) * tokenRadius -
+                      41,
+                  child: _tableToken(_visibleNumbers[index]),
+                ),
+              Positioned(
+                left: tableSize / 2 - 45,
+                top: tableSize / 2 + tokenRadius - 45,
+                child: _myTableToken(),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
   int _number(dynamic value) =>
       value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
 
@@ -391,7 +667,6 @@ class _JhGameScreenState extends State<JhGameScreen> {
                         )
                       : Column(
                           children: eliminated.map((player) {
-                            final jack = player['role'] == 'jack';
                             final afk = player['reason'] == 'afk';
                             final reason = afk
                                 ? 'Sembolünü kilitlemedi'
@@ -439,7 +714,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          '${jack ? 'KUPA VALESİ' : 'MASUM'} · $reason',
+                                          reason,
                                           style: const TextStyle(
                                             color: Colors.white60,
                                             fontSize: 11,
@@ -573,6 +848,13 @@ class _JhGameScreenState extends State<JhGameScreen> {
     _socket.socket?.emit('jh_ready_for_cell', {'roomCode': _roomCode});
   }
 
+  void _inspectNumber(int number) {
+    _socket.socket?.emit('jh_inspect_number', {
+      'roomCode': _roomCode,
+      'targetNumber': number,
+    });
+  }
+
   String _phaseTitle() {
     switch (_phase) {
       case 'cell':
@@ -596,7 +878,6 @@ class _JhGameScreenState extends State<JhGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ownRole = _me?['role']?.toString();
     final buttonLabel = _amAlive
         ? 'H\u00DCCREYE GE\u00C7MEYE HAZIRIM (${_readyCount} / ${_totalAlive})'
         : '\u0130ZLEY\u0130C\u0130 MODUNDASIN';
@@ -666,119 +947,8 @@ class _JhGameScreenState extends State<JhGameScreen> {
                     ],
                   ),
                 ),
-                if (ownRole == 'jack')
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'G\u0130ZL\u0130 ROL\u00DCN: KUPA VALES\u0130',
-                      style: TextStyle(
-                        color: Color(0xFFFF426E),
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: 10),
-                Expanded(
-                  child: GridView.builder(
-                    itemCount: _players.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 190,
-                          mainAxisExtent: 164,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
-                    itemBuilder: (_, index) {
-                      final player = _players[index];
-                      final isMe =
-                          player['name']?.toString().toLowerCase() ==
-                          _myName.toLowerCase();
-                      final alive = player['isAlive'] != false;
-                      final symbol = isMe ? '?' : player['symbol']?.toString();
-                      final female = player['gender'] == 'female';
-                      if (!alive) {
-                        return _EliminatedPlayerCard(
-                          name: player['name']?.toString() ?? 'Oyuncu',
-                          female: female,
-                          isMe: isMe,
-                        );
-                      }
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isMe
-                              ? const Color(0xFF302037)
-                              : const Color(0xDD181A2C),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: isMe
-                                ? const Color(0xFFFF426E)
-                                : const Color(0x44FFFFFF),
-                            width: isMe ? 2 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 17,
-                                  backgroundColor: female
-                                      ? const Color(0xFF7654D9)
-                                      : const Color(0xFF1679B9),
-                                  child: Icon(
-                                    female ? Icons.person_2 : Icons.person,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    player['name']?.toString() ?? 'Oyuncu',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const Spacer(),
-                            Text(
-                              alive ? (symbol ?? '?') : '\u2715',
-                              style: TextStyle(
-                                fontSize: alive ? 58 : 40,
-                                height: 1,
-                                color:
-                                    alive &&
-                                        (symbol == '\u2665' ||
-                                            symbol == '\u2666')
-                                    ? const Color(0xFFFF426E)
-                                    : Colors.white,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              alive
-                                  ? (isMe
-                                        ? 'SEN\u0130N KARTIN G\u0130ZL\u0130'
-                                        : 'ENSE KARTI')
-                                  : 'ELEND\u0130',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: alive
-                                    ? Colors.white60
-                                    : const Color(0xFFFF426E),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                Expanded(child: _tableScene()),
                 const SizedBox(height: 10),
                 JhPanel(
                   padding: const EdgeInsets.all(13),
@@ -815,132 +985,6 @@ class _JhGameScreenState extends State<JhGameScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _EliminatedPlayerCard extends StatelessWidget {
-  const _EliminatedPlayerCard({
-    required this.name,
-    required this.female,
-    required this.isMe,
-  });
-
-  final String name;
-  final bool female;
-  final bool isMe;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF381522), Color(0xFF190F1B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xCCFF426E), width: 1.4),
-        boxShadow: const [
-          BoxShadow(color: Color(0x55FF426E), blurRadius: 14, spreadRadius: -4),
-        ],
-      ),
-      child: Stack(
-        children: [
-          const Positioned(
-            top: -42,
-            right: -28,
-            child: Icon(
-              Icons.cancel_rounded,
-              size: 122,
-              color: Color(0x22FF426E),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF426E),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      female ? Icons.person_2 : Icons.person,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      name,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              const Align(
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.person_off_rounded,
-                  color: Color(0xFFFF8AA1),
-                  size: 42,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Center(
-                child: Text(
-                  'OYUNDAN ELENDİ',
-                  style: TextStyle(
-                    color: Color(0xFFFF8AA1),
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                    letterSpacing: .7,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Center(
-                child: Text(
-                  isMe ? 'İzleyici modundasın' : 'Bu turu izliyor',
-                  style: const TextStyle(color: Colors.white60, fontSize: 10),
-                ),
-              ),
-              const Spacer(),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0x33FF426E),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0x55FF8AA1)),
-                ),
-                child: const Text(
-                  'RAUND DIŞI',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFFFFB0BD),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

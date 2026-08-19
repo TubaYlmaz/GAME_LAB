@@ -21,6 +21,7 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
   bool _creating = true;
   bool _female = false;
   bool _moving = false;
+  String _inspectionMode = 'free';
 
   @override
   void initState() {
@@ -90,6 +91,12 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
     ).pushReplacement(MaterialPageRoute(builder: (_) => const JhLobbyScreen()));
   }
 
+  String _modeLabel(String mode) => switch (mode) {
+    'single' => 'Tek inceleme',
+    'random' => 'Rastgele inceleme',
+    _ => 'Serbest inceleme',
+  };
+
   void _continue() {
     final name = _nameController.text.trim();
     if (name.length < 2) {
@@ -101,6 +108,7 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
         'roomCode': _newRoomCode(),
         'playerName': name,
         'gender': _gender,
+        'inspectionMode': _inspectionMode,
       });
       return;
     }
@@ -194,6 +202,45 @@ class _JhEntryScreenState extends State<JhEntryScreen> {
                             prefixIcon: Icon(Icons.vpn_key_rounded),
                             border: OutlineInputBorder(),
                           ),
+                        ),
+                      ],
+                      if (_creating) ...[
+                        const SizedBox(height: 8),
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          collapsedIconColor: const Color(0xFF77E6FF),
+                          iconColor: const Color(0xFF77E6FF),
+                          title: const Text(
+                            'OYUN AYARLARI',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
+                            ),
+                          ),
+                          subtitle: Text(
+                            _modeLabel(_inspectionMode),
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: ['free', 'single', 'random']
+                                    .map(
+                                      (mode) => ChoiceChip(
+                                        label: Text(_modeLabel(mode)),
+                                        selected: _inspectionMode == mode,
+                                        onSelected: (_) => setState(
+                                          () => _inspectionMode = mode,
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                       const SizedBox(height: 10),
