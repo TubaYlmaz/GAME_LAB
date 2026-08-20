@@ -12,6 +12,7 @@ const impostorGame = require('./games/impostor_game');
 const vampirKoyluGame = require('./games/vampir_koylu_game');
 const chanceGames = require('./games/chance_games');
 const jackOfHeartsGame = require('./games/jack_of_hearts_game');
+const kartZilGame = require('./games/kart_zil_game');
 
 const app = express();
 
@@ -128,6 +129,10 @@ if (typeof jackOfHeartsGame === 'function') {
 
 if (typeof chanceGames === 'function') {
     chanceGames({ app, io, redisClient, path, fs });
+}
+
+if (typeof kartZilGame === 'function') {
+    kartZilGame({ app, io, redisClient, path, fs });
 }
 
 // Ortak WebSocket Bağlantı Logu
