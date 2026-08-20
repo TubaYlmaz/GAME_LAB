@@ -1,6 +1,5 @@
 // ignore_for_file: unnecessary_brace_in_string_interps, prefer_interpolation_to_compose_strings
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -216,61 +215,102 @@ class _JhGameScreenState extends State<JhGameScreen> {
     setState(() => _openedNumber = number);
   }
 
-  Widget _tableToken(int number) {
-    final known = _inspectionFor(number) != null;
-    final selected = _openedNumber == number;
+  Widget _numberCard(int number) {
+    final note = _inspectionFor(number);
+    final known = note != null;
+    final revealed = _openedNumber == number;
     final canInspect =
         _amAlive &&
         _phase == 'discussion' &&
         _inspectionMode != 'random' &&
         !(_inspectionMode == 'single' && _inspectionNotes.isNotEmpty && !known);
     final action = known
-        ? () => setState(() => _openedNumber = selected ? null : number)
+        ? () => setState(() => _openedNumber = revealed ? null : number)
         : (canInspect ? () => _inspectNumber(number) : null);
-    final accent = known ? const Color(0xFFFFD166) : const Color(0xFF77E6FF);
+    final borderColor = revealed
+        ? const Color(0xFFFFD166)
+        : known
+        ? const Color(0xFF77E6FF)
+        : const Color(0x66FFFFFF);
 
     return InkWell(
       onTap: action,
-      borderRadius: BorderRadius.circular(46),
+      borderRadius: BorderRadius.circular(18),
       child: Opacity(
-        opacity: action == null ? .42 : 1,
-        child: Container(
-          width: 82,
-          height: 82,
+        opacity: action == null ? .4 : 1,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF3A2B39) : const Color(0xE61A2334),
-            shape: BoxShape.circle,
-            border: Border.all(color: accent, width: selected ? 2.4 : 1.4),
-            boxShadow: [
-              BoxShadow(color: accent.withValues(alpha: .18), blurRadius: 14),
-            ],
+            color: revealed ? const Color(0xFF302037) : const Color(0xFF181A2C),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor, width: revealed ? 1.6 : 1),
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text(
+                'NUMARA',
+                style: TextStyle(
+                  color: known ? const Color(0xFFFFD166) : Colors.white54,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
+                ),
+              ),
+              const SizedBox(height: 2),
               Text(
                 '$number',
                 style: const TextStyle(
-                  fontSize: 23,
+                  fontSize: 30,
                   fontWeight: FontWeight.w900,
+                  height: 1,
                 ),
               ),
-              Icon(
-                known ? Icons.visibility_rounded : Icons.touch_app_rounded,
-                size: 14,
-                color: accent,
-              ),
-              Text(
-                selected
-                    ? 'GİZLE'
-                    : known
-                    ? 'AÇ'
-                    : 'İNCELE',
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
+              const Spacer(),
+              Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: Text(
+                    revealed ? note!['symbol'].toString() : '?',
+                    key: ValueKey('$number-$revealed'),
+                    style: TextStyle(
+                      color: revealed
+                          ? const Color(0xFFFFD166)
+                          : const Color(0xFFFFFFFF),
+                      fontSize: 54,
+                      height: .9,
+                    ),
+                  ),
                 ),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Icon(
+                    revealed
+                        ? Icons.visibility_off_rounded
+                        : known
+                        ? Icons.visibility_rounded
+                        : Icons.touch_app_rounded,
+                    size: 15,
+                    color: known ? const Color(0xFFFFD166) : Colors.white60,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    revealed
+                        ? 'GİZLE'
+                        : known
+                        ? 'TEKRAR AÇ'
+                        : 'İNCELE',
+                    style: TextStyle(
+                      color: known ? const Color(0xFFFFD166) : Colors.white60,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .45,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -279,165 +319,123 @@ class _JhGameScreenState extends State<JhGameScreen> {
     );
   }
 
-  Widget _myTableToken() => Container(
-    width: 90,
-    height: 90,
+  Widget _myNumberHeader() => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     decoration: BoxDecoration(
-      color: const Color(0xFF4A1F3D),
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xFFFF426E), width: 2.5),
-      boxShadow: const [BoxShadow(color: Color(0x66FF426E), blurRadius: 16)],
+      color: const Color(0xFF302037),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFFF426E)),
     ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    child: Row(
       children: [
-        const Text(
-          'SEN',
-          style: TextStyle(
-            color: Color(0xFFFFD166),
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
+        Container(
+          width: 4,
+          height: 58,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFF426E),
+            borderRadius: BorderRadius.circular(9),
           ),
         ),
-        Text(
-          _myNumber == 0 ? '?' : '$_myNumber',
-          style: const TextStyle(fontSize: 31, fontWeight: FontWeight.w900),
+        const SizedBox(width: 15),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'SENİN NUMARAN',
+              style: TextStyle(
+                color: Color(0xFFFFD166),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              _myNumber == 0 ? '?' : '$_myNumber',
+              style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900),
+            ),
+          ],
         ),
-        const Text(
-          'GİZLİ',
-          style: TextStyle(
-            color: Colors.white60,
-            fontSize: 8,
-            fontWeight: FontWeight.w900,
-          ),
+        const Spacer(),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              'SEMBOLÜN',
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .7,
+              ),
+            ),
+            SizedBox(height: 3),
+            Text(
+              'GİZLİ',
+              style: TextStyle(
+                color: Color(0xFFFFFFFF),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .8,
+              ),
+            ),
+          ],
         ),
       ],
     ),
   );
 
-  Widget _tableCenter() {
-    final note = _openedNumber == null ? null : _inspectionFor(_openedNumber!);
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      child: note == null
-          ? const Column(
-              key: ValueKey('table-idle'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.favorite_rounded,
-                  color: Color(0x55FF426E),
-                  size: 54,
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'KUPA VALESİ',
-                  style: TextStyle(
-                    color: Color(0xFFBDB5C8),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                SizedBox(height: 5),
-                Text(
-                  'Bir jetona dokun.',
-                  style: TextStyle(color: Colors.white54, fontSize: 11),
-                ),
-              ],
-            )
-          : Column(
-              key: ValueKey('table-opened-$_openedNumber'),
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'NUMARA $_openedNumber',
-                  style: const TextStyle(
-                    color: Color(0xFFFFD166),
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  note['symbol'].toString(),
-                  style: const TextStyle(fontSize: 74, height: 1),
-                ),
-                const SizedBox(height: 9),
-                OutlinedButton.icon(
-                  onPressed: () => setState(() => _openedNumber = null),
-                  icon: const Icon(Icons.visibility_off_rounded, size: 17),
-                  label: const Text('GİZLE'),
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _tableScene() => LayoutBuilder(
-    builder: (context, constraints) {
-      final maxTableSize = math.min(
-        constraints.maxWidth - 24,
-        constraints.maxHeight - 8,
-      );
-      final tableSize = math.min(560.0, maxTableSize);
-      final tokenRadius = tableSize * .34;
-      final count = _visibleNumbers.length;
-      final arc = count > 4 ? math.pi * 4 / 3 : math.pi * 2 / 3;
-      final startAngle = math.pi * 3 / 2 - arc / 2;
-      double tokenAngle(int index) {
-        if (count <= 1) return math.pi * 3 / 2;
-        return startAngle + arc * index / (count - 1);
-      }
-
-      return Center(
-        child: SizedBox(
-          width: tableSize,
-          height: tableSize,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const RadialGradient(
-                      center: Alignment(-.18, -.3),
-                      colors: [Color(0xFF3A3446), Color(0xFF181827)],
-                    ),
-                    border: Border.all(
-                      color: const Color(0xAA77E6FF),
-                      width: 2,
-                    ),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x99000000), blurRadius: 30),
-                    ],
-                  ),
-                ),
-              ),
-              Center(child: _tableCenter()),
-              for (var index = 0; index < count; index++)
-                Positioned(
-                  left:
-                      tableSize / 2 +
-                      math.cos(tokenAngle(index)) * tokenRadius -
-                      41,
-                  top:
-                      tableSize / 2 +
-                      math.sin(tokenAngle(index)) * tokenRadius -
-                      41,
-                  child: _tableToken(_visibleNumbers[index]),
-                ),
-              Positioned(
-                left: tableSize / 2 - 45,
-                top: tableSize / 2 + tokenRadius - 45,
-                child: _myTableToken(),
-              ),
-            ],
+  Widget _gameSurface() => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _myNumberHeader(),
+        const SizedBox(height: 26),
+        const Text(
+          'MASADAKİ NUMARALAR',
+          style: TextStyle(
+            color: Color(0xFF77E6FF),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .9,
           ),
         ),
-      );
-    },
+        const SizedBox(height: 4),
+        const Text(
+          'Bir numarayı seçerek sembolünü incele.',
+          style: TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: GridView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: _visibleNumbers.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 156,
+              mainAxisExtent: 184,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemBuilder: (_, index) => _numberCard(_visibleNumbers[index]),
+          ),
+        ),
+        if (!_amAlive)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Center(
+              child: Text(
+                'İZLEYİCİ MODUNDASIN',
+                style: TextStyle(
+                  color: Color(0xFFFF8AA1),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
   );
   int _number(dynamic value) =>
       value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
@@ -775,17 +773,17 @@ class _JhGameScreenState extends State<JhGameScreen> {
     if (!mounted || _gameOverDialogOpen) return;
     _dismissTransientDialog();
     _gameOverDialogOpen = true;
-    final winner = (data['winner'] ?? data['gameWinner'])?.toString() ?? 'DRAW';
-    final title = winner == 'JACK'
-        ? 'KUPA VALES\u0130 KAZANDI'
-        : winner == 'INNOCENTS'
-        ? 'MASUMLAR KAZANDI'
-        : 'HERKES KAYBETT\u0130';
-    final detail = winner == 'JACK'
-        ? 'Masumlar\u0131n tamam\u0131 elendi. V\u00E2le hayatta kald\u0131.'
-        : winner == 'INNOCENTS'
-        ? 'Kupa Valesi elendi. Hayatta kalan masumlar kazand\u0131.'
-        : 'Kupa Valesi ve kalan masumlar ayn\u0131 turda elendi.';
+    final winner = (data['winner'] ?? data['gameWinner'])?.toString() ?? 'NONE';
+    final winnerName = data['winnerName']?.toString().trim() ?? '';
+    final winnerNumber = _number(data['winnerNumber']);
+    final hasPlayerWinner = winner == 'PLAYER' && winnerName.isNotEmpty;
+    final playerPrefix = winnerNumber > 0
+        ? '$winnerNumber numaralı oyuncu '
+        : '';
+    final title = hasPlayerWinner ? 'OYUN BİTTİ' : 'KAZANAN YOK';
+    final detail = hasPlayerWinner
+        ? '$playerPrefix$winnerName oyunu kazandı.'
+        : 'Son turda herkes elendi. Kazanan yok.';
     Future<void>.delayed(const Duration(milliseconds: 120), () {
       if (!mounted) return;
       showDialog<void>(
@@ -948,7 +946,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Expanded(child: _tableScene()),
+                Expanded(child: _gameSurface()),
                 const SizedBox(height: 10),
                 JhPanel(
                   padding: const EdgeInsets.all(13),

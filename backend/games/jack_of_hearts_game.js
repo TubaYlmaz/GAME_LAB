@@ -89,7 +89,7 @@ module.exports = function ({ io, redisClient }) {
         socket.emit('jh_game_state', {
             roomCode: code, matchId: room.matchId || null, serverNow: Date.now(), status: room.status || 'waiting', phase: room.phase || 'lobby', round: Number(room.round || 0),
             inspectionMode: validMode(room.inspectionMode), discussionEndsAt: Number(room.discussionEndsAt || 0), cellEndsAt: Number(room.cellEndsAt || 0), resultEndsAt: Number(room.resultEndsAt || 0),
-            gameWinner: room.gameWinner || null, winnerName: room.winnerName || null, readyPlayers: ready, readyCount: ready.length, lockedPlayers: locked, lockedCount: locked.length,
+            gameWinner: room.gameWinner || null, winnerName: room.winnerName || null, winnerNumber: Number(room.winnerNumber || 0) || null, readyPlayers: ready, readyCount: ready.length, lockedPlayers: locked, lockedCount: locked.length,
             totalAlive: alive.length, returnedPlayers: returned, returnedCount: returned.length, totalPlayers: players.length, allPlayersReturned: room.status === 'waiting' && room.phase === 'lobby',
             myNumber: me && me.isAlive !== false ? Number(me.number || 0) : null,
             visibleNumbers: alive.filter(player => !me || nameKey(player.name) !== nameKey(me.name)).map(player => Number(player.number || 0)).filter(Boolean).sort((a, b) => a - b),
@@ -134,12 +134,12 @@ module.exports = function ({ io, redisClient }) {
             await broadcast(code); return true;
         } finally { advancing.delete(`cell:${code}`); }
     }
-    async function finish(code, winner, winnerName, eliminated, expected) {
+    async function finish(code, winner, winnerName, winnerNumber, eliminated, expected) {
         const room = await redisClient.hgetall(roomKey(code));
         if (!room || room.game !== GAME_ID || room.status === 'finished' || (expected && room.matchId !== expected)) return false;
         clearTimers(code);
-        await redisClient.multi().hset(roomKey(code), 'status', 'finished').hset(roomKey(code), 'phase', 'game_over').hset(roomKey(code), 'gameWinner', winner).hset(roomKey(code), 'winnerName', winnerName || '').del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).del(returnedKey(code)).exec();
-        io.to(code).emit('jh_game_over', { winner, winnerName: winnerName || null, eliminated, matchId: room.matchId, serverNow: Date.now() });
+        await redisClient.multi().hset(roomKey(code), 'status', 'finished').hset(roomKey(code), 'phase', 'game_over').hset(roomKey(code), 'gameWinner', winner).hset(roomKey(code), 'winnerName', winnerName || '').hset(roomKey(code), 'winnerNumber', winnerNumber ? String(winnerNumber) : '').del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).del(returnedKey(code)).exec();
+        io.to(code).emit('jh_game_over', { winner, winnerName: winnerName || null, winnerNumber: winnerNumber || null, eliminated, matchId: room.matchId, serverNow: Date.now() });
         await broadcast(code); return true;
     }
     async function evaluate(code, reason, expected = null) {
@@ -160,8 +160,8 @@ module.exports = function ({ io, redisClient }) {
             const survivors = players.filter(player => player.isAlive !== false);
             const end = Date.now() + RESULT_MS;
             await redisClient.multi().hset(roomKey(code), 'players', JSON.stringify(players)).hset(roomKey(code), 'phase', 'result').hset(roomKey(code), 'resultEndsAt', String(end)).del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).exec();
-            if (!survivors.length) return finish(code, 'NONE', null, eliminated, room.matchId);
-            if (survivors.length === 1) return finish(code, 'PLAYER', survivors[0].name, eliminated, room.matchId);
+            if (!survivors.length) return finish(code, 'NONE', null, null, eliminated, room.matchId);
+            if (survivors.length === 1) return finish(code, 'PLAYER', survivors[0].name, Number(survivors[0].number || 0) || null, eliminated, room.matchId);
             timer(code, 'result', end - Date.now(), () => recover(code, room.matchId));
             io.to(code).emit('jh_round_result', { eliminated, matchId: room.matchId, round: Number(room.round || 1), reason, resultEndsAt: end });
             await broadcast(code); return true;
@@ -230,7 +230,7 @@ module.exports = function ({ io, redisClient }) {
             if (room.host !== socket.data.jhPlayerName || room.status !== 'waiting') return error(socket, 'Oyunu yalnızca kurucu lobiden başlatabilir.');
             const players = playersOf(room); if (players.length < 2) return error(socket, 'Başlamak için en az 2 oyuncu gerekir.');
             const id = matchId(); clearTimers(code);
-            await redisClient.multi().hset(roomKey(code), 'status', 'started').hset(roomKey(code), 'phase', 'setup').hset(roomKey(code), 'round', '0').hset(roomKey(code), 'matchId', id).hset(roomKey(code), 'players', JSON.stringify(players.map(player => ({ ...player, isAlive: true, number: null, symbol: null })))).hdel(roomKey(code), 'gameWinner', 'winnerName', 'resultEndsAt').del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).del(notesKey(code)).del(returnedKey(code)).exec();
+            await redisClient.multi().hset(roomKey(code), 'status', 'started').hset(roomKey(code), 'phase', 'setup').hset(roomKey(code), 'round', '0').hset(roomKey(code), 'matchId', id).hset(roomKey(code), 'players', JSON.stringify(players.map(player => ({ ...player, isAlive: true, number: null, symbol: null })))).hdel(roomKey(code), 'gameWinner', 'winnerName', 'winnerNumber', 'resultEndsAt').del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).del(notesKey(code)).del(returnedKey(code)).exec();
             io.to(code).emit('jh_game_started', { roomCode: code, matchId: id, serverNow: Date.now() }); await discussion(code, true, id);
         });
         socket.on('jh_ready_for_cell', async data => {
@@ -280,7 +280,7 @@ module.exports = function ({ io, redisClient }) {
             const players = playersOf(room); const me = players.find(player => nameKey(player.name) === nameKey(socket.data.jhPlayerName)); if (!me) return;
             await redisClient.sadd(returnedKey(code), me.name); const returned = new Set((await redisClient.smembers(returnedKey(code))).map(nameKey)); const all = players.every(player => returned.has(nameKey(player.name)));
             socket.emit('jh_lobby_returned', { roomCode: code, returnedPlayers: [...returned], returnedCount: returned.size, totalPlayers: players.length, allPlayersReturned: all });
-            if (all) await redisClient.multi().hset(roomKey(code), 'status', 'waiting').hset(roomKey(code), 'phase', 'lobby').hset(roomKey(code), 'round', '0').hset(roomKey(code), 'players', JSON.stringify(players.map(player => ({ ...player, isAlive: true, number: null, symbol: null })))).hdel(roomKey(code), 'gameWinner', 'winnerName', 'resultEndsAt', 'matchId').del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).del(notesKey(code)).del(returnedKey(code)).exec();
+            if (all) await redisClient.multi().hset(roomKey(code), 'status', 'waiting').hset(roomKey(code), 'phase', 'lobby').hset(roomKey(code), 'round', '0').hset(roomKey(code), 'players', JSON.stringify(players.map(player => ({ ...player, isAlive: true, number: null, symbol: null })))).hdel(roomKey(code), 'gameWinner', 'winnerName', 'winnerNumber', 'resultEndsAt', 'matchId').del(readyKey(code)).del(guessesKey(code)).del(locksKey(code)).del(notesKey(code)).del(returnedKey(code)).exec();
             await lobby(code); await broadcast(code);
         });
     });
