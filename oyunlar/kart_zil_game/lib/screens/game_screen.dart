@@ -567,6 +567,29 @@ class _RoundTable extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (_canSeeTeamScore(player)) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 4 : 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: active
+                                    ? Colors.black12
+                                    : Colors.white.withValues(alpha: .16),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Text(
+                                '${player.score}',
+                                style: TextStyle(
+                                  color: active ? Colors.black : Colors.white,
+                                  fontSize: isMobile ? 8 : 11,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: 4),
                           Text(
                             state.gameMode == 'team'
@@ -580,17 +603,18 @@ class _RoundTable extends StatelessWidget {
                           ),
                         ],
                       ),
-                      Text(
-                        player.eliminated
-                            ? 'ELENDİ 💀'
-                            : '${isMe ? 'SEN' : 'OYUNCU'}${player.teamId == null ? '' : (player.teamId == 'blue' ? ' • MAVİ' : ' • MOR')}',
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: active ? Colors.black54 : Colors.white60,
-                          fontSize: isMobile ? 8 : 10,
-                          fontWeight: FontWeight.bold,
+                      if (player.eliminated || state.gameMode != 'team')
+                        Text(
+                          player.eliminated
+                              ? 'ELENDİ 💀'
+                              : (isMe ? 'SEN' : 'OYUNCU'),
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: active ? Colors.black54 : Colors.white60,
+                            fontSize: isMobile ? 8 : 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -618,6 +642,13 @@ class _RoundTable extends StatelessWidget {
       ),
     );
   }
+
+  bool _canSeeTeamScore(KzPlayer player) =>
+      state.gameMode == 'team' &&
+      me?.teamId != null &&
+      me?.teamId == player.teamId &&
+      player.score != null &&
+      !player.eliminated;
 }
 
 class _TeamLivesStrip extends StatelessWidget {

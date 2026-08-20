@@ -100,6 +100,7 @@ module.exports = function kartZilGame({ io, redisClient }) {
             myScore: scoreHand(state.players.find(player => player.id === viewerId)?.hand || []),
             players: state.players.map(player => {
                 const best = bestHand(player.hand);
+                const teammateCanSeeScore = isTeamMode(state) && viewer?.teamId && viewer.teamId === player.teamId;
                 return {
                     id: player.id,
                     name: player.name,
@@ -111,8 +112,8 @@ module.exports = function kartZilGame({ io, redisClient }) {
                     isHost: player.id === state.hostPlayerId,
                     cardCount: player.hand.length,
                     cards: reveal ? best.cards : (spectatorCanSeeHands || player.id === viewerId ? player.hand : undefined),
-                    score: reveal || spectatorCanSeeHands ? best.score : undefined,
-                    scoreType: reveal || spectatorCanSeeHands ? best.type : undefined
+                    score: reveal || spectatorCanSeeHands || teammateCanSeeScore ? best.score : undefined,
+                    scoreType: reveal || spectatorCanSeeHands || teammateCanSeeScore ? best.type : undefined
                 };
             }),
             myPlayerId: viewerId,
