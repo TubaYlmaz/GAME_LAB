@@ -91,9 +91,15 @@ if (fs.existsSync(oyunlarDizini)) {
                 ikon = 'fa-solid fa-heart';
                 aciklama = 'Ensendeki sembol\u00FC do\u011Fru tahmin et; gizli Kupa Valesi\u0027ni bul!';
             }
+            if (oyunAd\u0131 === 'kart_zil_game') {
+                ikon = 'fa-solid fa-bell';
+                aciklama = 'Elini g\u00FC\u00E7lendir, en iyi kart kombinasyonunu kur ve do\u011Fru anda zile bas!';
+            }
             dinamikAktifOyunlar.push({
                 id: oyunAdı,
-                isim: oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                isim: oyunAd\u0131 === 'kart_zil_game'
+                    ? 'Kart & Zil'
+                    : oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                 aciklama: aciklama,
                 alt_yol: `/oyunlar/${oyunAdı}/web/index.html`,
                 ikon_class: ikon

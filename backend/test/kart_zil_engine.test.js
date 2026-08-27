@@ -11,11 +11,11 @@ test('deck configuration follows player bands', () => {
     assert.equal(createDeck(4).length, 40);
     assert.equal(createDeck(5).length, 50);
     assert.equal(createDeck(6).length, 50);
-    assert.equal(createDeck(7).length, 60);
-    assert.equal(createDeck(8).length, 60);
-    assert.equal(createDeck(9).length, 70);
-    assert.equal(createDeck(10).length, 70);
-    assert.equal(deckConfig(10).colors.length, 7);
+    assert.equal(createDeck(7).length, 70);
+    assert.equal(createDeck(8).length, 70);
+    assert.equal(createDeck(9).length, 90);
+    assert.equal(createDeck(10).length, 90);
+    assert.equal(deckConfig(10).colors.length, 9);
     assert.throws(() => createDeck(1));
     assert.throws(() => createDeck(11));
 });

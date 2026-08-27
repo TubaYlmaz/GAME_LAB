@@ -2,24 +2,22 @@
 
 const crypto = require('crypto');
 
-const COLORS = ['blue', 'red', 'yellow', 'green', 'purple', 'orange', 'pink'];
+const COLORS = ['blue', 'red', 'yellow', 'green', 'purple', 'orange', 'pink', 'cyan', 'brown'];
 
 function deckConfig(playerCount) {
     if (playerCount >= 2 && playerCount <= 4) return { colors: COLORS.slice(0, 4), deckSize: 40 };
     if (playerCount >= 5 && playerCount <= 6) return { colors: COLORS.slice(0, 5), deckSize: 50 };
-    if (playerCount >= 7 && playerCount <= 8) return { colors: COLORS.slice(0, 6), deckSize: 60 };
-    if (playerCount >= 9 && playerCount <= 10) return { colors: COLORS.slice(0, 7), deckSize: 70 };
+    if (playerCount >= 7 && playerCount <= 8) return { colors: COLORS.slice(0, 7), deckSize: 70 };
+    if (playerCount >= 9 && playerCount <= 10) return { colors: COLORS.slice(0, 9), deckSize: 90 };
     throw new Error('Oyuncu sayisi 2-10 arasinda olmali.');
 }
 
 function createDeck(playerCount) {
     const { colors, deckSize } = deckConfig(playerCount);
     const cards = [];
-    while (cards.length < deckSize) {
-        for (const color of colors) {
-            for (let number = 1; number <= 10 && cards.length < deckSize; number += 1) {
-                cards.push({ id: crypto.randomUUID(), color, number });
-            }
+    for (const color of colors) {
+        for (let number = 1; number <= 10; number += 1) {
+            cards.push({ id: crypto.randomUUID(), color, number });
         }
     }
     return cards;

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../services/socket_service.dart';
+import '../utils/site_navigation.dart';
 
 class KzEntryScreen extends StatefulWidget {
   const KzEntryScreen({super.key});
@@ -21,10 +22,10 @@ class _KzEntryScreenState extends State<KzEntryScreen>
 
   int get colorCount => playerCount <= 4
       ? 4
-      : (playerCount <= 6 ? 5 : (playerCount <= 8 ? 6 : 7));
+      : (playerCount <= 6 ? 5 : (playerCount <= 8 ? 7 : 9));
   int get deckSize => playerCount <= 4
       ? 40
-      : (playerCount <= 6 ? 50 : (playerCount <= 8 ? 60 : 70));
+      : (playerCount <= 6 ? 50 : (playerCount <= 8 ? 70 : 90));
 
   @override
   void initState() {
@@ -63,6 +64,20 @@ class _KzEntryScreenState extends State<KzEntryScreen>
         child: Stack(
           children: [
             Positioned.fill(child: _TableBackdrop(animation: floating)),
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 12,
+              left: 14,
+              child: IconButton.filledTonal(
+                tooltip: 'Oyunlara dön',
+                style: IconButton.styleFrom(
+                  foregroundColor: const Color(0xFFBCEAE7),
+                  backgroundColor: const Color(0xCC34456F),
+                  side: const BorderSide(color: Color(0xFF78D8D3)),
+                ),
+                onPressed: goToGamesPage,
+                icon: const Icon(Icons.grid_view_rounded, size: 20),
+              ),
+            ),
             FadeTransition(
               opacity: CurvedAnimation(parent: intro, curve: Curves.easeOut),
               child: Center(

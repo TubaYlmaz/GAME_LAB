@@ -6,6 +6,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../config.dart';
 import '../models/game_state_model.dart';
+import 'sound_service.dart';
 
 class KzSocketService extends ChangeNotifier {
   KzSocketService._();
@@ -117,7 +118,11 @@ class KzSocketService extends ChangeNotifier {
   void drawDeck() => _ack('kz_draw_deck', {});
   void takeOpenCard() => _ack('kz_take_open_card', {});
   void discard(String cardId) => _ack('kz_discard_card', {'cardId': cardId});
-  void pressBell() => _ack('kz_press_bell', {});
+  void pressBell() {
+    KzSoundService.instance.playBell();
+    _ack('kz_press_bell', {});
+  }
+
   void restart() => _ack('kz_restart_game', {});
   void updateRoomSettings(int playerCount, String gameMode) => _ack(
     'kz_update_room_settings',

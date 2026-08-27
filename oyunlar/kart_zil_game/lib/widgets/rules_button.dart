@@ -31,93 +31,117 @@ class KzRulesButton extends StatelessWidget {
 Future<void> showKzRules(BuildContext context) => showDialog<void>(
   context: context,
   builder: (context) => Dialog(
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
     insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 18, 8, 18),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF3E63DD), Color(0xFF8E4EC6)],
-              ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: Row(
-              children: [
-                const Text('🔔', style: TextStyle(fontSize: 38)),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'KART & ZİL NASIL OYNANIR?',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text('Kısa oyun rehberi'),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Kapat',
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF293655), Color(0xFF302C4D)],
           ),
-          const Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(18),
-              child: Column(
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFF8FA5D9), width: 1.5),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x77434F82),
+              blurRadius: 32,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 18, 8, 18),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF496FCE), Color(0xFF8B55C7)],
+                ),
+              ),
+              child: Row(
                 children: [
-                  _RuleCard(
-                    icon: '🎯',
-                    title: 'AMAÇ',
-                    text: 'Elindeki en güçlü grubu oluştur, düşük puanda kalma ve son hayatta kalan oyuncu ol.',
+                  const Text('🔔', style: TextStyle(fontSize: 38)),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'KART & ZİL NASIL OYNANIR?',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text('Kısa oyun rehberi'),
+                      ],
+                    ),
                   ),
-                  _RuleCard(
-                    icon: '🃏',
-                    title: 'SIRAN GELİNCE',
-                    text: 'Kapalı desteden veya açık karttan bir kart al. Elin 5 kart olunca bir kartı açık alana bırak. Tur sonunda elinde yine 4 kart kalır.',
-                  ),
-                  _RuleCard(
-                    icon: '🔔',
-                    title: 'ZİL KURALI',
-                    text: 'Zile yalnızca kendi sıranın başında, henüz kart çekmeden basabilirsin. Zile bastığında elin kilitlenir; diğer oyuncular birer son hamle yapar.',
-                  ),
-                  _ScoringGuide(),
-                  _RuleCard(
-                    icon: '❤️',
-                    title: 'CAN VE ELENME',
-                    text: 'Herkes 3 canla başlar. En düşük puandaki oyuncu 1 can kaybeder. Zile basan oyuncu en düşükse 2 can kaybeder. Eşitlikte tüm düşük oyuncular ceza alır.',
-                  ),
-                  _RuleCard(
-                    icon: '🏁',
-                    title: 'TUR VE OYUN SONU',
-                    text: 'Destenin son kartı çekilip bir kart atılınca tur biter. Canı sıfırlanan elenir. Oyunda kalan son oyuncu kazanır.',
-                  ),
-                  _RuleCard(
-                    icon: '👥',
-                    title: 'OYUNCU VE DESTE',
-                    text: 'Her renkte 1–10 sayıları bulunur.\n2–4 oyuncu: 40 kart, 4 renk\n5–6 oyuncu: 50 kart, 5 renk\n7–8 oyuncu: 60 kart, 6 renk\n9–10 oyuncu: 70 kart, 7 renk',
-                  ),
-                  _RuleCard(
-                    icon: '🤝',
-                    title: 'TAKIM MODU',
-                    text: 'Yalnızca çift oyuncu sayısıyla açılır ve takımlar her oyunda rastgele kurulur. Her takım 5 ortak canla başlar. Tur sonunda takım üyelerinin el puanları toplanır; düşük takım 1 can kaybeder. Zile basan oyuncunun takımı düşükse 2 can kaybeder. Eşitlikte can kaybı olmaz.',
+                  IconButton(
+                    tooltip: 'Kapat',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            const Expanded(
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(18, 18, 18, 24),
+                  child: Column(
+                    children: [
+                      _RuleCard(
+                        icon: '🎯',
+                        title: 'AMAÇ',
+                        text: 'Elindeki en güçlü grubu oluştur, düşük puanda kalma ve son hayatta kalan oyuncu ol.',
+                      ),
+                      _RuleCard(
+                        icon: '🃏',
+                        title: 'SIRAN GELİNCE',
+                        text: 'Kapalı desteden veya açık karttan bir kart al. Elin 5 kart olunca bir kartı açık alana bırak. Tur sonunda elinde yine 4 kart kalır.',
+                      ),
+                      _RuleCard(
+                        icon: '🔔',
+                        title: 'ZİL KURALI',
+                        text: 'Zile yalnızca kendi sıranın başında, henüz kart çekmeden basabilirsin. Zile bastığında elin kilitlenir; diğer oyuncular birer son hamle yapar.',
+                      ),
+                      _ScoringGuide(),
+                      _RuleCard(
+                        icon: '❤️',
+                        title: 'CAN VE ELENME',
+                        text: 'Herkes 3 canla başlar. En düşük puandaki oyuncu 1 can kaybeder. Zile basan oyuncu en düşükse 2 can kaybeder. Eşitlikte tüm düşük oyuncular ceza alır.',
+                      ),
+                      _RuleCard(
+                        icon: '🏁',
+                        title: 'TUR VE OYUN SONU',
+                        text: 'Destenin son kartı çekilip bir kart atılınca tur biter. Canı sıfırlanan elenir. Oyunda kalan son oyuncu kazanır.',
+                      ),
+                      _RuleCard(
+                        icon: '👥',
+                        title: 'OYUNCU VE DESTE',
+                        text: 'Her renkte 1–10 sayıları bulunur.\n2–4 oyuncu: 40 kart, 4 renk\n5–6 oyuncu: 50 kart, 5 renk\n7–8 oyuncu: 70 kart, 7 renk\n9–10 oyuncu: 90 kart, 9 renk',
+                      ),
+                      _RuleCard(
+                        icon: '🤝',
+                        title: 'TAKIM MODU',
+                        text: 'Yalnızca çift oyuncu sayısıyla açılır ve takımlar her oyunda rastgele kurulur. Her takım 5 ortak canla başlar. Tur sonunda takım üyelerinin el puanları toplanır; düşük takım 1 can kaybeder. Zile basan oyuncunun takımı düşükse 2 can kaybeder. Eşitlikte can kaybı olmaz.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   ),
@@ -135,12 +159,9 @@ class _RuleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: const Color(0xFF202640),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.white12),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Colors.white12)),
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,19 +195,11 @@ class _ScoringGuide extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF26365C), Color(0xFF392E5B)],
-      ),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFF78D8D3), width: 1.5),
-      boxShadow: const [BoxShadow(color: Color(0x3378D8D3), blurRadius: 14)],
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: Colors.white12)),
     ),
-    child: const Column(
+    child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -215,30 +228,46 @@ class _ScoringGuide extends StatelessWidget {
           ],
         ),
         SizedBox(height: 16),
-        _ScoreExample(
-          title: 'ÖRNEK 1 · AYNI RENK KAZANIYOR',
-          cards: [
-            _GuideCardData('blue', 4),
-            _GuideCardData('blue', 8),
-            _GuideCardData('red', 4),
-            _GuideCardData('green', 2),
-          ],
-          colorCalculation: 'Mavi: 4 + 8 = 12',
-          numberCalculation: 'Dörtler: 4 + 4 = 8',
-          result: 'EL PUANI: 12',
-        ),
-        SizedBox(height: 12),
-        _ScoreExample(
-          title: 'ÖRNEK 2 · AYNI SAYI KAZANIYOR',
-          cards: [
-            _GuideCardData('blue', 3),
-            _GuideCardData('blue', 7),
-            _GuideCardData('red', 7),
-            _GuideCardData('yellow', 2),
-          ],
-          colorCalculation: 'Mavi: 3 + 7 = 10',
-          numberCalculation: 'Yediler: 7 + 7 = 14',
-          result: 'EL PUANI: 14',
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const colorExample = _ScoreExample(
+              title: 'ÖRNEK 1 · AYNI RENK',
+              cards: [
+                _GuideCardData('blue', 4),
+                _GuideCardData('blue', 8),
+                _GuideCardData('red', 4),
+                _GuideCardData('green', 2),
+              ],
+              colorCalculation: 'Mavi: 4 + 8 = 12',
+              numberCalculation: 'Dörtler: 4 + 4 = 8',
+              result: 'EL PUANI: 12',
+            );
+            const numberExample = _ScoreExample(
+              title: 'ÖRNEK 2 · AYNI SAYI',
+              cards: [
+                _GuideCardData('blue', 3),
+                _GuideCardData('blue', 7),
+                _GuideCardData('red', 7),
+                _GuideCardData('yellow', 2),
+              ],
+              colorCalculation: 'Mavi: 3 + 7 = 10',
+              numberCalculation: 'Yediler: 7 + 7 = 14',
+              result: 'EL PUANI: 14',
+            );
+            if (constraints.maxWidth < 520) {
+              return const Column(
+                children: [colorExample, SizedBox(height: 12), numberExample],
+              );
+            }
+            return const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: colorExample),
+                SizedBox(width: 12),
+                Expanded(child: numberExample),
+              ],
+            );
+          },
         ),
         SizedBox(height: 10),
         _TipLine(

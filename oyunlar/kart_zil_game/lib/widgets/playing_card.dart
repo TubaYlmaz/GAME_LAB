@@ -24,6 +24,9 @@ class KzPlayingCard extends StatelessWidget {
     'purple' => const Color(0xFF8E4EC6),
     'orange' => const Color(0xFFF76B15),
     'pink' => const Color(0xFFE86AA6),
+    'cyan' => const Color(0xFF2AA9B8),
+    'brown' => const Color(0xFF9A6B4F),
+    'lime' => const Color(0xFF78A83B),
     _ => const Color(0xFF3E63DD),
   };
 
@@ -40,19 +43,21 @@ class KzPlayingCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: mini ? 24 : (compact ? 46 : (large ? 80 : 68)),
-        height: mini ? 34 : (compact ? 66 : (large ? 116 : 98)),
+        width: mini ? 20 : (compact ? 46 : (large ? 80 : 68)),
+        height: mini ? 28 : (compact ? 66 : (large ? 116 : 98)),
         decoration: BoxDecoration(
           color: colorOf(card.color),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white70, width: 2),
-          boxShadow: const [BoxShadow(blurRadius: 8, color: Colors.black38)],
+          borderRadius: BorderRadius.circular(mini ? 8 : 14),
+          border: Border.all(color: Colors.white70, width: mini ? 1 : 2),
+          boxShadow: [
+            BoxShadow(blurRadius: mini ? 4 : 8, color: Colors.black38),
+          ],
         ),
         alignment: Alignment.center,
         child: Text(
           '${card.number}',
           style: TextStyle(
-            fontSize: mini ? 12 : (compact ? 20 : (large ? 36 : 30)),
+            fontSize: mini ? 10 : (compact ? 20 : (large ? 36 : 30)),
             fontWeight: FontWeight.w900,
             color: card.color == 'yellow' ? Colors.black : Colors.white,
           ),

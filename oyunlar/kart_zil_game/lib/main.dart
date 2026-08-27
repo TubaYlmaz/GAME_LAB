@@ -5,6 +5,7 @@ import 'screens/game_over_screen.dart';
 import 'screens/game_screen.dart';
 import 'screens/lobby_screen.dart';
 import 'screens/round_result_screen.dart';
+import 'services/sound_service.dart';
 import 'services/socket_service.dart';
 import 'widgets/rules_button.dart';
 
@@ -21,17 +22,61 @@ class KartZilApp extends StatefulWidget {
 
 class _KartZilAppState extends State<KartZilApp> with WidgetsBindingObserver {
   final service = KzSocketService.instance;
+  String? _previousTurnPlayerId;
+  bool _previousBellPressed = false;
+  bool _soundStateReady = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    service.addListener(_handleGameSounds);
     service.connect();
   }
 
   @override
   void dispose() {
+    service.removeListener(_handleGameSounds);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _handleGameSounds() {
+    final state = service.state;
+    if (state == null) {
+      _previousTurnPlayerId = null;
+      _previousBellPressed = false;
+      _soundStateReady = false;
+      return;
+    }
+
+    if (!_soundStateReady) {
+      _previousTurnPlayerId = state.currentPlayerId;
+      _previousBellPressed = state.bellPressed;
+      _soundStateReady = true;
+      return;
+    }
+
+    if (state.bellPressed &&
+        !_previousBellPressed &&
+        state.bellPlayerId != service.playerId) {
+      KzSoundService.instance.playBell();
+    }
+
+    if (state.phase == 'playing' || state.phase == 'final_turn') {
+      final me = state.players
+          .where((player) => player.id == service.playerId)
+          .firstOrNull;
+      final turnJustBecameMine =
+          state.currentPlayerId == service.playerId &&
+          state.currentPlayerId != _previousTurnPlayerId;
+      if (turnJustBecameMine && me?.eliminated == false) {
+        KzSoundService.instance.playYourTurn();
+      }
+    }
+
+    _previousTurnPlayerId = state.currentPlayerId;
+    _previousBellPressed = state.bellPressed;
   }
 
   @override
@@ -43,6 +88,11 @@ class _KartZilAppState extends State<KartZilApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Kart & Zil',
     debugShowCheckedModeBanner: false,
+    builder: (context, child) => Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => KzSoundService.instance.unlock(),
+      child: child!,
+    ),
     theme: ThemeData(
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(

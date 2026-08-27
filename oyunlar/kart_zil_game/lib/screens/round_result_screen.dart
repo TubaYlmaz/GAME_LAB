@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../services/socket_service.dart';
+import '../utils/site_navigation.dart';
 import '../widgets/countdown_timer.dart';
+import '../widgets/game_logo.dart';
 import '../widgets/playing_card.dart';
 
 class KzRoundResultScreen extends StatelessWidget {
@@ -35,7 +37,30 @@ class KzRoundResultScreen extends StatelessWidget {
       ..sort((a, b) => (b.score ?? 0).compareTo(a.score ?? 0));
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tur Sonucu'),
+        toolbarHeight: 66,
+        centerTitle: true,
+        leadingWidth: 58,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF34456F), Color(0xFF534B7D), Color(0xFF355F78)],
+            ),
+          ),
+        ),
+        leading: Padding(
+          padding: const EdgeInsets.fromLTRB(7, 9, 3, 9),
+          child: IconButton.filledTonal(
+            tooltip: 'Oyunlara dön',
+            style: IconButton.styleFrom(
+              foregroundColor: const Color(0xFF9CE5E3),
+              backgroundColor: const Color(0x334EC7C4),
+              side: const BorderSide(color: Color(0x9965C6C4)),
+            ),
+            onPressed: () => _goToGames(service),
+            icon: const Icon(Icons.grid_view_rounded),
+          ),
+        ),
+        title: const KzGameLogo(width: 112, height: 52),
         actions: [
           KzCountdown(
             deadline: state.turnDeadline,
@@ -43,16 +68,26 @@ class KzRoundResultScreen extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           if (me?.isHost == true)
-            IconButton(
+            IconButton.filledTonal(
               tooltip: 'Oyunu durdur',
+              style: IconButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: const Color(0xFF9B73D1),
+              ),
               onPressed: service.stopGame,
               icon: const Icon(Icons.stop_circle_outlined),
             ),
-          IconButton(
+          const SizedBox(width: 6),
+          IconButton.filled(
             tooltip: 'Oyundan çık',
+            style: IconButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: const Color(0xFF9B73D1),
+            ),
             onPressed: service.leave,
             icon: const Icon(Icons.logout),
           ),
+          const SizedBox(width: 12),
         ],
       ),
       body: Container(
@@ -102,12 +137,16 @@ class KzRoundResultScreen extends StatelessWidget {
                                 ),
                                 const Text('TOPLAM PUAN'),
                                 const SizedBox(height: 5),
-                                Text(
-                                  '${'♥' * (state.teams.where((item) => item.id == team['teamId']).firstOrNull?.lives ?? 0)}${teamLoss('${team['teamId']}') > 0 ? '  -${teamLoss('${team['teamId']}')} CAN' : ''}',
-                                  style: const TextStyle(
-                                    color: Color(0xFFFFB3BE),
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                _TeamLives(
+                                  lives:
+                                      state.teams
+                                          .where(
+                                            (item) => item.id == team['teamId'],
+                                          )
+                                          .firstOrNull
+                                          ?.lives ??
+                                      0,
+                                  livesLost: teamLoss('${team['teamId']}'),
                                 ),
                               ],
                             ),
@@ -138,18 +177,32 @@ class KzRoundResultScreen extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              '${player.eliminated ? '☠️ ' : ''}${player.name}${player.id == state.bellPlayerId ? ' 🔔' : ''}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '${player.eliminated ? '☠️ ' : ''}${player.name}${player.id == state.bellPlayerId ? ' 🔔' : ''}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (state.gameMode == 'team' &&
+                                    player.teamId != null) ...[
+                                  const SizedBox(width: 8),
+                                  _TeamBadge(teamId: player.teamId!),
+                                ],
+                              ],
                             ),
                           ),
-                          Text(
-                            state.gameMode == 'team'
-                                ? '${player.score ?? 0} puan'
-                                : '${player.score ?? 0} puan  ${'❤️' * player.lives}${loss(player.id) > 0 ? '  -${loss(player.id)} ❤️' : ''}',
+                          _PlayerScoreAndLives(
+                            score: player.score ?? 0,
+                            lives: player.lives,
+                            livesLost: loss(player.id),
+                            showLives: state.gameMode != 'team',
                           ),
                         ],
                       ),
@@ -178,4 +231,103 @@ class KzRoundResultScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _goToGames(KzSocketService service) async {
+    await service.leave();
+    goToGamesPage();
+  }
+}
+
+class _TeamBadge extends StatelessWidget {
+  const _TeamBadge({required this.teamId});
+
+  final String teamId;
+
+  @override
+  Widget build(BuildContext context) {
+    final isBlue = teamId == 'blue';
+    final color = isBlue ? const Color(0xFF4C8DFF) : const Color(0xFFA967D5);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .24),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      child: Text(
+        isBlue ? '🔵 MAVİ' : '🟣 MOR',
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+}
+
+class _TeamLives extends StatelessWidget {
+  const _TeamLives({required this.lives, required this.livesLost});
+
+  final int lives;
+  final int livesLost;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var index = 0; index < lives; index++)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          child: Icon(Icons.favorite, color: Color(0xFFFF4057), size: 18),
+        ),
+      if (livesLost > 0) ...[
+        const SizedBox(width: 7),
+        Text(
+          '-$livesLost CAN',
+          style: const TextStyle(
+            color: Color(0xFFFF4057),
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    ],
+  );
+}
+
+class _PlayerScoreAndLives extends StatelessWidget {
+  const _PlayerScoreAndLives({
+    required this.score,
+    required this.lives,
+    required this.livesLost,
+    required this.showLives,
+  });
+
+  final int score;
+  final int lives;
+  final int livesLost;
+  final bool showLives;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text('$score puan'),
+      if (showLives) ...[
+        const SizedBox(width: 7),
+        for (var index = 0; index < lives; index++)
+          const Padding(
+            padding: EdgeInsets.only(left: 1),
+            child: Icon(Icons.favorite, color: Color(0xFFFF4057), size: 15),
+          ),
+        if (livesLost > 0) ...[
+          const SizedBox(width: 7),
+          Text(
+            '-$livesLost',
+            style: const TextStyle(
+              color: Color(0xFFFF4057),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Icon(Icons.favorite, color: Color(0xFFFF4057), size: 15),
+        ],
+      ],
+    ],
+  );
 }

@@ -16,7 +16,7 @@ class ChanceGameSocketService {
     if (kIsWeb) return Uri.base.origin;
     return const String.fromEnvironment(
       'SERVER_URL',
-      defaultValue: 'http://10.7.9.35:3000',
+      defaultValue: 'http://10.7.9.47:3000',
     );
   }
 

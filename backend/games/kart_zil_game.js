@@ -25,7 +25,6 @@ module.exports = function kartZilGame({ io, redisClient }) {
             { id: 'blue', name: 'Mavi Takım', lives: 5 },
             { id: 'purple', name: 'Mor Takım', lives: 5 }
         ];
-        state.players = shuffle(state.players);
         state.players.forEach((player, index) => { player.teamId = index % 2 === 0 ? 'blue' : 'purple'; });
     }
     const cardConfig = playerCount => {
@@ -349,6 +348,7 @@ module.exports = function kartZilGame({ io, redisClient }) {
                 if (state.players.length !== requiredPlayers || !state.players.every(item => item.ready && item.connected)) return ackError(ack, `${requiredPlayers} bagli oyuncunun tamami hazir olmali.`);
                 if (isTeamMode(state) && requiredPlayers % 2 !== 0) return ackError(ack, 'Takim modu sadece cift oyuncu sayisiyla baslatilabilir.');
                 for (const item of state.players) { item.lives = 3; item.eliminated = false; item.hand = []; }
+                state.players = shuffle(state.players);
                 if (isTeamMode(state)) setupTeams(state); else { state.teams = []; for (const item of state.players) delete item.teamId; }
                 state.roundNumber = 0; state.roundStarterIndex = crypto.randomInt(0, state.players.length); state.winnerId = null; state.winnerTeamId = null; dealRound(state);
                 await save(state); await broadcast(state); schedule(state);

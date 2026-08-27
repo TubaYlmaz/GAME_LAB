@@ -254,6 +254,8 @@ class _RoundTable extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               const Positioned.fill(child: _GameFlyingCards()),
+              if (state.bellPressed)
+                const Positioned.fill(child: _SirenBackdrop()),
               Positioned(
                 left: left,
                 top: top,
@@ -590,29 +592,42 @@ class _RoundTable extends StatelessWidget {
                               ),
                             ),
                           ],
-                          const SizedBox(width: 4),
-                          Text(
-                            state.gameMode == 'team'
-                                ? (player.teamId == 'blue' ? '🔵' : '🟣')
-                                : hearts,
-                            style: TextStyle(
-                              color: active ? Colors.black87 : Colors.redAccent,
-                              fontSize: isMobile ? 8 : 12,
-                              fontWeight: FontWeight.bold,
+                          if (state.gameMode == 'team') ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              player.teamId == 'blue' ? '🔵' : '🟣',
+                              style: TextStyle(
+                                color: active
+                                    ? Colors.black87
+                                    : Colors.redAccent,
+                                fontSize: isMobile ? 8 : 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
-                      if (player.eliminated || state.gameMode != 'team')
+                      if (player.eliminated)
                         Text(
-                          player.eliminated
-                              ? 'ELENDİ 💀'
-                              : (isMe ? 'SEN' : 'OYUNCU'),
+                          'ELENDİ 💀',
                           maxLines: 1,
                           style: TextStyle(
                             color: active ? Colors.black54 : Colors.white60,
                             fontSize: isMobile ? 8 : 10,
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      if (!player.eliminated && state.gameMode != 'team')
+                        Text(
+                          hearts,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: active
+                                ? const Color(0xFFD62839)
+                                : const Color(0xFFFF5B68),
+                            fontSize: isMobile ? 9 : 13,
+                            height: 1,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                     ],
@@ -716,7 +731,7 @@ class _SeatHand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(5, 3, 3, 4),
+    padding: const EdgeInsets.fromLTRB(4, 2, 3, 3),
     decoration: BoxDecoration(
       color: const Color(0xE6333D60),
       borderRadius: BorderRadius.circular(10),
@@ -727,14 +742,14 @@ class _SeatHand extends StatelessWidget {
       children: [
         Text(
           '${player.score ?? 0} PUAN',
-          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
+          style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 1),
         Row(
           children: player.cards
               .map(
                 (card) => Padding(
-                  padding: const EdgeInsets.only(right: 2),
+                  padding: const EdgeInsets.only(right: 1),
                   child: KzPlayingCard(card: card, mini: true),
                 ),
               )
@@ -752,6 +767,58 @@ class _BellAlert extends StatefulWidget {
 
   @override
   State<_BellAlert> createState() => _BellAlertState();
+}
+
+class _SirenBackdrop extends StatefulWidget {
+  const _SirenBackdrop();
+
+  @override
+  State<_SirenBackdrop> createState() => _SirenBackdropState();
+}
+
+class _SirenBackdropState extends State<_SirenBackdrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: AnimatedBuilder(
+      animation: pulse,
+      builder: (context, child) {
+        final strength = .28 + (pulse.value * .38);
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              stops: const [0, .28, .68, 1],
+              colors: [
+                const Color(0xFFFF102A).withValues(alpha: strength),
+                const Color(0xFFFF263D).withValues(alpha: strength * .72),
+                const Color(0xFFE00024).withValues(alpha: strength * .24),
+                Colors.transparent,
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
 }
 
 class _BellAlertState extends State<_BellAlert>

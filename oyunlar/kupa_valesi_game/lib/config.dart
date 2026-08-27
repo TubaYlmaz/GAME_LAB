@@ -12,6 +12,6 @@ class AppConfig {
       // A locally opened Flutter web build has a `file:` URL.
       return 'http://localhost:3000';
     }
-    return 'http://10.7.9.2:3000';
+    return 'http://10.7.9.47:3000';
   }
 }
