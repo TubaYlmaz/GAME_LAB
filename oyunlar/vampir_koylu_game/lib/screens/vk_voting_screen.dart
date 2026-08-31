@@ -552,9 +552,11 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
               margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.12),
+                color: Colors.redAccent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.45)),
+                border: Border.all(
+                  color: Colors.redAccent.withValues(alpha: 0.45),
+                ),
               ),
               child: Text(
                 '$_teamName: ${_teamMembers.join(', ')}\nTakım arkadaşlarının oyları hedeflerin altında görünür.',
@@ -674,9 +676,9 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
                   color: !amIAlive
-                      ? const Color(0xFF2E2E5C).withOpacity(0.3)
+                      ? const Color(0xFF2E2E5C).withValues(alpha: 0.3)
                       : (hasLockedVote
-                            ? const Color(0xFF2E2E5C).withOpacity(0.5)
+                            ? const Color(0xFF2E2E5C).withValues(alpha: 0.5)
                             : (selectedPlayer == null
                                   ? const Color(0xFF2E2E5C)
                                   : const Color(0xFF4CAF50))),

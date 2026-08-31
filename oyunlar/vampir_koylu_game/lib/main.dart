@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/entry_screen.dart';
 import 'services/socket_service.dart';
+import 'widgets/education_center_button.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +36,8 @@ class _VampireVillagerAppState extends State<VampireVillagerApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final isBackgrounded = state == AppLifecycleState.inactive ||
+    final isBackgrounded =
+        state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached;
     SocketService().notifyAppLifecycle(isBackgrounded);
@@ -46,7 +48,21 @@ class _VampireVillagerAppState extends State<VampireVillagerApp>
     return MaterialApp(
       title: 'Vampir Köylü',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
+      builder: (context, child) => Stack(
+        children: [
+          child!,
+          const Positioned(
+            top: 10,
+            left: 10,
+            width: 52,
+            height: 52,
+            child: SafeArea(child: EducationCenterButton()),
+          ),
+        ],
+      ),
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        fontFamilyFallback: const ['NotoEmoji'],
         scaffoldBackgroundColor: const Color(0xFF090919),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF00D2FF),

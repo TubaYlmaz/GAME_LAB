@@ -10,19 +10,14 @@ class KzRulesButton extends StatelessWidget {
       onTap: () => showKzRules(context),
       customBorder: const CircleBorder(),
       child: Container(
-        width: 52,
-        height: 52,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            colors: [Color(0xFF78B9C5), Color(0xFF9B83C6)],
-          ),
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [
-            BoxShadow(color: Color(0x667C83DB), blurRadius: 18),
-          ],
+          color: const Color(0x66171B2E),
+          border: Border.all(color: Colors.white38),
         ),
-        child: const Icon(Icons.info_outline, color: Colors.black, size: 30),
+        child: const Icon(Icons.info_outline, color: Colors.white70, size: 24),
       ),
     ),
   );

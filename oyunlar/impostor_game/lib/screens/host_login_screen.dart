@@ -4,11 +4,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:socket_io_client/socket_io_client.dart'
-    as IO; // 🔌 Soket kütüphanesini ekledik[cite: 4]
+    as io; // 🔌 Soket kütüphanesini ekledik[cite: 4]
 import '../config.dart'; // ⚙️ Config dosyamızı çektik[cite: 4]
 import 'host_screen.dart'; //[cite: 4]
 import 'player_screen.dart'; //[cite: 4]
-import 'dart:html' as html; // 🌐 Tarayıcı yönlendirmesi için ekledik[cite: 4]
 
 class HostLoginScreen extends StatefulWidget {
   const HostLoginScreen({super.key});
@@ -24,7 +23,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
   final TextEditingController _playerNameController = TextEditingController();
   final TextEditingController _roomCodeController = TextEditingController();
 
-  late IO.Socket _socket; // 🔌 Canlı soket değişkenimiz[cite: 4]
+  late io.Socket _socket; // 🔌 Canlı soket değişkenimiz[cite: 4]
   bool _isSocketConnected = false;
 
   String _selectedMod = 'Klasik';
@@ -34,7 +33,6 @@ class _HostLoginScreenState extends State<HostLoginScreen>
     text: '1',
   );
 
-  final List<String> _oyunModlari = ['Klasik', 'Yakin Kelime'];
   List<String> _kategoriler = ['Rastgele'];
   bool _isJsonLoading = true;
 
@@ -48,9 +46,9 @@ class _HostLoginScreenState extends State<HostLoginScreen>
 
   // Canlı soket bağlantısını kuran fonksiyon kanka[cite: 4]
   void _initSocket() {
-    _socket = IO.io(
+    _socket = io.io(
       AppConfig.serverUrl,
-      IO.OptionBuilder()
+      io.OptionBuilder()
           .setTransports([
             'websocket',
           ]) // WebAssembly ve mobil uyumluluğu için önemli[cite: 4]
@@ -83,7 +81,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
       final Map<String, dynamic> data = json.decode(response);
 
       setState(() {
-        _kategoriler = ['Rastgele', ...data.keys.toList()];
+        _kategoriler = ['Rastgele', ...data.keys];
         _isJsonLoading = false;
       });
     } catch (e) {
@@ -121,47 +119,6 @@ class _HostLoginScreenState extends State<HostLoginScreen>
         ),
         child: Stack(
           children: [
-            // ⬅️ ANA SAYFAYA DÖNÜŞ BUTONU (Sol Üstte Sabit)[cite: 4]
-            Positioned(
-              top: 20,
-              left: 20,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  html.window.location.href =
-                      '/'; // Tarayıcıyı kök dizindeki launcher'a yollar[cite: 4]
-                },
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                label: const Text(
-                  'EĞİTİM MERKEZİNE DÖN',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    letterSpacing: 1,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF16162E),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(
-                      color: Color(0xFF00D2FF),
-                      width: 1,
-                    ), // Launcher neon rengi[cite: 4]
-                  ),
-                  elevation: 5,
-                ),
-              ),
-            ),
-
             // 🎯 Orijinal Form Tasarımın (Aynen Korundu)
             Center(
               child: SingleChildScrollView(
@@ -175,7 +132,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                   child: Container(
                     constraints: const BoxConstraints(maxWidth: 450),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F0F1E).withOpacity(0.85),
+                      color: const Color(0xFF0F0F1E).withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: Colors.white10, width: 1),
                       boxShadow: [
@@ -465,7 +422,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
             const SizedBox(height: 16),
 
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               dropdownColor: const Color(0xFF1A1A2E),
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: InputDecoration(

@@ -6,6 +6,7 @@ import '../models/game_state_model.dart';
 import '../models/player_model.dart';
 import '../services/socket_service.dart';
 import '../utils/site_navigation.dart';
+import '../widgets/education_center_button.dart';
 import '../widgets/bell_button.dart';
 import '../widgets/countdown_timer.dart';
 import '../widgets/game_logo.dart';
@@ -48,16 +49,7 @@ class KzGameScreen extends StatelessWidget {
         ),
         leading: Padding(
           padding: const EdgeInsets.fromLTRB(7, 9, 3, 9),
-          child: IconButton.filledTonal(
-            tooltip: 'Oyunlara dön',
-            style: IconButton.styleFrom(
-              foregroundColor: const Color(0xFF9CE5E3),
-              backgroundColor: const Color(0x334EC7C4),
-              side: const BorderSide(color: Color(0x9965C6C4)),
-            ),
-            onPressed: () => _goToGames(service),
-            icon: const Icon(Icons.grid_view_rounded),
-          ),
+          child: KzEducationCenterButton(onPressed: () => _goToGames(service)),
         ),
         title: KzGameLogo(
           width: isMobile ? 90 : 112,

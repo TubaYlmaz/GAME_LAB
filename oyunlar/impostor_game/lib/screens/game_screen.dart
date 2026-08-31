@@ -143,7 +143,7 @@ class _GameScreenState extends State<GameScreen> {
                   child: Container(
                     height: 250,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF181832).withOpacity(0.9),
+                      color: const Color(0xFF181832).withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         // 🎯 DÜZELTME: Kart açıldığında İmpostor için kırmızı çerçeve yanmıyor,

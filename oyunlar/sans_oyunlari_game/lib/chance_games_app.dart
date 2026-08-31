@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/chance_game_screen.dart';
+import 'widgets/education_center_button.dart';
 
 class ChanceGamesApp extends StatelessWidget {
   const ChanceGamesApp({super.key});
@@ -10,6 +11,18 @@ class ChanceGamesApp extends StatelessWidget {
     return MaterialApp(
       title: '\u015eans Oyunlar\u0131',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => Stack(
+        children: [
+          child!,
+          const Positioned(
+            top: 10,
+            left: 10,
+            width: 52,
+            height: 52,
+            child: SafeArea(child: EducationCenterButton()),
+          ),
+        ],
+      ),
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,

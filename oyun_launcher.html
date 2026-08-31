@@ -66,6 +66,7 @@
             background: #16162E;
             border: 1px solid #2E2E5C;
             border-radius: 20px;
+            min-height: 348px;
             padding: 30px 20px;
             text-align: center;
             display: flex;
@@ -76,10 +77,9 @@
             overflow: hidden;
         }
 
-        /* Square chance-game card: split action area + play button. */
+        /* Keep the custom chance-game artwork at the same size as other cards. */
         .chance-game-card {
-            aspect-ratio: 1 / 1;
-            min-height: 390px;
+            aspect-ratio: auto;
             padding: 0;
             display: block;
             border-color: #4B4679;
@@ -96,13 +96,17 @@
             content: "";
             position: absolute;
             z-index: 1;
-            width: 150%;
-            height: 3px;
-            top: 50%;
-            left: -25%;
-            transform: rotate(-45deg);
-            background: linear-gradient(90deg, #8F6BFF, #44B7FF, #FF754B);
+            inset: 0;
+            background: linear-gradient(
+                to bottom right,
+                transparent 49.55%,
+                #8F6BFF 49.75%,
+                #44B7FF 50%,
+                #FF754B 50.25%,
+                transparent 50.45%
+            );
             box-shadow: 0 0 14px rgba(143, 107, 255, .7);
+            pointer-events: none;
         }
 
         .chance-side {
@@ -119,8 +123,8 @@
 
         .chance-side i { font-size: 2.8rem; }
         .chance-coin {
-            top: 28px;
-            left: 28px;
+            top: 30px;
+            left: 30px;
             align-items: flex-start;
             background: linear-gradient(135deg, #A575FF, #35BAFF);
             -webkit-background-clip: text;
@@ -128,8 +132,8 @@
         }
 
         .chance-dice {
-            right: 28px;
-            bottom: 24px;
+            right: 30px;
+            bottom: 30px;
             align-items: flex-end;
             text-align: right;
             background: linear-gradient(135deg, #FF4D7D, #FF9E34);

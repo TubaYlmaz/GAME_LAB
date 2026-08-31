@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'services/jh_socket_service.dart';
 import 'screens/jh_entry_screen.dart';
+import 'widgets/education_center_button.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,19 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Kupa Valesi',
+      debugShowCheckedModeBanner: false,
+      builder: (context, child) => Stack(
+        children: [
+          child!,
+          const Positioned(
+            top: 10,
+            left: 10,
+            width: 52,
+            height: 52,
+            child: SafeArea(child: EducationCenterButton()),
+          ),
+        ],
+      ),
       theme: ThemeData(
         // This is the theme of your application.
         brightness: Brightness.dark,

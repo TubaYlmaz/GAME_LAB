@@ -97,9 +97,13 @@ if (fs.existsSync(oyunlarDizini)) {
             }
             dinamikAktifOyunlar.push({
                 id: oyunAdı,
-                isim: oyunAd\u0131 === 'kart_zil_game'
-                    ? 'Kart & Zil'
-                    : oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+                isim: {
+                    impostor_game: 'Impostor Game',
+                    kart_zil_game: 'Kart & Zil',
+                    kupa_valesi_game: 'Kupa Valesi',
+                    sans_oyunlari_game: 'Şans Oyunları',
+                    vampir_koylu_game: 'Vampir Köylü'
+                }[oyunAdı] || oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                 aciklama: aciklama,
                 alt_yol: `/oyunlar/${oyunAdı}/web/index.html`,
                 ikon_class: ikon

@@ -58,8 +58,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final SocketService _socketService = SocketService();
   final TransformationController _transformationController =
       TransformationController();
-  final StreamController<NightActionSelections>
-  _nightActionChoicesController =
+  final StreamController<NightActionSelections> _nightActionChoicesController =
       StreamController<NightActionSelections>.broadcast();
 
   @override
@@ -328,7 +327,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     // 🏆 OYUN BİTTİ DİNLENİCİSİ (EntryScreen hatasını tamamen engelleyen güvenli yapı)
     // 🏆 OYUN BİTTİ DİNLENİCİSİ
     _socketService.socket?.on('vk_game_over', (data) {
-      print("🔥🔥🔥 VK_GAME_OVER SOKETTEN ALINDI!");
+      debugPrint("🔥🔥🔥 VK_GAME_OVER SOKETTEN ALINDI!");
       if (!mounted || _isGameOverDialogShowing) return;
 
       _isGameOverDialogShowing = true;
@@ -694,7 +693,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final double yOffset = (GameMap.worldSize.height - screenSize.height) / 2;
 
     _transformationController.value = Matrix4.identity()
-      ..translate(-xOffset, -yOffset);
+      ..translateByDouble(-xOffset, -yOffset, 0, 1);
   }
 
   @override
@@ -879,11 +878,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       barrierDismissible: false,
       // 🌟 BU SATIR ÇOK ÖNEMLİ: Arkadaki ekranın kararmasını (barrierColor)
       // yarı şeffaf yaparak arkadaki haritanın görünmesini sağlıyoruz.
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) {
         return AlertDialog(
           // 🌟 Arka plan rengini hafif şeffaf yaparak haritanın bütünlüğünü bozmuyoruz
-          backgroundColor: const Color(0xFF0D0D2A).withOpacity(0.92),
+          backgroundColor: const Color(0xFF0D0D2A).withValues(alpha: 0.92),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
             side: BorderSide(

@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../screens/entry_screen.dart';
 import '../player_model.dart';
@@ -30,14 +29,10 @@ Offset placeHouseInAnnulus({
   // r = sqrt(Rmin² + U * (Rmax² - Rmin²))
   final u = random.nextDouble();
   final radius = sqrt(
-    minRadius * minRadius +
-        u * (maxRadius * maxRadius - minRadius * minRadius),
+    minRadius * minRadius + u * (maxRadius * maxRadius - minRadius * minRadius),
   );
 
-  return Offset(
-    cx + radius * cos(angle),
-    cy + radius * sin(angle),
-  );
+  return Offset(cx + radius * cos(angle), cy + radius * sin(angle));
 }
 
 class GameMap extends StatelessWidget {
@@ -62,7 +57,7 @@ class GameMap extends StatelessWidget {
   Widget build(BuildContext context) {
     return InteractiveViewer(
       transformationController: transformationController,
-      constrained: false, 
+      constrained: false,
       minScale: 0.6,
       maxScale: 2.5,
       boundaryMargin: EdgeInsets.zero,
@@ -77,15 +72,18 @@ class GameMap extends StatelessWidget {
               fit: BoxFit.cover,
               width: worldSize.width,
               height: worldSize.height,
-              errorBuilder: (_, __, ___) => Container(color: const Color(0xFF13132B)),
+              errorBuilder: (_, _, _) =>
+                  Container(color: const Color(0xFF13132B)),
             ),
-            
+
             AnimatedOpacity(
               opacity: isNight ? 0.45 : 0.0,
               duration: const Duration(milliseconds: 800),
-              child: Container(color: const Color(0xFF07071F).withOpacity(0.8)),
+              child: Container(
+                color: const Color(0xFF07071F).withValues(alpha: 0.8),
+              ),
             ),
-            
+
             _buildGameCanvas(),
           ],
         ),
@@ -96,7 +94,8 @@ class GameMap extends StatelessWidget {
   Widget _buildGameCanvas() {
     final cx = worldSize.width / 2;
     final cy = worldSize.height / 2 + 28;
-    final inSquare = phase == GamePhase.dayDiscussion || phase == GamePhase.voting;
+    final inSquare =
+        phase == GamePhase.dayDiscussion || phase == GamePhase.voting;
 
     return Stack(
       children: [
@@ -161,11 +160,13 @@ class GameMap extends StatelessWidget {
           left: hx - (houseWidth / 2),
           top: hy - (houseHeight / 2),
           child: Image.asset(
-            player.isAlive ? 'assets/images/ev_aktif.png' : 'assets/images/ev_yikik.png',
+            player.isAlive
+                ? 'assets/images/ev_aktif.png'
+                : 'assets/images/ev_yikik.png',
             width: houseWidth,
             height: houseHeight,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => Icon(
+            errorBuilder: (_, _, _) => Icon(
               player.isAlive ? Icons.home : Icons.gite_outlined,
               size: 50,
               color: player.isAlive ? player.avatarColor : Colors.grey,
@@ -182,11 +183,16 @@ class GameMap extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A0A22).withOpacity(0.85),
+                        color: const Color(0xFF0A0A22).withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: player.avatarColor.withOpacity(0.5)),
+                        border: Border.all(
+                          color: player.avatarColor.withValues(alpha: 0.5),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -216,7 +222,7 @@ class GameMap extends StatelessWidget {
                       width: 32,
                       height: 36,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Icon(
+                      errorBuilder: (_, _, _) => Icon(
                         Icons.person,
                         size: 24,
                         color: player.avatarColor,

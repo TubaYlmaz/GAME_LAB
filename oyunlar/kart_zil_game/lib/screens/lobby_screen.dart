@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/socket_service.dart';
 import '../utils/site_navigation.dart';
+import '../widgets/education_center_button.dart';
 import '../widgets/game_logo.dart';
 import '../widgets/player_status.dart';
 
@@ -32,18 +33,11 @@ class KzLobbyScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(7, 9, 4, 9),
           child: Row(
             children: [
-              IconButton.filledTonal(
-                tooltip: 'Oyunlara dön',
-                style: IconButton.styleFrom(
-                  foregroundColor: const Color(0xFF9CE5E3),
-                  backgroundColor: const Color(0x334EC7C4),
-                  side: const BorderSide(color: Color(0x9965C6C4)),
-                ),
+              KzEducationCenterButton(
                 onPressed: () async {
                   await service.leave();
                   goToGamesPage();
                 },
-                icon: const Icon(Icons.grid_view_rounded),
               ),
               const SizedBox(width: 8),
               Expanded(

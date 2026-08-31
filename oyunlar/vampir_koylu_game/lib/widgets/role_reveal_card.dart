@@ -125,12 +125,12 @@ class _RoleRevealCardState extends State<RoleRevealCard>
               color: const Color(0xFF0D0D2A),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: widget.roleColor.withOpacity(0.6),
+                color: widget.roleColor.withValues(alpha: 0.6),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: widget.roleColor.withOpacity(0.2),
+                  color: widget.roleColor.withValues(alpha: 0.2),
                   blurRadius: 10,
                   spreadRadius: 1,
                 ),
@@ -204,7 +204,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
         border: Border.all(color: widget.roleColor, width: 2),
         boxShadow: [
           BoxShadow(
-            color: widget.roleColor.withOpacity(0.4),
+            color: widget.roleColor.withValues(alpha: 0.4),
             blurRadius: 20,
             spreadRadius: 3,
           ),
@@ -216,7 +216,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
           Text(
             'KİMLİĞİN',
             style: TextStyle(
-              color: widget.roleColor.withOpacity(0.8),
+              color: widget.roleColor.withValues(alpha: 0.8),
               fontSize: 12,
               fontWeight: FontWeight.bold,
               letterSpacing: 2,
@@ -233,7 +233,7 @@ class _RoleRevealCardState extends State<RoleRevealCard>
             ),
           ),
           const SizedBox(height: 12),
-          Divider(color: widget.roleColor.withOpacity(0.3)),
+          Divider(color: widget.roleColor.withValues(alpha: 0.3)),
           const SizedBox(height: 12),
           Text(
             widget.roleDescription,
@@ -268,8 +268,10 @@ class _RoleRevealCardState extends State<RoleRevealCard>
                     horizontal: 8,
                     vertical: -2,
                   ),
-                  backgroundColor: widget.roleColor.withOpacity(0.2),
-                  side: BorderSide(color: widget.roleColor.withOpacity(0.5)),
+                  backgroundColor: widget.roleColor.withValues(alpha: 0.2),
+                  side: BorderSide(
+                    color: widget.roleColor.withValues(alpha: 0.5),
+                  ),
                   label: Text(
                     mate,
                     style: const TextStyle(

@@ -172,11 +172,11 @@ class _EntryScreenState extends State<EntryScreen>
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
-            errorBuilder: (_, __, ___) =>
+            errorBuilder: (_, _, _) =>
                 Container(color: const Color(0xFF13132B)),
           ),
           const _StarField(),
-          Container(color: const Color(0xFF0D0D2A).withOpacity(0.75)),
+          Container(color: const Color(0xFF0D0D2A).withValues(alpha: 0.75)),
 
           Center(
             child: SingleChildScrollView(
@@ -201,7 +201,7 @@ class _EntryScreenState extends State<EntryScreen>
                   Text(
                     'Karanlık çöküyor... Köyünü kur veya savaşa katıl!',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 13,
                       letterSpacing: 1.2,
                     ),
@@ -211,10 +211,10 @@ class _EntryScreenState extends State<EntryScreen>
                   Container(
                     width: min(size.width, 520),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A3E).withOpacity(0.9),
+                      color: const Color(0xFF1A1A3E).withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFF00D2FF).withOpacity(0.4),
+                        color: const Color(0xFF00D2FF).withValues(alpha: 0.4),
                         width: 1.5,
                       ),
                     ),
@@ -225,7 +225,9 @@ class _EntryScreenState extends State<EntryScreen>
                           margin: const EdgeInsets.all(8),
                           height: 48,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00D2FF).withOpacity(0.05),
+                            color: const Color(
+                              0xFF00D2FF,
+                            ).withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: TabBar(
@@ -233,7 +235,9 @@ class _EntryScreenState extends State<EntryScreen>
                             indicatorSize: TabBarIndicatorSize.tab,
                             indicator: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
-                              color: const Color(0xFF00D2FF).withOpacity(0.25),
+                              color: const Color(
+                                0xFF00D2FF,
+                              ).withValues(alpha: 0.25),
                               border: Border.all(
                                 color: const Color(0xFF00D2FF),
                                 width: 1.5,
@@ -466,7 +470,7 @@ class _EntryScreenState extends State<EntryScreen>
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: const Color(0xFF00D2FF).withOpacity(0.3),
+            color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -499,7 +503,7 @@ class _EntryScreenState extends State<EntryScreen>
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     color: selected == Gender.male
-                        ? const Color(0xFF00D2FF).withOpacity(0.2)
+                        ? const Color(0xFF00D2FF).withValues(alpha: 0.2)
                         : const Color(0xFF0D0D2A),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
@@ -532,7 +536,7 @@ class _EntryScreenState extends State<EntryScreen>
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     color: selected == Gender.female
-                        ? const Color(0xFFEC407A).withOpacity(0.2)
+                        ? const Color(0xFFEC407A).withValues(alpha: 0.2)
                         : const Color(0xFF0D0D2A),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
@@ -581,7 +585,9 @@ class _StarPainter extends CustomPainter {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;
       final r = rng.nextDouble() * 1.0 + 0.3;
-      paint.color = Colors.white.withOpacity(rng.nextDouble() * 0.4 + 0.1);
+      paint.color = Colors.white.withValues(
+        alpha: rng.nextDouble() * 0.4 + 0.1,
+      );
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
@@ -603,13 +609,12 @@ class _NeonButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onPressed,
-    this.enabled = true,
     this.large = false,
-  });
+  }) : enabled = true;
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = enabled ? color : color.withOpacity(0.25);
+    final effectiveColor = enabled ? color : color.withValues(alpha: 0.25);
     return GestureDetector(
       onTap: enabled ? onPressed : null,
       child: AnimatedContainer(
@@ -619,13 +624,13 @@ class _NeonButton extends StatelessWidget {
           vertical: large ? 14 : 10,
         ),
         decoration: BoxDecoration(
-          color: effectiveColor.withOpacity(enabled ? 0.12 : 0.05),
+          color: effectiveColor.withValues(alpha: enabled ? 0.12 : 0.05),
           borderRadius: BorderRadius.circular(large ? 14 : 10),
           border: Border.all(color: effectiveColor, width: large ? 1.5 : 1),
           boxShadow: enabled
               ? [
                   BoxShadow(
-                    color: effectiveColor.withOpacity(0.35),
+                    color: effectiveColor.withValues(alpha: 0.35),
                     blurRadius: 18,
                     spreadRadius: 1,
                   ),

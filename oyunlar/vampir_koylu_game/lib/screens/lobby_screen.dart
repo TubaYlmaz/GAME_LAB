@@ -136,7 +136,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
             .map(
               (player) => {
                 ...player,
-                'isHost': player['name']?.toString().trim().toLowerCase() == newHost,
+                'isHost':
+                    player['name']?.toString().trim().toLowerCase() == newHost,
               },
             )
             .toList();
@@ -154,7 +155,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
             .map(
               (player) => {
                 ...player,
-                'isHost': player['name']?.toString().trim().toLowerCase() == host,
+                'isHost':
+                    player['name']?.toString().trim().toLowerCase() == host,
               },
             )
             .toList();
@@ -164,11 +166,13 @@ class _LobbyScreenState extends State<LobbyScreen> {
     _socketService.socket?.on('vk_room_config_updated', (data) {
       if (!mounted || data is! Map) return;
       setState(() {
-        _vampireCount = int.tryParse('${data['vampireCount']}') ?? _vampireCount;
+        _vampireCount =
+            int.tryParse('${data['vampireCount']}') ?? _vampireCount;
         _doctorCount = int.tryParse('${data['doctorCount']}') ?? _doctorCount;
         _serialKillerCount =
             int.tryParse('${data['serialKillerCount']}') ?? _serialKillerCount;
-        _villagerCount = int.tryParse('${data['villagerCount']}') ?? _villagerCount;
+        _villagerCount =
+            int.tryParse('${data['villagerCount']}') ?? _villagerCount;
       });
     });
 
@@ -176,7 +180,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text((data is Map ? data['message'] : null) ?? 'Ayarlar güncellenemedi.'),
+          content: Text(
+            (data is Map ? data['message'] : null) ?? 'Ayarlar güncellenemedi.',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -214,7 +220,9 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
           if (myData != null) {
             final bool isVamp = myData['isVampire'] ?? false;
-            final String myRole = (myData['role'] ?? '').toString().toLowerCase();
+            final String myRole = (myData['role'] ?? '')
+                .toString()
+                .toLowerCase();
             String? teamRole;
             String teamLabel = 'EKİP ARKADAŞLARIN:';
             if (isVamp || myRole.contains('vampir')) {
@@ -230,20 +238,27 @@ class _LobbyScreenState extends State<LobbyScreen> {
             final List<String> teamMates = teamRole == null
                 ? []
                 : serverPlayers
-                    .where((player) {
-                      final role = (player['role'] ?? '')
-                          .toString()
-                          .toLowerCase();
-                      final name = player['name']?.toString().trim().toLowerCase();
-                      if (name == widget.playerName.trim().toLowerCase()) {
-                        return false;
-                      }
-                      if (teamRole == 'vampir') return role.contains('vampir');
-                      if (teamRole == 'doktor') return role.contains('doktor');
-                      return role.contains('seri') || role.contains('katil');
-                    })
-                    .map((player) => player['name'].toString())
-                    .toList();
+                      .where((player) {
+                        final role = (player['role'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                        final name = player['name']
+                            ?.toString()
+                            .trim()
+                            .toLowerCase();
+                        if (name == widget.playerName.trim().toLowerCase()) {
+                          return false;
+                        }
+                        if (teamRole == 'vampir') {
+                          return role.contains('vampir');
+                        }
+                        if (teamRole == 'doktor') {
+                          return role.contains('doktor');
+                        }
+                        return role.contains('seri') || role.contains('katil');
+                      })
+                      .map((player) => player['name'].toString())
+                      .toList();
             setState(() {
               _isHost = myData['isHost'] == true;
               _myAssignedRole =
@@ -357,8 +372,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     if (_isHost) {
       if (_isStartRequestInFlight) return;
 
-      final bool canStart =
-          _isEveryoneBackToLobby && _players.isNotEmpty;
+      final bool canStart = _isEveryoneBackToLobby && _players.isNotEmpty;
 
       if (!canStart) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -530,11 +544,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
-            errorBuilder: (_, __, ___) =>
+            errorBuilder: (_, _, _) =>
                 Container(color: const Color(0xFF13132B)),
           ),
           const _StarField(),
-          Container(color: const Color(0xFF0D0D2A).withOpacity(0.75)),
+          Container(color: const Color(0xFF0D0D2A).withValues(alpha: 0.75)),
 
           if (!_isGameStarting)
             SafeArea(
@@ -563,7 +577,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 color: Color(0xFF00D2FF),
                               ),
                               tooltip: 'Yeni oyun ayarları',
-                              onPressed: () => Scaffold.of(drawerContext).openEndDrawer(),
+                              onPressed: () =>
+                                  Scaffold.of(drawerContext).openEndDrawer(),
                             ),
                           ),
                       ],
@@ -584,10 +599,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                               horizontal: 16,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A1A3E).withOpacity(0.9),
+                              color: const Color(
+                                0xFF1A1A3E,
+                              ).withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFF00D2FF).withOpacity(0.4),
+                                color: const Color(
+                                  0xFF00D2FF,
+                                ).withValues(alpha: 0.4),
                                 width: 1.5,
                               ),
                             ),
@@ -596,7 +615,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 Text(
                                   'KÖYLÜLER İÇİN ODA KODU',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.6),
+                                    color: Colors.white.withValues(alpha: 0.6),
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -634,12 +653,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 decoration: BoxDecoration(
                                   color: const Color(
                                     0xFF00D2FF,
-                                  ).withOpacity(0.15),
+                                  ).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: const Color(
                                       0xFF00D2FF,
-                                    ).withOpacity(0.5),
+                                    ).withValues(alpha: 0.5),
                                   ),
                                 ),
                                 child: Text(
@@ -685,16 +704,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 decoration: BoxDecoration(
                                   color: const Color(
                                     0xFF1A1A3E,
-                                  ).withOpacity(0.85),
+                                  ).withValues(alpha: 0.85),
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: isReturned
                                         ? const Color(
                                             0xFF00FF88,
-                                          ).withOpacity(0.4)
+                                          ).withValues(alpha: 0.4)
                                         : const Color(
                                             0xFFFFB300,
-                                          ).withOpacity(0.3),
+                                          ).withValues(alpha: 0.3),
                                   ),
                                 ),
                                 child: Row(
@@ -735,7 +754,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                         decoration: BoxDecoration(
                                           color: const Color(
                                             0xFF00D2FF,
-                                          ).withOpacity(0.2),
+                                          ).withValues(alpha: 0.2),
                                           borderRadius: BorderRadius.circular(
                                             6,
                                           ),
@@ -859,7 +878,9 @@ class _StarPainter extends CustomPainter {
       final x = rng.nextDouble() * size.width;
       final y = rng.nextDouble() * size.height;
       final r = rng.nextDouble() * 1.0 + 0.3;
-      paint.color = Colors.white.withOpacity(rng.nextDouble() * 0.4 + 0.1);
+      paint.color = Colors.white.withValues(
+        alpha: rng.nextDouble() * 0.4 + 0.1,
+      );
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
@@ -887,14 +908,14 @@ class _NeonButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = enabled ? color : color.withOpacity(0.25);
+    final effectiveColor = enabled ? color : color.withValues(alpha: 0.25);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: enabled ? onPressed : null,
         child: Ink(
           decoration: BoxDecoration(
-            color: effectiveColor.withOpacity(enabled ? 0.18 : 0.05),
+            color: effectiveColor.withValues(alpha: enabled ? 0.18 : 0.05),
             borderRadius: BorderRadius.circular(large ? 14 : 10),
             border: Border.all(color: effectiveColor, width: large ? 1.5 : 1),
           ),

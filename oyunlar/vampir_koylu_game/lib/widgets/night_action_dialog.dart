@@ -13,14 +13,14 @@ class NightActionDialog extends StatefulWidget {
   final Stream<NightActionSelections>? roleVotesStream;
 
   const NightActionDialog({
-    Key? key,
+    super.key,
     required this.myRole,
     required this.alivePlayers,
     required this.onActionSubmitted,
     required this.onTargetSelected,
     this.errorStream,
     this.roleVotesStream,
-  }) : super(key: key);
+  });
 
   @override
   State<NightActionDialog> createState() => _NightActionDialogState();
@@ -58,6 +58,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
   bool get isVillager {
     return !isVampire && !isDoctor && !isSerialKiller;
   }
+
   String get _selectionKey {
     if (isVampire) return 'vampireSelections';
     if (isDoctor) return 'doctorSelections';
@@ -68,7 +69,6 @@ class _NightActionDialogState extends State<NightActionDialog> {
   Map<String, List<String>> get _roleVotesMap {
     return roleVotesByRole[_selectionKey] ?? const <String, List<String>>{};
   }
-
 
   @override
   void initState() {
@@ -150,8 +150,8 @@ class _NightActionDialogState extends State<NightActionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false,
+    return PopScope(
+      canPop: false,
       child: Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -161,12 +161,12 @@ class _NightActionDialogState extends State<NightActionDialog> {
             color: const Color(0xFF161528),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: Colors.redAccent.withOpacity(0.8),
+              color: Colors.redAccent.withValues(alpha: 0.8),
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.redAccent.withOpacity(0.2),
+                color: Colors.redAccent.withValues(alpha: 0.2),
                 blurRadius: 15,
                 spreadRadius: 2,
               ),
@@ -342,7 +342,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       );
     }
@@ -370,7 +370,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
                   margin: const EdgeInsets.symmetric(vertical: 3),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.redAccent.withOpacity(0.25)
+                        ? Colors.redAccent.withValues(alpha: 0.25)
                         : Colors.black26,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(

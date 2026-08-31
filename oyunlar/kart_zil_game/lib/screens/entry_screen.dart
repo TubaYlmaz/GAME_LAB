@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/socket_service.dart';
 import '../utils/site_navigation.dart';
+import '../widgets/education_center_button.dart';
 
 class KzEntryScreen extends StatefulWidget {
   const KzEntryScreen({super.key});
@@ -67,16 +68,7 @@ class _KzEntryScreenState extends State<KzEntryScreen>
             Positioned(
               top: MediaQuery.paddingOf(context).top + 12,
               left: 14,
-              child: IconButton.filledTonal(
-                tooltip: 'Oyunlara dön',
-                style: IconButton.styleFrom(
-                  foregroundColor: const Color(0xFFBCEAE7),
-                  backgroundColor: const Color(0xCC34456F),
-                  side: const BorderSide(color: Color(0xFF78D8D3)),
-                ),
-                onPressed: goToGamesPage,
-                icon: const Icon(Icons.grid_view_rounded, size: 20),
-              ),
+              child: KzEducationCenterButton(onPressed: goToGamesPage),
             ),
             FadeTransition(
               opacity: CurvedAnimation(parent: intro, curve: Curves.easeOut),
@@ -136,12 +128,9 @@ class _KzEntryScreenState extends State<KzEntryScreen>
                                 ),
                               ),
                           child: mode == null
-                              ? const Padding(
+                              ? const SizedBox(
                                   key: ValueKey('hint'),
-                                  padding: EdgeInsets.all(20),
-                                  child: Text(
-                                    'Devam etmek için bir seçenek seç',
-                                  ),
+                                  height: 16,
                                 )
                               : _ActionPanel(
                                   key: ValueKey(mode),
@@ -536,7 +525,7 @@ class _TableBackdrop extends StatelessWidget {
     child: Transform.rotate(
       angle: angle + (movement / 180),
       child: Opacity(
-        opacity: .24,
+        opacity: .13,
         child: Container(
           width: 92,
           height: 132,

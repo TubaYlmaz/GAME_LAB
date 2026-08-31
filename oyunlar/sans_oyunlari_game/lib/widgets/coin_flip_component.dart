@@ -76,8 +76,10 @@ class _CoinFlipComponentState extends State<CoinFlipComponent>
             final isBackShowing = cosVal < 0;
             final visibleSide = _isFlipping
                 ? (isBackShowing
-                    ? (_startSide == CoinSide.heads ? CoinSide.tails : CoinSide.heads)
-                    : _startSide)
+                      ? (_startSide == CoinSide.heads
+                            ? CoinSide.tails
+                            : CoinSide.heads)
+                      : _startSide)
                 : _side;
 
             // Vertical translation for jump arc
@@ -100,7 +102,9 @@ class _CoinFlipComponentState extends State<CoinFlipComponent>
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: shadowOpacity),
+                            color: Colors.black.withValues(
+                              alpha: shadowOpacity,
+                            ),
                             blurRadius: 14,
                             spreadRadius: 2,
                           ),
@@ -164,7 +168,10 @@ class _CoinFace extends StatelessWidget {
               ? const [Color(0xFFB47CFF), Color(0xFF2C8CFF)]
               : const [Color(0xFFFFD05B), Color(0xFFFF523B)],
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: .75), width: 4.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: .75),
+          width: 4.5,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x33000000),

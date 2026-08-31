@@ -72,9 +72,9 @@ class _DiceRollComponentState extends State<DiceRollComponent>
           onSelectionChanged: _isRolling
               ? null
               : (selection) => setState(() {
-                    _diceCount = selection.first;
-                    _values = List<int>.filled(_diceCount, 1);
-                  }),
+                  _diceCount = selection.first;
+                  _values = List<int>.filled(_diceCount, 1);
+                }),
         ),
         const SizedBox(height: 16),
         SizedBox(
@@ -169,10 +169,14 @@ class _DiceCube3D extends StatelessWidget {
         : 0.0;
 
     final jumpHeight = isRolling ? math.sin(progress * math.pi) * 35.0 : 0.0;
-    final wobbleX = isRolling ? math.sin(progress * math.pi * 5 + index) * 18.0 : 0.0;
+    final wobbleX = isRolling
+        ? math.sin(progress * math.pi * 5 + index) * 18.0
+        : 0.0;
 
-    final shadowScale = 1.0 - (isRolling ? math.sin(progress * math.pi) * 0.4 : 0.0);
-    final shadowOpacity = 0.4 - (isRolling ? math.sin(progress * math.pi) * 0.25 : 0.0);
+    final shadowScale =
+        1.0 - (isRolling ? math.sin(progress * math.pi) * 0.4 : 0.0);
+    final shadowOpacity =
+        0.4 - (isRolling ? math.sin(progress * math.pi) * 0.25 : 0.0);
 
     // Compute depth z' for each face to depth-sort in the stack
     final cosX = math.cos(rotX);
@@ -181,12 +185,47 @@ class _DiceCube3D extends StatelessWidget {
     final sinY = math.sin(rotY);
 
     final faceDepths = <_FaceData>[
-      _FaceData(val: 1, depth: halfSize * cosY * cosX, transform: Matrix4.identity()..translate(0.0, 0.0, halfSize)),
-      _FaceData(val: 6, depth: -halfSize * cosY * cosX, transform: Matrix4.identity()..translate(0.0, 0.0, -halfSize)..rotateY(math.pi)),
-      _FaceData(val: 2, depth: halfSize * sinX, transform: Matrix4.identity()..translate(0.0, -halfSize, 0.0)..rotateX(-math.pi / 2)),
-      _FaceData(val: 5, depth: -halfSize * sinX, transform: Matrix4.identity()..translate(0.0, halfSize, 0.0)..rotateX(math.pi / 2)),
-      _FaceData(val: 3, depth: halfSize * sinY * cosX, transform: Matrix4.identity()..translate(halfSize, 0.0, 0.0)..rotateY(math.pi / 2)),
-      _FaceData(val: 4, depth: -halfSize * sinY * cosX, transform: Matrix4.identity()..translate(-halfSize, 0.0, 0.0)..rotateY(-math.pi / 2)),
+      _FaceData(
+        val: 1,
+        depth: halfSize * cosY * cosX,
+        transform: Matrix4.identity()
+          ..translateByDouble(0.0, 0.0, halfSize, 1.0),
+      ),
+      _FaceData(
+        val: 6,
+        depth: -halfSize * cosY * cosX,
+        transform: Matrix4.identity()
+          ..translateByDouble(0.0, 0.0, -halfSize, 1.0)
+          ..rotateY(math.pi),
+      ),
+      _FaceData(
+        val: 2,
+        depth: halfSize * sinX,
+        transform: Matrix4.identity()
+          ..translateByDouble(0.0, -halfSize, 0.0, 1.0)
+          ..rotateX(-math.pi / 2),
+      ),
+      _FaceData(
+        val: 5,
+        depth: -halfSize * sinX,
+        transform: Matrix4.identity()
+          ..translateByDouble(0.0, halfSize, 0.0, 1.0)
+          ..rotateX(math.pi / 2),
+      ),
+      _FaceData(
+        val: 3,
+        depth: halfSize * sinY * cosX,
+        transform: Matrix4.identity()
+          ..translateByDouble(halfSize, 0.0, 0.0, 1.0)
+          ..rotateY(math.pi / 2),
+      ),
+      _FaceData(
+        val: 4,
+        depth: -halfSize * sinY * cosX,
+        transform: Matrix4.identity()
+          ..translateByDouble(-halfSize, 0.0, 0.0, 1.0)
+          ..rotateY(-math.pi / 2),
+      ),
     ]..sort((a, b) => a.depth.compareTo(b.depth));
 
     return Stack(
@@ -283,10 +322,7 @@ class _DiceFaceView extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFF4ECE6),
-          ],
+          colors: [Color(0xFFFFFFFF), Color(0xFFF4ECE6)],
         ),
         border: Border.all(color: const Color(0xFFD6C7BB), width: 2.5),
         boxShadow: const [
@@ -297,9 +333,7 @@ class _DiceFaceView extends StatelessWidget {
           ),
         ],
       ),
-      child: CustomPaint(
-        painter: _DicePipPainter(value: value),
-      ),
+      child: CustomPaint(painter: _DicePipPainter(value: value)),
     );
   }
 }

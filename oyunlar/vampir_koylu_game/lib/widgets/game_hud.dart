@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../screens/entry_screen.dart';
 import '../player_model.dart';
 
 class GameHud extends StatelessWidget {
@@ -74,15 +73,15 @@ class GameHud extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0A0D2A).withOpacity(0.92),
+                    color: const Color(0xFF0A0D2A).withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(35),
                     border: Border.all(
-                      color: const Color(0xFF00D2FF).withOpacity(0.4),
+                      color: const Color(0xFF00D2FF).withValues(alpha: 0.4),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 15,
                         offset: const Offset(0, 5),
                       ),
@@ -171,15 +170,15 @@ class GameHud extends StatelessWidget {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF150808).withOpacity(0.92),
+                    color: const Color(0xFF150808).withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(25),
                     border: Border.all(
-                      color: Colors.redAccent.withOpacity(0.8),
+                      color: Colors.redAccent.withValues(alpha: 0.8),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.redAccent.withOpacity(0.2),
+                        color: Colors.redAccent.withValues(alpha: 0.2),
                         blurRadius: 15,
                         spreadRadius: 2,
                       ),
