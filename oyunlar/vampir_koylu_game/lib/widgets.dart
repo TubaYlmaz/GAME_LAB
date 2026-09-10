@@ -119,16 +119,16 @@ class TopBar extends StatelessWidget {
       GamePhase.voting => '🗳️  OYLAMA EVRESİ',
     };
     final phaseColor = switch (phase) {
-      GamePhase.night => const Color(0xFFA569BD),
+      GamePhase.night => const Color(0xFF9E5264),
       GamePhase.dayDiscussion => const Color(0xFFF39C12),
-      GamePhase.voting => const Color(0xFF00D2FF),
+      GamePhase.voting => const Color(0xFFE7B5A2),
     };
 
     return Container(
       margin: const EdgeInsets.only(top: 8, left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F0F26).withValues(alpha: 0.75),
+        color: const Color(0xFF1A0E12).withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         boxShadow: [
@@ -142,7 +142,7 @@ class TopBar extends StatelessWidget {
             children: [
               Icon(
                 Icons.shield_moon_outlined,
-                color: Color(0xFF00D2FF),
+                color: Color(0xFFE7B5A2),
                 size: 18,
               ),
               SizedBox(width: 8),
@@ -202,7 +202,7 @@ class GameLogPanel extends StatelessWidget {
       width: w,
       height: 140,
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0A1F).withValues(alpha: 0.7),
+        color: const Color(0xFF1D0D12).withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -215,7 +215,7 @@ class GameLogPanel extends StatelessWidget {
               children: [
                 Icon(
                   Icons.notes_rounded,
-                  color: const Color(0xFF00D2FF).withValues(alpha: 0.8),
+                  color: const Color(0xFFE7B5A2).withValues(alpha: 0.8),
                   size: 13,
                 ),
                 const SizedBox(width: 5),
@@ -280,7 +280,7 @@ class PlayerStatusPanel extends StatelessWidget {
       width: 170,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0A1F).withValues(alpha: 0.7),
+        color: const Color(0xFF1D0D12).withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -294,7 +294,7 @@ class PlayerStatusPanel extends StatelessWidget {
               children: [
                 Icon(
                   Icons.people_alt_outlined,
-                  color: const Color(0xFF00D2FF).withValues(alpha: 0.8),
+                  color: const Color(0xFFE7B5A2).withValues(alpha: 0.8),
                   size: 13,
                 ),
                 const SizedBox(width: 5),
@@ -332,11 +332,11 @@ class PlayerStatusPanel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
           color: isVoteTarget
-              ? const Color(0xFF00D2FF).withValues(alpha: 0.2)
+              ? const Color(0xFFE7B5A2).withValues(alpha: 0.2)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isVoteTarget ? const Color(0xFF00D2FF) : Colors.transparent,
+            color: isVoteTarget ? const Color(0xFFE7B5A2) : Colors.transparent,
             width: 1,
           ),
         ),
@@ -374,7 +374,7 @@ class PlayerStatusPanel extends StatelessWidget {
               Icon(
                 Icons.touch_app_outlined,
                 size: 12,
-                color: const Color(0xFF00D2FF).withValues(alpha: 0.6),
+                color: const Color(0xFFE7B5A2).withValues(alpha: 0.6),
               ),
           ],
         ),

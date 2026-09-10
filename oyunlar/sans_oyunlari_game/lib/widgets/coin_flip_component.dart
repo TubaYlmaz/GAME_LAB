@@ -22,6 +22,7 @@ class _CoinFlipComponentState extends State<CoinFlipComponent>
   CoinSide _startSide = CoinSide.heads;
   CoinSide _targetSide = CoinSide.heads;
   bool _isFlipping = false;
+  bool _hasFlipped = false;
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _CoinFlipComponentState extends State<CoinFlipComponent>
     setState(() {
       _side = nextSide;
       _isFlipping = false;
+      _hasFlipped = true;
     });
     widget.onFlipCompleted(nextSide);
   }
@@ -133,13 +135,26 @@ class _CoinFlipComponentState extends State<CoinFlipComponent>
             );
           },
         ),
-        const SizedBox(height: 16),
+        if (_hasFlipped && !_isFlipping) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${_side.label} geldi',
+            style: const TextStyle(
+              color: Color(0xFF493A32),
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: _isFlipping ? null : _flip,
           icon: const Icon(Icons.flip_rounded),
           label: Text(_isFlipping ? 'PARA HAVADA...' : 'PARAYI AT'),
           style: FilledButton.styleFrom(
-            minimumSize: const Size(200, 48),
+            minimumSize: const Size(220, 52),
+            backgroundColor: const Color(0xFFD97560),
+            foregroundColor: const Color(0xFFFFFAF5),
             textStyle: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
@@ -157,26 +172,23 @@ class _CoinFace extends StatelessWidget {
   Widget build(BuildContext context) {
     final isHeads = side == CoinSide.heads;
     return Container(
-      width: 136,
-      height: 136,
+      width: 158,
+      height: 158,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: isHeads
-              ? const [Color(0xFFB47CFF), Color(0xFF2C8CFF)]
-              : const [Color(0xFFFFD05B), Color(0xFFFF523B)],
+              ? const [Color(0xFFF0C56D), Color(0xFFD7A64F)]
+              : const [Color(0xFFAFC2A5), Color(0xFF789175)],
         ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: .75),
-          width: 4.5,
-        ),
+        border: Border.all(color: const Color(0xFFFFF2D7), width: 6),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 10,
-            offset: Offset(0, 5),
+            color: Color(0x3D5D4437),
+            blurRadius: 14,
+            offset: Offset(0, 7),
           ),
         ],
       ),
@@ -184,12 +196,31 @@ class _CoinFace extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            isHeads ? Icons.account_balance_rounded : Icons.star_rounded,
-            size: 40,
-            color: Colors.white,
+          Container(
+            width: 66,
+            height: 66,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: .18),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: .6),
+                width: 1.5,
+              ),
+            ),
+            child: Icon(
+              isHeads ? Icons.wb_sunny_rounded : Icons.dark_mode_rounded,
+              size: 42,
+              color: const Color(0xFFFFFAF0),
+              shadows: const [
+                Shadow(
+                  color: Color(0x55000000),
+                  blurRadius: 3,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 9),
           Text(
             side.label,
             style: const TextStyle(

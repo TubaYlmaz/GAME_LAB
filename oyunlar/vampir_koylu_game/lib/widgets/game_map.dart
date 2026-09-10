@@ -73,14 +73,14 @@ class GameMap extends StatelessWidget {
               width: worldSize.width,
               height: worldSize.height,
               errorBuilder: (_, _, _) =>
-                  Container(color: const Color(0xFF13132B)),
+                  Container(color: const Color(0xFF1A0E12)),
             ),
 
             AnimatedOpacity(
               opacity: isNight ? 0.45 : 0.0,
               duration: const Duration(milliseconds: 800),
               child: Container(
-                color: const Color(0xFF07071F).withValues(alpha: 0.8),
+                color: const Color(0xFF15090D).withValues(alpha: 0.8),
               ),
             ),
 
@@ -188,7 +188,7 @@ class GameMap extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A0A22).withValues(alpha: 0.85),
+                        color: const Color(0xFF1D0D12).withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
                           color: player.avatarColor.withValues(alpha: 0.5),

@@ -9,21 +9,25 @@ class EducationCenterButton extends StatelessWidget {
     button: true,
     label: 'Oyunlara dön',
     child: Material(
-      color: const Color(0xFF19172C),
-      elevation: 7,
-      shadowColor: const Color(0xAAB99AFF),
+      color: const Color(0xFFFFF8EF),
+      elevation: 9,
+      shadowColor: const Color(0x77D97560),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFB99AFF), width: 1.4),
+        side: const BorderSide(color: Color(0xFFD97560), width: 1.5),
       ),
       child: InkWell(
         onTap: goToEducationCenter,
         mouseCursor: SystemMouseCursors.click,
-        hoverColor: const Color(0x33B99AFF),
-        splashColor: const Color(0x55B99AFF),
+        hoverColor: const Color(0x22D97560),
+        splashColor: const Color(0x44D97560),
         child: const Center(
-          child: Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
+          child: Icon(
+            Icons.grid_view_rounded,
+            color: Color(0xFFD06F5B),
+            size: 22,
+          ),
         ),
       ),
     ),

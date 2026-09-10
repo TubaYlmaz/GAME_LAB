@@ -43,6 +43,7 @@ class _HostScreenState extends State<HostScreen> {
   List<String> _kategoriler = ['Rastgele'];
   late String roomCode;
   bool isActualHost = false;
+  bool _isStarting = false;
 
   @override
   void initState() {
@@ -91,11 +92,11 @@ class _HostScreenState extends State<HostScreen> {
   }
 
   String _generateRandomRoomCode() {
-    const chars = 'ABCDEFGHJKLMNOPQRSTUVWXYZ23456789';
-    Random random = Random();
+    const digits = '0123456789';
+    final random = Random();
     return List.generate(
       6,
-      (index) => chars[random.nextInt(chars.length)],
+      (_) => digits[random.nextInt(digits.length)],
     ).join();
   }
 
@@ -200,6 +201,47 @@ class _HostScreenState extends State<HostScreen> {
     }
   }
 
+  Future<void> _copyRoomCode() async {
+    await Clipboard.setData(ClipboardData(text: roomCode));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Oda kodu kopyalandı.')));
+  }
+
+  void _leaveRoom() {
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _startGame() async {
+    final impostorCount = int.tryParse(_impostorCountController.text) ?? 0;
+    setState(() => _isStarting = true);
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.serverUrl}/api/start-game'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'roomCode': roomCode,
+          'players': joinedPlayers,
+          'gameMode': currentMod,
+          'category': currentCategory,
+          'impostorCount': impostorCount,
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final data = jsonDecode(response.body);
+        throw Exception(data['error'] ?? 'Oyun başlatılamadı.');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isStarting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Oyun başlatılamadı: $error')));
+    }
+  }
+
   @override
   void dispose() {
     _impostorCountController.dispose();
@@ -212,21 +254,121 @@ class _HostScreenState extends State<HostScreen> {
       joinedPlayers.insert(0, widget.hostName);
     }
 
-    bool canStart = isEveryoneBack || joinedPlayers.length <= 1;
+    final impostorCount = int.tryParse(_impostorCountController.text) ?? 0;
+    final hasEnoughPlayers = joinedPlayers.length >= 2;
+    final validImpostorCount =
+        impostorCount >= 1 && impostorCount < joinedPlayers.length;
+    final canStart =
+        isActualHost &&
+        isEveryoneBack &&
+        hasEnoughPlayers &&
+        validImpostorCount &&
+        !_isStarting;
+    final startButtonText = _isStarting
+        ? 'OYUN BAŞLATILIYOR...'
+        : !hasEnoughPlayers
+        ? 'EN AZ 2 OYUNCU GEREKİYOR'
+        : !validImpostorCount
+        ? 'IMPOSTOR SAYISINI KONTROL ET'
+        : !isEveryoneBack
+        ? 'OYUNCULARIN LOBİYE DÖNMESİ BEKLENİYOR...'
+        : 'OYUNU BAŞLAT';
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Tooltip(
+            message: 'Odadan çık',
+            child: IconButton(
+              onPressed: _leaveRoom,
+              icon: const Icon(Icons.logout_rounded),
+              color: const Color(0xFFE08A6D),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
       ),
       extendBodyBehindAppBar: true,
+      bottomNavigationBar: Container(
+        color: const Color(0xFF171315),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!hasEnoughPlayers)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      'Başlamak için en az 2 oyuncu gerekir.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFFE7C98A)),
+                    ),
+                  )
+                else if (!validImpostorCount)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      'Impostor sayısı 1 ile ${joinedPlayers.length - 1} arasında olmalıdır.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Color(0xFFE7C98A)),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: isActualHost
+                      ? ElevatedButton(
+                          onPressed: canStart ? _startGame : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: !canStart
+                                ? Colors.grey.shade800
+                                : const Color(0xFFE08A6D),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            startButtonText,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: !canStart
+                                  ? Colors.white30
+                                  : const Color(0xFF171315),
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF33272A),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF584047)),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'KURUCUNUN OYUNU BAŞLATMASI BEKLENİYOR... ⏳',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white60,
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -234,7 +376,7 @@ class _HostScreenState extends State<HostScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1E1E38), Color(0xFF13132B), Color(0xFF0B0B1A)],
+            colors: [Color(0xFF33272A), Color(0xFF241C1E), Color(0xFF171315)],
           ),
         ),
         child: SafeArea(
@@ -244,11 +386,11 @@ class _HostScreenState extends State<HostScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Card(
-                  color: const Color(0xFF181832).withValues(alpha: 0.9),
+                  color: const Color(0xFF2A2023).withValues(alpha: 0.9),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                     side: const BorderSide(
-                      color: Color(0xFF2E2E5C),
+                      color: Color(0xFF584047),
                       width: 1.5,
                     ),
                   ),
@@ -257,23 +399,36 @@ class _HostScreenState extends State<HostScreen> {
                     child: Column(
                       children: [
                         const Text(
-                          'ÖĞRENCİLER İÇİN ODA KODU',
+                          'ODA KODU',
                           style: TextStyle(
-                            color: Color(0xFF8E8EAF),
+                            color: Color(0xFFC8B9B2),
                             fontSize: 12,
                             letterSpacing: 1.5,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          roomCode,
-                          style: const TextStyle(
-                            color: Color(0xFF00D2FF),
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 5,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              roomCode,
+                              style: const TextStyle(
+                                color: Color(0xFFE08A6D),
+                                fontSize: 34,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 5,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Oda kodunu kopyala',
+                              onPressed: _copyRoomCode,
+                              icon: const Icon(
+                                Icons.copy_rounded,
+                                color: Color(0xFFE08A6D),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -284,7 +439,7 @@ class _HostScreenState extends State<HostScreen> {
                 // 🎯 GÜNCELLEME: İSTEDİĞİN ŞIK AÇILIR-KAPANIR ÇEKMECE PANELİ (SADECE HOST)
                 if (isActualHost) ...[
                   Card(
-                    color: const Color(0xFF141430),
+                    color: const Color(0xFF2D2225),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -292,10 +447,10 @@ class _HostScreenState extends State<HostScreen> {
                     child: ExpansionTile(
                       leading: const Icon(
                         Icons.settings_suggest_rounded,
-                        color: Color(0xFF00D2FF),
+                        color: Color(0xFFE08A6D),
                       ),
                       title: const Text(
-                        "OYUN AYARLARINI DÜZENLE",
+                        "OYUN AYARLARI",
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -303,22 +458,29 @@ class _HostScreenState extends State<HostScreen> {
                           letterSpacing: 1,
                         ),
                       ),
+                      subtitle: Text(
+                        '$currentMod · $currentCategory · ${_impostorCountController.text} Impostor',
+                        style: const TextStyle(
+                          color: Color(0xFFC8B9B2),
+                          fontSize: 12,
+                        ),
+                      ),
                       collapsedIconColor: Colors.white54,
-                      iconColor: const Color(0xFF00D2FF),
-                      backgroundColor: const Color(0xFF141430),
-                      collapsedBackgroundColor: const Color(0xFF141430),
+                      iconColor: const Color(0xFFE08A6D),
+                      backgroundColor: const Color(0xFF2D2225),
+                      collapsedBackgroundColor: const Color(0xFF2D2225),
                       // 🎯 DÜZELTME: 'border' parametresi silindi, shape mühürleri çakıldı![cite: 8]
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: const BorderSide(
-                          color: Color(0xFF2E2E5C),
+                          color: Color(0xFF584047),
                           width: 1,
                         ),
                       ),
                       collapsedShape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: const BorderSide(
-                          color: Color(0xFF2E2E5C),
+                          color: Color(0xFF584047),
                           width: 1,
                         ),
                       ),
@@ -381,19 +543,19 @@ class _HostScreenState extends State<HostScreen> {
                           initialValue: _kategoriler.contains(currentCategory)
                               ? currentCategory
                               : 'Rastgele',
-                          dropdownColor: const Color(0xFF1A1A2E),
+                          dropdownColor: const Color(0xFF302427),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
                           ),
                           decoration: InputDecoration(
-                            labelText: 'Kelime Kategorisi',
+                            labelText: 'Kelime kategorisi',
                             labelStyle: const TextStyle(
                               color: Colors.grey,
                               fontSize: 12,
                             ),
                             filled: true,
-                            fillColor: const Color(0xFF0B0B1A),
+                            fillColor: const Color(0xFF171315),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -440,13 +602,13 @@ class _HostScreenState extends State<HostScreen> {
                             fontSize: 14,
                           ),
                           decoration: InputDecoration(
-                            labelText: 'İmpostor Sayısı',
+                            labelText: 'Impostor sayısı',
                             labelStyle: const TextStyle(
                               color: Colors.grey,
                               fontSize: 12,
                             ),
                             filled: true,
-                            fillColor: const Color(0xFF0B0B1A),
+                            fillColor: const Color(0xFF171315),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -478,7 +640,7 @@ class _HostScreenState extends State<HostScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Katılan Oyuncular',
+                      'Odadaki oyuncular',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -487,9 +649,9 @@ class _HostScreenState extends State<HostScreen> {
                     ),
                     Chip(
                       label: Text('${joinedPlayers.length} Oyuncu'),
-                      backgroundColor: const Color(0xFF2E2E5C),
+                      backgroundColor: const Color(0xFF584047),
                       side: const BorderSide(
-                        color: Color(0xFF00D2FF),
+                        color: Color(0xFFE08A6D),
                         width: 1,
                       ),
                       labelStyle: const TextStyle(
@@ -501,147 +663,96 @@ class _HostScreenState extends State<HostScreen> {
                   ],
                 ),
                 const SizedBox(height: 5),
-                Expanded(
+                SizedBox(
+                  height: joinedPlayers.isEmpty
+                      ? 80
+                      : min(joinedPlayers.length * 64.0, 280.0),
                   child: joinedPlayers.isEmpty
-                      ? const Center(
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
                           child: Text(
-                            'Oyuncuların gelmesi bekleniyor...',
+                            'Oyuncuların katılması bekleniyor...',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFF8E8EAF),
+                              color: Color(0xFFC8B9B2),
                               fontSize: 14,
                             ),
                           ),
                         )
                       : ListView.builder(
+                          shrinkWrap: true,
                           itemCount: joinedPlayers.length,
                           itemBuilder: (context, index) {
                             bool isReturned = returnedPlayers.contains(
                               joinedPlayers[index],
                             );
                             return Card(
-                              color: const Color(0xFF101026),
+                              color: const Color(0xFF281E21),
                               margin: const EdgeInsets.symmetric(vertical: 4),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 side: const BorderSide(
-                                  color: Color(0xFF2E2E5C),
+                                  color: Color(0xFF584047),
                                   width: 1,
                                 ),
                               ),
                               child: ListTile(
                                 leading: const Icon(
                                   Icons.person,
-                                  color: Color(0xFF8E8EAF),
+                                  color: Color(0xFFC8B9B2),
                                   size: 20,
                                 ),
-                                title: Text(
-                                  joinedPlayers[index],
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                title: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        joinedPlayers[index],
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    if (joinedPlayers[index] == widget.hostName)
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 8),
+                                        child: Chip(
+                                          avatar: Icon(
+                                            Icons.star_rounded,
+                                            size: 16,
+                                          ),
+                                          label: Text('KURUCU'),
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 trailing: isReturned
-                                    ? const Icon(
-                                        Icons.check_circle_rounded,
-                                        color: Colors.greenAccent,
-                                        size: 22,
+                                    ? const Chip(
+                                        avatar: Icon(
+                                          Icons.check_circle_rounded,
+                                          color: Color(0xFF8FD6A8),
+                                          size: 18,
+                                        ),
+                                        label: Text('HAZIR'),
+                                        visualDensity: VisualDensity.compact,
                                       )
-                                    : const Icon(
-                                        Icons.hourglass_empty_rounded,
-                                        color: Colors.amberAccent,
-                                        size: 18,
+                                    : const Chip(
+                                        avatar: Icon(
+                                          Icons.hourglass_empty_rounded,
+                                          color: Color(0xFFE7C98A),
+                                          size: 16,
+                                        ),
+                                        label: Text('BEKLENİYOR'),
+                                        visualDensity: VisualDensity.compact,
                                       ),
                               ),
                             );
                           },
                         ),
                 ),
-                const SizedBox(height: 15),
-
-                isActualHost
-                    ? ElevatedButton(
-                        onPressed: !canStart
-                            ? null
-                            : () async {
-                                if (joinedPlayers.length < 2) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Oyunu başlatmak için en az 2 oyuncu olmalıdır!',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                final url = Uri.parse(
-                                  '${AppConfig.serverUrl}/api/start-game',
-                                );
-                                try {
-                                  await http.post(
-                                    url,
-                                    headers: {
-                                      'Content-Type': 'application/json',
-                                    },
-                                    body: jsonEncode({
-                                      'roomCode': roomCode,
-                                      'players': joinedPlayers,
-                                      'gameMode': currentMod,
-                                      'category': currentCategory,
-                                      'impostorCount':
-                                          int.tryParse(
-                                            _impostorCountController.text,
-                                          ) ??
-                                          1,
-                                    }),
-                                  );
-                                } catch (e) {
-                                  debugPrint("Bağlantı hatası: $e");
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: !canStart
-                              ? Colors.grey.shade800
-                              : const Color(0xFF00D2FF),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          !canStart
-                              ? 'OYUNCULARIN ODALARA DÖNMESİ BEKLENİYOR... ⏳'
-                              : 'OYUNU BAŞLAT',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: !canStart
-                                ? Colors.white30
-                                : const Color(0xFF0B0B1A),
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E38),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF2E2E5C)),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'HOSTUN OYUNU BAŞLATMASI BEKLENİYOR... ⏳',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white60,
-                            ),
-                          ),
-                        ),
-                      ),
               ],
             ),
           ),

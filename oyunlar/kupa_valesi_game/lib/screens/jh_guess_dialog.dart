@@ -14,7 +14,6 @@ class JhGuessDialog extends StatefulWidget {
     required this.serverTimeOffsetMs,
     required this.initiallyLocked,
   });
-
   final String roomCode;
   final String playerName;
   final int cellEndsAt;
@@ -26,10 +25,13 @@ class JhGuessDialog extends StatefulWidget {
 }
 
 class _JhGuessDialogState extends State<JhGuessDialog> {
-  static const _symbols = ['\u2665', '\u2660', '\u2666', '\u2663'];
+  static const _symbols = ['☀', '☾', '★', '☁'];
+  static const _names = {'☀': 'Güneş', '☾': 'Ay', '★': 'Yıldız', '☁': 'Bulut'};
   Timer? _ticker;
   String? _selected;
-  bool _locked = false;
+  String? _openingSymbol;
+  late bool _locked;
+  bool _doorOpen = false;
 
   @override
   void initState() {
@@ -37,9 +39,7 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
     _locked = widget.initiallyLocked;
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
-      if (widget.cellEndsAt <= _serverNow) {
-        _ticker?.cancel();
-      }
+      if (widget.cellEndsAt <= _serverNow) _ticker?.cancel();
       setState(() {});
     });
   }
@@ -64,21 +64,172 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
     setState(() => _locked = true);
   }
 
-  Color _symbolColor(String symbol) {
-    return symbol == '\u2665' || symbol == '\u2666'
-        ? const Color(0xFFFF426E)
-        : const Color(0xFFE9EEF7);
+  Color _symbolColor(String value) => switch (value) {
+    '☀' => const Color(0xFFE7C98A),
+    '☾' => const Color(0xFF9CAF96),
+    '★' => const Color(0xFFD9826B),
+    _ => const Color(0xFFF4EBDD),
+  };
+
+  void _openDoor(String symbol) {
+    if (_locked || widget.cellEndsAt <= _serverNow) return;
+    setState(() {
+      _openingSymbol = symbol;
+      _selected = null;
+      _doorOpen = false;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 720), () {
+      if (!mounted || _openingSymbol != symbol) return;
+      setState(() {
+        _selected = symbol;
+        _doorOpen = true;
+      });
+    });
   }
+
+  Widget _symbolDoor(String symbol, bool expired) {
+    final open = _selected == symbol;
+    final opening = _openingSymbol == symbol;
+    return InkWell(
+      onTap: _locked || expired ? null : () => _openDoor(symbol),
+      borderRadius: BorderRadius.circular(15),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: opening ? 1 : 0),
+        duration: const Duration(milliseconds: 700),
+        curve: Curves.easeInOutCubic,
+        builder: (context, value, child) => AnimatedScale(
+          scale: opening ? 1.035 : 1,
+          duration: const Duration(milliseconds: 500),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF171D18),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: open ? const Color(0xFF9CAF96) : const Color(0xFF9B765F),
+                width: open ? 3 : 2,
+              ),
+              boxShadow: const [
+                BoxShadow(color: Color(0x66000000), blurRadius: 10),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Transform.scale(
+                    scale: .72 + (value * .28),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          symbol,
+                          style: TextStyle(
+                            color: _symbolColor(symbol),
+                            fontSize: 36,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          open ? '${_names[symbol]} SEÇİLDİ' : 'İÇERİ GİR',
+                          style: const TextStyle(
+                            color: Color(0xFFF4EBDD),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (!open)
+                  Positioned.fill(
+                    child: Transform(
+                      alignment: Alignment.centerLeft,
+                      transform: Matrix4.identity()
+                        ..setEntry(3, 2, .0014)
+                        ..rotateY(-1.36 * value),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6F5142),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(color: const Color(0xFF9B765F)),
+                        ),
+                        child: Stack(
+                          children: [
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    symbol,
+                                    style: TextStyle(
+                                      color: _symbolColor(symbol),
+                                      fontSize: 30,
+                                      height: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 7),
+                                  Text(
+                                    _names[symbol]!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFF4EBDD),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              right: 10,
+                              top: 0,
+                              bottom: 0,
+                              child: Center(
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFE7C98A),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _secretRoom(bool expired) => GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: _symbols.length,
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      mainAxisExtent: 108,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+    ),
+    itemBuilder: (_, index) => _symbolDoor(_symbols[index], expired),
+  );
 
   @override
   Widget build(BuildContext context) {
     final expired = widget.cellEndsAt <= _serverNow;
     return Dialog(
-      backgroundColor: const Color(0xFF141524),
+      backgroundColor: const Color(0xFF2B2420),
       insetPadding: const EdgeInsets.all(18),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: const BorderSide(color: Color(0x88FF426E)),
+        side: const BorderSide(color: Color(0x99D9826B)),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560),
@@ -88,86 +239,51 @@ class _JhGuessDialogState extends State<JhGuessDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.lock_rounded,
-                color: Color(0xFFFF426E),
+                Icons.meeting_room_rounded,
+                color: Color(0xFFE7C98A),
                 size: 38,
               ),
               const SizedBox(height: 8),
               const Text(
-                'H\u00DCCRE: SEMBOL\u00DCN\u00DC TAHM\u0130N ET',
+                'GİZLİ ODA',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 19,
-                  letterSpacing: .6,
+                  fontSize: 21,
+                  letterSpacing: .8,
                 ),
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                'Dört kapıdan birini aç ve gizli sembolünü tahmin et.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70),
               ),
               const SizedBox(height: 8),
               Text(
                 expired
-                    ? 'S\u00FCre doldu; sonu\u00E7 bekleniyor.'
-                    : 'Kalan s\u00FCre: ${remainingText(widget.cellEndsAt, nowMilliseconds: _serverNow)}',
+                    ? 'Süre doldu; sonuç bekleniyor.'
+                    : 'Kalan süre: ${remainingText(widget.cellEndsAt, nowMilliseconds: _serverNow)}',
                 style: TextStyle(
                   color: expired
-                      ? const Color(0xFFFFD166)
-                      : const Color(0xFF77E6FF),
+                      ? const Color(0xFFE7C98A)
+                      : const Color(0xFF9CAF96),
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 20),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 12,
-                runSpacing: 12,
-                children: _symbols.map((symbol) {
-                  final selected = _selected == symbol;
-                  return InkWell(
-                    onTap: _locked || expired
-                        ? null
-                        : () => setState(() => _selected = symbol),
-                    borderRadius: BorderRadius.circular(18),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      width: 104,
-                      height: 104,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? const Color(0x33FF426E)
-                            : const Color(0xFF202238),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: selected
-                              ? const Color(0xFFFF426E)
-                              : const Color(0x55FFFFFF),
-                          width: selected ? 3 : 1,
-                        ),
-                      ),
-                      child: Text(
-                        symbol,
-                        style: TextStyle(
-                          fontSize: 58,
-                          color: _symbolColor(symbol),
-                          height: 1,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 15),
+              _secretRoom(expired),
+              const SizedBox(height: 18),
               JhButton(
-                label: _locked
-                    ? 'OYUN K\u0130L\u0130TLEND\u0130'
-                    : 'OYU K\u0130L\u0130TLE',
+                label: _locked ? 'SEMBOL KİLİTLENDİ' : 'SEMBOLÜ KİLİTLE',
                 icon: _locked ? Icons.lock : Icons.lock_open_rounded,
-                enabled: _selected != null && !_locked && !expired,
+                enabled: _doorOpen && _selected != null && !_locked && !expired,
                 onPressed: _lockGuess,
               ),
               if (_locked) ...[
                 const SizedBox(height: 10),
                 const Text(
-                  'Se\u00E7imin de\u011Fi\u015ftirilemez.',
+                  'Seçimin değiştirilemez.',
                   style: TextStyle(color: Colors.white70),
                 ),
               ],

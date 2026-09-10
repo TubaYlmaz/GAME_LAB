@@ -6,7 +6,7 @@ class EducationCenterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _IconTile(
-    borderColor: const Color(0xFF00D2FF),
+    borderColor: const Color(0xFFE08A6D),
     onTap: goToEducationCenter,
   );
 }
@@ -21,9 +21,9 @@ class _IconTile extends StatelessWidget {
     button: true,
     label: 'Oyunlara dön',
     child: Material(
-      color: const Color(0xFF19192E),
-      elevation: 7,
-      shadowColor: borderColor.withValues(alpha: .65),
+      color: const Color(0xFF342126),
+      elevation: 9,
+      shadowColor: borderColor.withValues(alpha: .5),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
@@ -36,7 +36,11 @@ class _IconTile extends StatelessWidget {
         splashColor: borderColor.withValues(alpha: .32),
         highlightColor: borderColor.withValues(alpha: .12),
         child: const Center(
-          child: Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
+          child: Icon(
+            Icons.grid_view_rounded,
+            color: Color(0xFFFFE4D6),
+            size: 22,
+          ),
         ),
       ),
     ),

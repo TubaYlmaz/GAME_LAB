@@ -14,19 +14,19 @@ class GameDialogs {
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A3E),
+          backgroundColor: const Color(0xFF3A171F),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFF00D2FF), width: 1.5),
+            side: const BorderSide(color: Color(0xFFE7B5A2), width: 1.5),
           ),
           title: Row(
             children: [
-              const Icon(Icons.bug_report, color: Color(0xFF00D2FF)),
+              const Icon(Icons.bug_report, color: Color(0xFFE7B5A2)),
               const SizedBox(width: 8),
               Text(
                 'TOPLAM OYUNCU: ${players.length}',
                 style: const TextStyle(
-                  color: Color(0xFF00D2FF),
+                  color: Color(0xFFE7B5A2),
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -47,7 +47,7 @@ class GameDialogs {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0D0D2A),
+                    color: const Color(0xFF251015),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: p.avatarColor.withValues(alpha: 0.4),
@@ -81,7 +81,7 @@ class GameDialogs {
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00D2FF),
+                backgroundColor: const Color(0xFFE7B5A2),
               ),
               onPressed: () => Navigator.of(context).pop(),
               child: const Text(

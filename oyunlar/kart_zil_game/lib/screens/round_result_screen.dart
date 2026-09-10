@@ -6,6 +6,7 @@ import '../widgets/education_center_button.dart';
 import '../widgets/countdown_timer.dart';
 import '../widgets/game_logo.dart';
 import '../widgets/playing_card.dart';
+import '../widgets/top_bar_controls.dart';
 
 class KzRoundResultScreen extends StatelessWidget {
   const KzRoundResultScreen({super.key});
@@ -36,17 +37,17 @@ class KzRoundResultScreen extends StatelessWidget {
         0;
     final sorted = [...state.players]
       ..sort((a, b) => (b.score ?? 0).compareTo(a.score ?? 0));
+    final bellPlayer = state.players
+        .where((player) => player.id == state.bellPlayerId)
+        .firstOrNull;
+    final highestScore = sorted.isEmpty ? 0 : (sorted.first.score ?? 0);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 66,
         centerTitle: true,
         leadingWidth: 58,
         flexibleSpace: const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF34456F), Color(0xFF534B7D), Color(0xFF355F78)],
-            ),
-          ),
+          decoration: BoxDecoration(gradient: kzTopBarGradient),
         ),
         leading: Padding(
           padding: const EdgeInsets.fromLTRB(7, 9, 3, 9),
@@ -60,24 +61,16 @@ class KzRoundResultScreen extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           if (me?.isHost == true)
-            IconButton.filledTonal(
+            KzTopIconButton(
               tooltip: 'Oyunu durdur',
-              style: IconButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: const Color(0xFF9B73D1),
-              ),
               onPressed: service.stopGame,
-              icon: const Icon(Icons.stop_circle_outlined),
+              icon: Icons.stop_circle_outlined,
             ),
           const SizedBox(width: 6),
-          IconButton.filled(
+          KzTopIconButton(
             tooltip: 'Oyundan çık',
-            style: IconButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: const Color(0xFF9B73D1),
-            ),
             onPressed: service.leave,
-            icon: const Icon(Icons.logout),
+            icon: Icons.logout,
           ),
           const SizedBox(width: 12),
         ],
@@ -87,16 +80,102 @@ class KzRoundResultScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF64577E), Color(0xFF303A5C), Color(0xFF4D7580)],
+            colors: [Color(0xFF5274EA), Color(0xFF594FC0), Color(0xFF292845)],
           ),
         ),
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            const Text(
-              'ELLER AÇILDI',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 15),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF354B91), Color(0xFF7650A8)],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFFFD05A), width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x55FFD05A),
+                    blurRadius: 24,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.emoji_events_rounded,
+                        color: Color(0xFFFFD05A),
+                        size: 31,
+                      ),
+                      SizedBox(width: 9),
+                      Text(
+                        'TUR SONUCU',
+                        style: TextStyle(
+                          fontSize: 27,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .6,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    sorted.isEmpty ? 'Tur tamamlandı' : 'TURUN LİDERİ',
+                    style: const TextStyle(
+                      color: Color(0xFFFFD98A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sorted.firstOrNull?.name ?? '—',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 27,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    '$highestScore PUAN',
+                    style: const TextStyle(
+                      color: Color(0xFFFFD05A),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 13),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ResultSummary(
+                          icon: Icons.flag_rounded,
+                          label: 'TUR',
+                          value: '${state.roundNumber}',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ResultSummary(
+                          icon: Icons.notifications_active_rounded,
+                          label: 'ZİLE BASAN',
+                          value: bellPlayer?.name ?? 'Yok',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             if (teamScores.isNotEmpty) ...[
@@ -160,20 +239,60 @@ class KzRoundResultScreen extends StatelessWidget {
                 ),
               const SizedBox(height: 12),
             ],
-            ...sorted.map(
-              (player) => Card(
+            ...sorted.indexed.map(
+              (entry) => Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                color: loss(entry.$2.id) > 0
+                    ? const Color(0xCC57364F)
+                    : const Color(0xAA354064),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(
+                    color: entry.$2.id == sorted.firstOrNull?.id
+                        ? const Color(0xFFFFD36A)
+                        : loss(entry.$2.id) > 0
+                        ? const Color(0xFFFF756B)
+                        : Colors.white24,
+                    width:
+                        entry.$2.id == sorted.firstOrNull?.id ||
+                            loss(entry.$2.id) > 0
+                        ? 2
+                        : 1,
+                  ),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(
                     children: [
                       Row(
                         children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: entry.$1 == 0
+                                  ? const Color(0xFFFFD05A)
+                                  : Colors.white12,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${entry.$1 + 1}',
+                              style: TextStyle(
+                                color: entry.$1 == 0
+                                    ? const Color(0xFF232A48)
+                                    : Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Row(
                               children: [
                                 Flexible(
                                   child: Text(
-                                    '${player.eliminated ? '☠️ ' : ''}${player.name}${player.id == state.bellPlayerId ? ' 🔔' : ''}',
+                                    '${entry.$2.eliminated ? '☠️ ' : ''}${entry.$2.name}${entry.$2.id == state.bellPlayerId ? ' 🔔' : ''}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -183,17 +302,17 @@ class KzRoundResultScreen extends StatelessWidget {
                                   ),
                                 ),
                                 if (state.gameMode == 'team' &&
-                                    player.teamId != null) ...[
+                                    entry.$2.teamId != null) ...[
                                   const SizedBox(width: 8),
-                                  _TeamBadge(teamId: player.teamId!),
+                                  _TeamBadge(teamId: entry.$2.teamId!),
                                 ],
                               ],
                             ),
                           ),
                           _PlayerScoreAndLives(
-                            score: player.score ?? 0,
-                            lives: player.lives,
-                            livesLost: loss(player.id),
+                            score: entry.$2.score ?? 0,
+                            lives: entry.$2.lives,
+                            livesLost: loss(entry.$2.id),
                             showLives: state.gameMode != 'team',
                           ),
                         ],
@@ -201,7 +320,7 @@ class KzRoundResultScreen extends StatelessWidget {
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 6,
-                        children: player.cards
+                        children: entry.$2.cards
                             .map(
                               (card) =>
                                   KzPlayingCard(card: card, compact: true),
@@ -228,6 +347,59 @@ class KzRoundResultScreen extends StatelessWidget {
     await service.leave();
     goToGamesPage();
   }
+}
+
+class _ResultSummary extends StatelessWidget {
+  const _ResultSummary({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    decoration: BoxDecoration(
+      color: const Color(0x88202743),
+      borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: Colors.white24),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: const Color(0xFFFFD36A), size: 20),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _TeamBadge extends StatelessWidget {
@@ -309,15 +481,34 @@ class _PlayerScoreAndLives extends StatelessWidget {
             child: Icon(Icons.favorite, color: Color(0xFFFF4057), size: 15),
           ),
         if (livesLost > 0) ...[
-          const SizedBox(width: 7),
-          Text(
-            '-$livesLost',
-            style: const TextStyle(
-              color: Color(0xFFFF4057),
-              fontWeight: FontWeight.w900,
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF8E3042),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFF8B82)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.heart_broken_rounded,
+                  color: Color(0xFFFFD1CD),
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '-$livesLost CAN',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Icon(Icons.favorite, color: Color(0xFFFF4057), size: 15),
         ],
       ],
     ],

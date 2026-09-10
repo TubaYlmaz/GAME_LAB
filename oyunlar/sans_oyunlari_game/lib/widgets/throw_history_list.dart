@@ -17,9 +17,9 @@ class ThrowHistoryList extends StatelessWidget {
     final modeEntries = entries.where((entry) => entry.mode == mode).toList();
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFF191827),
+        color: const Color(0xFFFFF9F2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF302E49)),
+        border: Border.all(color: const Color(0xFFD8C5B5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,13 +36,13 @@ class ThrowHistoryList extends StatelessWidget {
               ),
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF302E49)),
+          const Divider(height: 1, color: Color(0xFFD8C5B5)),
           Expanded(
             child: modeEntries.isEmpty
                 ? const Center(
                     child: Text(
                       'Hen\u00fcz bir at\u0131\u015f yok.',
-                      style: TextStyle(color: Color(0xFFA9A6BD)),
+                      style: TextStyle(color: Color(0xFF766B64)),
                     ),
                   )
                 : ListView.separated(
@@ -52,25 +52,32 @@ class ThrowHistoryList extends StatelessWidget {
                       height: 1,
                       indent: 18,
                       endIndent: 18,
-                      color: Color(0xFF302E49),
+                      color: Color(0xFFD8C5B5),
                     ),
                     itemBuilder: (context, index) {
                       final entry = modeEntries[index];
                       final isCoin = entry.mode == ChanceGameMode.coin;
-                      final time = TimeOfDay.fromDateTime(
-                        entry.createdAt,
-                      ).format(context);
+                      final isHeads = entry.coinSide == CoinSide.heads;
+                      final time =
+                          '${entry.createdAt.hour.toString().padLeft(2, '0')}:${entry.createdAt.minute.toString().padLeft(2, '0')}';
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: isCoin
-                              ? const Color(0xFF6D5BD0)
-                              : const Color(0xFFE35E45),
-                          child: Icon(
-                            isCoin
-                                ? Icons.monetization_on_rounded
-                                : Icons.casino_rounded,
-                            color: Colors.white,
-                          ),
+                              ? (isHeads
+                                    ? const Color(0xFFD7A64F)
+                                    : const Color(0xFF789175))
+                              : const Color(0xFFD97560),
+                          child: isCoin
+                              ? Icon(
+                                  isHeads
+                                      ? Icons.wb_sunny_rounded
+                                      : Icons.dark_mode_rounded,
+                                  color: Colors.white,
+                                )
+                              : const Icon(
+                                  Icons.casino_rounded,
+                                  color: Colors.white,
+                                ),
                         ),
                         title: Text(
                           entry.resultLabel,
@@ -81,7 +88,7 @@ class ThrowHistoryList extends StatelessWidget {
                             : Text('Toplam: ${entry.diceTotal}'),
                         trailing: Text(
                           time,
-                          style: const TextStyle(color: Color(0xFFA9A6BD)),
+                          style: const TextStyle(color: Color(0xFF766B64)),
                         ),
                       );
                     },

@@ -59,7 +59,7 @@ class _KzEntryScreenState extends State<KzEntryScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF53648F), Color(0xFF27304E), Color(0xFF62577D)],
+            colors: [Color(0xFF5274EA), Color(0xFF594FC0), Color(0xFF292845)],
           ),
         ),
         child: Stack(
@@ -80,7 +80,7 @@ class _KzEntryScreenState extends State<KzEntryScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _HeroCards(animation: intro),
+                        _HeroCards(animation: intro, compact: mode != null),
                         const Text(
                           'KART & ZİL',
                           style: TextStyle(
@@ -89,8 +89,11 @@ class _KzEntryScreenState extends State<KzEntryScreen>
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text('Elini güçlendir, doğru anda zile bas.'),
-                        const SizedBox(height: 20),
+                        const Text(
+                          'Elini güçlendir, doğru anda zile bas.',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        SizedBox(height: mode == null ? 20 : 14),
                         Row(
                           children: [
                             Expanded(
@@ -134,12 +137,6 @@ class _KzEntryScreenState extends State<KzEntryScreen>
                                 )
                               : _ActionPanel(
                                   key: ValueKey(mode),
-                                  icon: mode == 'create'
-                                      ? Icons.meeting_room
-                                      : Icons.login,
-                                  title: mode == 'create'
-                                      ? 'YENİ ODA KUR'
-                                      : 'ODAYA KATIL',
                                   child: Column(
                                     children: [
                                       TextField(
@@ -207,16 +204,21 @@ class _KzEntryScreenState extends State<KzEntryScreen>
                                           '$colorCount renk • $deckSize kartlık deste',
                                         ),
                                         const SizedBox(height: 14),
-                                        FilledButton.icon(
-                                          onPressed: service.connected
-                                              ? () => service.create(
-                                                  name.text.trim(),
-                                                  playerCount,
-                                                  gameMode: gameMode,
-                                                )
-                                              : null,
-                                          icon: const Icon(Icons.meeting_room),
-                                          label: const Text('ODAYI OLUŞTUR'),
+                                        SizedBox(
+                                          width: 220,
+                                          child: FilledButton.icon(
+                                            onPressed: service.connected
+                                                ? () => service.create(
+                                                    name.text.trim(),
+                                                    playerCount,
+                                                    gameMode: gameMode,
+                                                  )
+                                                : null,
+                                            icon: const Icon(
+                                              Icons.add_circle_outline,
+                                            ),
+                                            label: const Text('ODA KUR'),
+                                          ),
                                         ),
                                       ] else ...[
                                         TextField(
@@ -229,15 +231,18 @@ class _KzEntryScreenState extends State<KzEntryScreen>
                                           ),
                                         ),
                                         const SizedBox(height: 4),
-                                        OutlinedButton.icon(
-                                          onPressed: service.connected
-                                              ? () => service.join(
-                                                  code.text.trim(),
-                                                  name.text.trim(),
-                                                )
-                                              : null,
-                                          icon: const Icon(Icons.arrow_forward),
-                                          label: const Text('ODAYA GİR'),
+                                        SizedBox(
+                                          width: 220,
+                                          child: FilledButton.icon(
+                                            onPressed: service.connected
+                                                ? () => service.join(
+                                                    code.text.trim(),
+                                                    name.text.trim(),
+                                                  )
+                                                : null,
+                                            icon: const Icon(Icons.login),
+                                            label: const Text('ODAYA KATIL'),
+                                          ),
                                         ),
                                       ],
                                     ],
@@ -271,33 +276,55 @@ class _KzEntryScreenState extends State<KzEntryScreen>
 }
 
 class _ActionPanel extends StatelessWidget {
-  const _ActionPanel({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.child,
-  });
+  const _ActionPanel({super.key, required this.child});
 
-  final IconData icon;
-  final String title;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Card(
-    elevation: 4,
-    child: Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 30),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF40569A), Color(0xFF6652A0)],
+      ),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Colors.white30, width: 1.5),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x44202743),
+          blurRadius: 20,
+          offset: Offset(0, 9),
+        ),
+      ],
+    ),
+    child: Theme(
+      data: Theme.of(context).copyWith(
+        inputDecorationTheme: InputDecorationTheme(
+          labelStyle: const TextStyle(
+            color: Color(0xFFE8E9F5),
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 16),
-          child,
-        ],
+          floatingLabelStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+          counterStyle: const TextStyle(color: Color(0xFFD8DBEC)),
+          hintStyle: const TextStyle(color: Color(0xFFD8DBEC)),
+          enabledBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Color(0x99FFFFFF), width: 1.3),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Color(0xFF8FE2DF), width: 2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: Color(0xFFF5F4FA)),
+        child: Column(children: [child]),
       ),
     ),
   );
@@ -326,17 +353,16 @@ class _ModeButton extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: selected
-              ? const [Color(0xFF7C83DB), Color(0xFFB47EAE)]
-              : const [Color(0xFF455173), Color(0xFF343D5E)],
+              ? const [Color(0xFF397FF1), Color(0xFF7A52D4)]
+              : const [Color(0xFF303A5C), Color(0xFF424467)],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: selected ? Colors.white70 : Colors.white12),
+        border: Border.all(
+          color: selected ? const Color(0xFFD2CEFF) : Colors.white24,
+          width: selected ? 1.5 : 1,
+        ),
         boxShadow: [
-          BoxShadow(
-            color: selected ? const Color(0x667C83DB) : Colors.black26,
-            blurRadius: selected ? 24 : 12,
-            spreadRadius: selected ? 2 : 0,
-          ),
+          BoxShadow(color: Colors.black38, blurRadius: 10, spreadRadius: 0),
         ],
       ),
       child: Material(
@@ -345,12 +371,21 @@ class _ModeButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(18),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return const Color(0x225F7F8A);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return const Color(0x1FFFFFFF);
+            }
+            return Colors.transparent;
+          }),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+            padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 12),
             child: Column(
               children: [
-                Icon(icon, size: 36),
-                const SizedBox(height: 8),
+                Icon(icon, size: 28),
+                const SizedBox(height: 6),
                 Text(
                   label,
                   style: const TextStyle(fontWeight: FontWeight.w900),
@@ -365,44 +400,52 @@ class _ModeButton extends StatelessWidget {
 }
 
 class _HeroCards extends StatelessWidget {
-  const _HeroCards({required this.animation});
+  const _HeroCards({required this.animation, required this.compact});
 
   final Animation<double> animation;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 350,
-    height: 205,
-    child: AnimatedBuilder(
-      animation: animation,
-      builder: (context, child) {
-        final value = Curves.easeOutBack.transform(animation.value);
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            _card('3', const Color(0xFF3E63DD), -94 * value, -.38 * value),
-            _card('7', const Color(0xFFE5484D), -48 * value, -.19 * value),
-            _card('9', const Color(0xFFF5C542), 48 * value, .19 * value),
-            _card('5', const Color(0xFF30A46C), 94 * value, .38 * value),
-            Transform.scale(
-              scale: .7 + (.3 * value),
-              child: const DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Color(0xFF171B2E),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Color(0x88FFB000), blurRadius: 24),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('🔔', style: TextStyle(fontSize: 72)),
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 320),
+    curve: Curves.easeOutCubic,
+    width: compact ? 245 : 350,
+    height: compact ? 135 : 205,
+    child: AnimatedScale(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      scale: compact ? .68 : 1,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, child) {
+          final value = Curves.easeOutBack.transform(animation.value);
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              _card('3', const Color(0xFF3E63DD), -94 * value, -.38 * value),
+              _card('7', const Color(0xFFE5484D), -48 * value, -.19 * value),
+              _card('9', const Color(0xFFF5C542), 48 * value, .19 * value),
+              _card('5', const Color(0xFF30A46C), 94 * value, .38 * value),
+              Transform.scale(
+                scale: .7 + (.3 * value),
+                child: const DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color(0xFF171B2E),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Color(0x88FFB000), blurRadius: 24),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('🔔', style: TextStyle(fontSize: 72)),
+                  ),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     ),
   );
 

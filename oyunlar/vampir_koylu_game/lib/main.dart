@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/entry_screen.dart';
+import 'screens/role_gallery_screen.dart';
 import 'services/socket_service.dart';
 import 'widgets/education_center_button.dart';
 
@@ -69,7 +70,9 @@ class _VampireVillagerAppState extends State<VampireVillagerApp>
           surface: Color(0xFF13132B),
         ),
       ),
-      home: const EntryScreen(), // Uygulama doğruca Giriş Ekranı ile başlar
+      home: Uri.base.queryParameters['roles'] == '1'
+          ? const RoleGalleryScreen()
+          : const EntryScreen(),
     );
   }
 }

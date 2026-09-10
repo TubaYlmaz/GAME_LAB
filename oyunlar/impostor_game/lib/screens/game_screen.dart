@@ -80,7 +80,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B1A),
+      backgroundColor: const Color(0xFF171315),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(
@@ -100,7 +100,7 @@ class _GameScreenState extends State<GameScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1E1E38), Color(0xFF13132B), Color(0xFF0B0B1A)],
+            colors: [Color(0xFF33272A), Color(0xFF241C1E), Color(0xFF171315)],
           ),
         ),
         child: SafeArea(
@@ -123,10 +123,10 @@ class _GameScreenState extends State<GameScreen> {
                 Text(
                   // 🎯 DÜZELTME: Üstteki alt başlığı da tamamen eşitledik kanka.
                   // İmpostor buraya bakıp "Aha bende kırmızı yazmıyor, kesin köylüyüm" diyecek!
-                  'Kelimeyi arkadaşlarına anlatmaya hazır ol!',
+                  'Kelimeyi anlatmaya hazır ol.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: Color(0xFF8E8EAF),
+                    color: Color(0xFFC8B9B2),
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -143,21 +143,21 @@ class _GameScreenState extends State<GameScreen> {
                   child: Container(
                     height: 250,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF181832).withValues(alpha: 0.9),
+                      color: const Color(0xFF2A2023).withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         // 🎯 DÜZELTME: Kart açıldığında İmpostor için kırmızı çerçeve yanmıyor,
                         // herkesle aynı şık köylü mavisi yanıyor ki durum çakılmasın!
                         color: _isWordVisible
-                            ? const Color(0xFF00D2FF)
-                            : const Color(0xFF2E2E5C),
+                            ? const Color(0xFFE08A6D)
+                            : const Color(0xFF584047),
                         width: 2,
                       ),
                       boxShadow: _isWordVisible
                           ? [
                               BoxShadow(
                                 color: const Color(
-                                  0xFF00D2FF,
+                                  0xFFE08A6D,
                                 ).withValues(alpha: 0.3),
                                 blurRadius: 15,
                                 spreadRadius: 2,
@@ -172,14 +172,14 @@ class _GameScreenState extends State<GameScreen> {
                         if (!_isWordVisible) ...[
                           const Icon(
                             Icons.lock_rounded,
-                            color: Color(0xFF8E8EAF),
+                            color: Color(0xFFC8B9B2),
                             size: 50,
                           ),
                           const SizedBox(height: 15),
                           const Text(
-                            'KELİMENİ GÖRMEK İÇİN TIKLA',
+                            'GİZLİ KELİMEYİ AÇ',
                             style: TextStyle(
-                              color: Color(0xFF8E8EAF),
+                              color: Color(0xFFC8B9B2),
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
@@ -191,7 +191,7 @@ class _GameScreenState extends State<GameScreen> {
                           const Text(
                             'GİZLİ KELİMEN',
                             style: TextStyle(
-                              color: Color(0xFF8E8EAF),
+                              color: Color(0xFFC8B9B2),
                               fontSize: 13,
                               letterSpacing: 1.5,
                               fontWeight: FontWeight.bold,
@@ -204,7 +204,7 @@ class _GameScreenState extends State<GameScreen> {
                             widget.secretWord,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              color: Color(0xFF00D2FF),
+                              color: Color(0xFFE08A6D),
                               fontSize: 34,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1,
@@ -224,9 +224,9 @@ class _GameScreenState extends State<GameScreen> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E2E5C),
+                          backgroundColor: const Color(0xFF584047),
                           side: const BorderSide(
-                            color: Color(0xFF00D2FF),
+                            color: Color(0xFFE08A6D),
                             width: 1,
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -235,7 +235,7 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ),
                         child: const Text(
-                          'LOBİYE DÖN',
+                          'ODAYA DÖN',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -252,7 +252,7 @@ class _GameScreenState extends State<GameScreen> {
                             _triggerVotingOnServer();
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E2E5C),
+                            backgroundColor: const Color(0xFF584047),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -263,7 +263,7 @@ class _GameScreenState extends State<GameScreen> {
                             ),
                           ),
                           child: const Text(
-                            'OYLAMAYA GİT',
+                            'OYLAMAYI BAŞLAT',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

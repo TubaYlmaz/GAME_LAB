@@ -158,7 +158,7 @@ class _NightActionDialogState extends State<NightActionDialog> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF161528),
+            color: const Color(0xFF3A171F),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: Colors.redAccent.withValues(alpha: 0.8),
@@ -255,11 +255,11 @@ class _NightActionDialogState extends State<NightActionDialog> {
       title = "Doktor";
       emoji = "🩺";
       description =
-          "Bu gece kimi korumak istersin? (Vampir saldırısını engeller)";
+          "Vampir saldırısından kimi korumak istersin? Kendini iki gece üst üste koruyamazsın.";
     } else if (isSerialKiller) {
       title = "Seri Katil";
       emoji = "🔪";
-      description = "Bu gece kurbanını belirle!";
+      description = "Tek başınasın. Bu gece saf dışı bırakacağın hedefi seç!";
     }
 
     return Column(

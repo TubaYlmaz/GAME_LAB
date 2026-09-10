@@ -18,8 +18,7 @@ const app = express();
 
 app.use(cors({
     origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true
+    methods: ["GET", "POST"]
 }));
 app.use(express.json());
 
@@ -28,8 +27,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
-        methods: ["GET", "POST"],
-        credentials: true
+        methods: ["GET", "POST"]
     },
     allowEIO3: true,
     transports: ['websocket', 'polling']
@@ -51,9 +49,50 @@ redisClient.on('error', (err) => {
 const anaProjeDizini = path.resolve(__dirname, '..');
 const oyunlarDizini = path.resolve(anaProjeDizini, 'oyunlar');
 
+// Flutter buildleri sık güncellendiği için tarayıcının eski oyun sürümünü
+// göstermesini engelle. Özellikle main.dart.js ve index.html her istekte
+// sunucudan doğrulansın.
+app.use('/oyunlar', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(anaProjeDizini, 'oyun_launcher.html'));
 });
+
+app.get('/vampir-guncelle', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(path.join(anaProjeDizini, 'vampir_cache_reset.html'));
+});
+
+const vampirV2BuildYolu = path.join(
+    oyunlarDizini,
+    'vampir_koylu_game',
+    'build',
+    'web_v2'
+);
+if (fs.existsSync(vampirV2BuildYolu)) {
+    app.use(
+        '/oyunlar/vampir_koylu_game/web-v2',
+        express.static(vampirV2BuildYolu)
+    );
+}
+
+const kartZilV2BuildYolu = path.join(
+    oyunlarDizini,
+    'kart_zil_game',
+    'build',
+    'web_v2'
+);
+if (fs.existsSync(kartZilV2BuildYolu)) {
+    app.use(
+        '/oyunlar/kart_zil_game/web-v2',
+        express.static(kartZilV2BuildYolu)
+    );
+}
 
 const dinamikAktifOyunlar = [];
 
@@ -76,7 +115,7 @@ if (fs.existsSync(oyunlarDizini)) {
 
             if (oyunAdı === "impostor_game") {
                 ikon = "fa-solid fa-user-secret";
-                aciklama = "Arkadaşlarınla birlikte gizli kelimeyi bulmaya çalış, aranızdaki imposter(lar)ı ayıkla!";
+                aciklama = "Gizli kelimeyi çöz, ipuçlarını takip et ve aranızdaki Impostor’u bul.";
             } else if (oyunAdı === "vampir_koylu_game") {
                 ikon = "fa-solid fa-cloud-moon";
                 aciklama = "Karanlık çöktüğünde vampirler avlanacak, gündüz olduğunda ise köy meydanında adalet aranacak!";
@@ -84,12 +123,12 @@ if (fs.existsSync(oyunlarDizini)) {
 
             if (oyunAd\u0131 === 'sans_oyunlari_game') {
                 ikon = 'fa-solid fa-dice';
-                aciklama = 'Yaz\u0131-tura at veya bir ya da iki zarla \u015fans\u0131n\u0131 dene!';
+                aciklama = 'Karar vermek veya rastgele sonuç oluşturmak için yazı-tura ya da zar aracını kullan.';
             }
 
             if (oyunAd\u0131 === 'kupa_valesi_game') {
                 ikon = 'fa-solid fa-heart';
-                aciklama = 'Ensendeki sembol\u00FC do\u011Fru tahmin et; gizli Kupa Valesi\u0027ni bul!';
+                aciklama = 'İpuçlarını değerlendir, gizli sembolünü bul ve doğru tahmini yap!';
             }
             if (oyunAd\u0131 === 'kart_zil_game') {
                 ikon = 'fa-solid fa-bell';
@@ -98,14 +137,18 @@ if (fs.existsSync(oyunlarDizini)) {
             dinamikAktifOyunlar.push({
                 id: oyunAdı,
                 isim: {
-                    impostor_game: 'Impostor Game',
+                    impostor_game: 'Impostor',
                     kart_zil_game: 'Kart & Zil',
-                    kupa_valesi_game: 'Kupa Valesi',
-                    sans_oyunlari_game: 'Şans Oyunları',
+                    kupa_valesi_game: 'Sembol Avı',
+                    sans_oyunlari_game: 'Zar & Yazı-Tura',
                     vampir_koylu_game: 'Vampir Köylü'
                 }[oyunAdı] || oyunAdı.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
                 aciklama: aciklama,
-                alt_yol: `/oyunlar/${oyunAdı}/web/index.html`,
+                alt_yol: oyunAdı === 'vampir_koylu_game'
+                    ? '/oyunlar/vampir_koylu_game/web-v2/index.html'
+                    : oyunAdı === 'kart_zil_game'
+                        ? '/oyunlar/kart_zil_game/web-v2/index.html'
+                        : `/oyunlar/${oyunAdı}/web/index.html`,
                 ikon_class: ikon
             });
         }
@@ -191,6 +234,6 @@ app.get('/api/game-status/:roomCode', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 Ana Sunucu ${PORT} portunda hazır kanka!`);
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Ana Sunucu 0.0.0.0:${PORT} adresinde hazır.`);
 });

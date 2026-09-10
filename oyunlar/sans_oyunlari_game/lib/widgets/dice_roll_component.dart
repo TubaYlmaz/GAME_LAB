@@ -20,6 +20,7 @@ class _DiceRollComponentState extends State<DiceRollComponent>
   int _diceCount = 1;
   List<int> _values = const [1];
   bool _isRolling = false;
+  bool _hasRolled = false;
 
   @override
   void initState() {
@@ -40,6 +41,7 @@ class _DiceRollComponentState extends State<DiceRollComponent>
     setState(() {
       _values = values;
       _isRolling = false;
+      _hasRolled = true;
     });
     widget.onRollCompleted(values);
   }
@@ -56,6 +58,15 @@ class _DiceRollComponentState extends State<DiceRollComponent>
       mainAxisSize: MainAxisSize.min,
       children: [
         SegmentedButton<int>(
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(118, 48)),
+            side: WidgetStatePropertyAll(
+              BorderSide(color: Color(0xFFC7AD98), width: 1.5),
+            ),
+            textStyle: WidgetStatePropertyAll(
+              TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
           segments: const [
             ButtonSegment(
               value: 1,
@@ -76,9 +87,9 @@ class _DiceRollComponentState extends State<DiceRollComponent>
                   _values = List<int>.filled(_diceCount, 1);
                 }),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 150,
+          height: 170,
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
@@ -100,14 +111,25 @@ class _DiceRollComponentState extends State<DiceRollComponent>
             },
           ),
         ),
-        const SizedBox(height: 14),
+        if (_hasRolled && !_isRolling)
+          Text(
+            _diceCount == 1
+                ? '${_values.first} geldi'
+                : 'Toplam ${_values.fold<int>(0, (sum, value) => sum + value)} geldi',
+            style: const TextStyle(
+              color: Color(0xFF493A32),
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        const SizedBox(height: 10),
         FilledButton.icon(
           onPressed: _isRolling ? null : _roll,
           icon: const Icon(Icons.casino_rounded),
           label: Text(_isRolling ? 'ZARLAR DÖNÜYOR...' : 'ZAR AT'),
           style: FilledButton.styleFrom(
-            minimumSize: const Size(190, 48),
-            backgroundColor: const Color(0xFFFF523B),
+            minimumSize: const Size(220, 52),
+            backgroundColor: const Color(0xFFD97560),
             textStyle: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
@@ -129,7 +151,7 @@ class _DiceCube3D extends StatelessWidget {
   final bool isRolling;
   final int index;
 
-  static const double cubeSize = 92.0;
+  static const double cubeSize = 112.0;
   static const double halfSize = cubeSize / 2.0;
 
   @override
@@ -367,11 +389,8 @@ class _DicePipPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final pips = _pipsByValue[value] ?? {};
-    final isOne = value == 1;
-
-    final pipColor = isOne ? const Color(0xFFE53935) : const Color(0xFF2C222E);
-    final pipPaint = Paint()..color = pipColor;
-    final pipRadius = isOne ? size.width * 0.12 : size.width * 0.075;
+    final pipPaint = Paint()..color = const Color(0xFF2C222E);
+    final pipRadius = size.width * 0.075;
 
     for (final idx in pips) {
       final pos = _pipPositions[idx];

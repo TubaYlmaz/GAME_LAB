@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../services/jh_socket_service.dart';
 import '../widgets/jh_ui.dart';
+import 'jh_entry_screen.dart';
 import 'jh_guess_dialog.dart';
 import 'jh_lobby_screen.dart';
 
@@ -228,9 +229,9 @@ class _JhGameScreenState extends State<JhGameScreen> {
         ? () => setState(() => _openedNumber = revealed ? null : number)
         : (canInspect ? () => _inspectNumber(number) : null);
     final borderColor = revealed
-        ? const Color(0xFFFFD166)
+        ? const Color(0xFFE7C98A)
         : known
-        ? const Color(0xFF77E6FF)
+        ? const Color(0xFF9CAF96)
         : const Color(0x66FFFFFF);
 
     return InkWell(
@@ -242,7 +243,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
           duration: const Duration(milliseconds: 220),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: revealed ? const Color(0xFF302037) : const Color(0xFF181A2C),
+            color: revealed ? const Color(0xFF49372F) : const Color(0xFF181A2C),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: borderColor, width: revealed ? 1.6 : 1),
           ),
@@ -252,7 +253,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
               Text(
                 'NUMARA',
                 style: TextStyle(
-                  color: known ? const Color(0xFFFFD166) : Colors.white54,
+                  color: known ? const Color(0xFFE7C98A) : Colors.white54,
                   fontSize: 9,
                   fontWeight: FontWeight.w900,
                   letterSpacing: .8,
@@ -276,7 +277,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                     key: ValueKey('$number-$revealed'),
                     style: TextStyle(
                       color: revealed
-                          ? const Color(0xFFFFD166)
+                          ? const Color(0xFFE7C98A)
                           : const Color(0xFFFFFFFF),
                       fontSize: 54,
                       height: .9,
@@ -294,7 +295,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                         ? Icons.visibility_rounded
                         : Icons.touch_app_rounded,
                     size: 15,
-                    color: known ? const Color(0xFFFFD166) : Colors.white60,
+                    color: known ? const Color(0xFFE7C98A) : Colors.white60,
                   ),
                   const SizedBox(width: 5),
                   Text(
@@ -304,7 +305,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                         ? 'TEKRAR AÇ'
                         : 'İNCELE',
                     style: TextStyle(
-                      color: known ? const Color(0xFFFFD166) : Colors.white60,
+                      color: known ? const Color(0xFFE7C98A) : Colors.white60,
                       fontSize: 9,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .45,
@@ -323,9 +324,9 @@ class _JhGameScreenState extends State<JhGameScreen> {
     width: double.infinity,
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     decoration: BoxDecoration(
-      color: const Color(0xFF302037),
+      color: const Color(0xFF49372F),
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFFFF426E)),
+      border: Border.all(color: const Color(0xFFD9826B)),
     ),
     child: Row(
       children: [
@@ -333,7 +334,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
           width: 4,
           height: 58,
           decoration: BoxDecoration(
-            color: const Color(0xFFFF426E),
+            color: const Color(0xFFD9826B),
             borderRadius: BorderRadius.circular(9),
           ),
         ),
@@ -344,7 +345,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
             const Text(
               'SENİN NUMARAN',
               style: TextStyle(
-                color: Color(0xFFFFD166),
+                color: Color(0xFFE7C98A),
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1,
@@ -396,7 +397,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
         const Text(
           'MASADAKİ NUMARALAR',
           style: TextStyle(
-            color: Color(0xFF77E6FF),
+            color: Color(0xFF9CAF96),
             fontSize: 12,
             fontWeight: FontWeight.w900,
             letterSpacing: .9,
@@ -428,7 +429,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
               child: Text(
                 'İZLEYİCİ MODUNDASIN',
                 style: TextStyle(
-                  color: Color(0xFFFF8AA1),
+                  color: Color(0xFFE7A08D),
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -584,7 +585,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF2A1729), Color(0xFF131522)],
+                colors: [Color(0xFF49372F), Color(0xFF211B18)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -616,7 +617,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                             Text(
                               'TUR TAMAMLANDI',
                               style: TextStyle(
-                                color: Color(0xFFFFD166),
+                                color: Color(0xFFE7C98A),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.2,
@@ -676,7 +677,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                                 vertical: 10,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0x33101524),
+                                color: const Color(0x3349372F),
                                 borderRadius: BorderRadius.circular(15),
                                 border: Border.all(
                                   color: const Color(0x55FF426E),
@@ -693,7 +694,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                                     ),
                                     child: const Icon(
                                       Icons.person_off_rounded,
-                                      color: Color(0xFFFF8AA1),
+                                      color: Color(0xFFE7A08D),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
@@ -723,7 +724,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                                   ),
                                   const Icon(
                                     Icons.close_rounded,
-                                    color: Color(0xFFFF426E),
+                                    color: Color(0xFFD9826B),
                                   ),
                                 ],
                               ),
@@ -790,7 +791,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
         context: context,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF1B1C2F),
+          backgroundColor: const Color(0xFF352B26),
           title: Text(
             title,
             style: const TextStyle(fontWeight: FontWeight.w900),
@@ -846,6 +847,35 @@ class _JhGameScreenState extends State<JhGameScreen> {
     _socket.socket?.emit('jh_ready_for_cell', {'roomCode': _roomCode});
   }
 
+  Future<void> _leaveGame() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF352B26),
+        title: const Text('Oyundan çıkılsın mı?'),
+        content: const Text('Oyundan ayrılıp Sembol Avı girişine döneceksin.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('VAZGEÇ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('OYUNDAN ÇIK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    _socket.socket?.disconnect();
+    await _socket.clearSession();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const JhEntryScreen()),
+      (_) => false,
+    );
+  }
+
   void _inspectNumber(int number) {
     _socket.socket?.emit('jh_inspect_number', {
       'roomCode': _roomCode,
@@ -856,35 +886,46 @@ class _JhGameScreenState extends State<JhGameScreen> {
   String _phaseTitle() {
     switch (_phase) {
       case 'cell':
-        return 'H\u00DCCRE FAZI';
+        return 'G\u0130ZL\u0130 ODA';
       case 'result':
-        return 'YARGI';
+        return 'TUR SONUCU';
       default:
-        return 'TARTI\u015EMA FAZI';
+        return '\u0130PUCU ZAMANI';
     }
-  }
-
-  String _phaseHint() {
-    if (_phase == 'cell') {
-      return 'Ekran karard\u0131. Sembol\u00FCn\u00FC se\u00E7 ve kilitle.';
-    }
-    if (_phase == 'result') {
-      return 'Yeni semboller da\u011F\u0131t\u0131l\u0131yor...';
-    }
-    return 'Y\u00FCz y\u00FCze konu\u015Fun; ensendeki sembol\u00FC \u00F6\u011Frenmeye \u00E7al\u0131\u015F\u0131n.';
   }
 
   @override
   Widget build(BuildContext context) {
     final buttonLabel = _amAlive
-        ? 'H\u00DCCREYE GE\u00C7MEYE HAZIRIM (${_readyCount} / ${_totalAlive})'
+        ? 'G\u0130ZL\u0130 ODAYA HAZIRIM (${_readyCount} / ${_totalAlive})'
         : '\u0130ZLEY\u0130C\u0130 MODUNDASIN';
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          Tooltip(
+            message: 'Oyundan çık',
+            child: IconButton.filled(
+              onPressed: _leaveGame,
+              icon: const Icon(Icons.logout_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF49372F),
+                foregroundColor: const Color(0xFFE7A08D),
+                side: const BorderSide(color: Color(0x99E7A08D)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
       body: JhBackground(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(14, 76, 14, 14),
             child: Column(
               children: [
                 JhPanel(
@@ -894,30 +935,15 @@ class _JhGameScreenState extends State<JhGameScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.favorite_rounded,
-                        color: Color(0xFFFF426E),
-                      ),
+                      const JhSymbolMark(size: 34),
                       const SizedBox(width: 9),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _phaseTitle(),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 17,
-                              ),
-                            ),
-                            Text(
-                              _phaseHint(),
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          _phaseTitle(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 17,
+                          ),
                         ),
                       ),
                       if (_activeDeadline > 0)
@@ -937,7 +963,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                             ),
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
-                              color: Color(0xFF77E6FF),
+                              color: Color(0xFF9CAF96),
                               fontSize: 18,
                             ),
                           ),
@@ -961,7 +987,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                                 ' / ' +
                                 _totalAlive.toString(),
                             style: const TextStyle(
-                              color: Color(0xFF77E6FF),
+                              color: Color(0xFF9CAF96),
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -974,7 +1000,7 @@ class _JhGameScreenState extends State<JhGameScreen> {
                         enabled:
                             _phase == 'discussion' && _amAlive && !_amReady,
                         onPressed: _readyForCell,
-                        color: const Color(0xFF13B98B),
+                        color: const Color(0xFF789276),
                       ),
                     ],
                   ),
@@ -1002,7 +1028,7 @@ class _ResultSeal extends StatelessWidget {
       ),
       child: const Icon(
         Icons.gavel_rounded,
-        color: Color(0xFFFFD166),
+        color: Color(0xFFE7C98A),
         size: 25,
       ),
     );

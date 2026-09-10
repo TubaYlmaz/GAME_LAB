@@ -54,7 +54,7 @@ Future<void> showKzRules(BuildContext context) => showDialog<void>(
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 18, 8, 18),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   colors: [Color(0xFF496FCE), Color(0xFF8B55C7)],
@@ -75,14 +75,9 @@ Future<void> showKzRules(BuildContext context) => showDialog<void>(
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        Text('Kısa oyun rehberi'),
+                        Text('Temel kurallar ve puanlama'),
                       ],
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Kapat',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
@@ -97,40 +92,50 @@ Future<void> showKzRules(BuildContext context) => showDialog<void>(
                       _RuleCard(
                         icon: '🎯',
                         title: 'AMAÇ',
-                        text: 'Elindeki en güçlü grubu oluştur, düşük puanda kalma ve son hayatta kalan oyuncu ol.',
+                        text: 'Aynı renk veya aynı sayıdaki kartları biriktir. En yüksek el puanını yap ve canlarını koru.',
                       ),
                       _RuleCard(
                         icon: '🃏',
                         title: 'SIRAN GELİNCE',
-                        text: 'Kapalı desteden veya açık karttan bir kart al. Elin 5 kart olunca bir kartı açık alana bırak. Tur sonunda elinde yine 4 kart kalır.',
+                        text: 'Kapalı desteden ya da açık alandan bir kart al. Beş karttan birini açık alana bırak; elinde yine dört kart kalsın.',
                       ),
                       _RuleCard(
                         icon: '🔔',
                         title: 'ZİL KURALI',
-                        text: 'Zile yalnızca kendi sıranın başında, henüz kart çekmeden basabilirsin. Zile bastığında elin kilitlenir; diğer oyuncular birer son hamle yapar.',
+                        text: 'Zile yalnızca sıranın başında, kart almadan önce basabilirsin. Elin kilitlenir ve diğer oyuncular birer son hamle yapar.',
                       ),
                       _ScoringGuide(),
                       _RuleCard(
                         icon: '❤️',
-                        title: 'CAN VE ELENME',
-                        text: 'Herkes 3 canla başlar. En düşük puandaki oyuncu 1 can kaybeder. Zile basan oyuncu en düşükse 2 can kaybeder. Eşitlikte tüm düşük oyuncular ceza alır.',
-                      ),
-                      _RuleCard(
-                        icon: '🏁',
-                        title: 'TUR VE OYUN SONU',
-                        text: 'Destenin son kartı çekilip bir kart atılınca tur biter. Canı sıfırlanan elenir. Oyunda kalan son oyuncu kazanır.',
-                      ),
-                      _RuleCard(
-                        icon: '👥',
-                        title: 'OYUNCU VE DESTE',
-                        text: 'Her renkte 1–10 sayıları bulunur.\n2–4 oyuncu: 40 kart, 4 renk\n5–6 oyuncu: 50 kart, 5 renk\n7–8 oyuncu: 70 kart, 7 renk\n9–10 oyuncu: 90 kart, 9 renk',
+                        title: 'CAN, TUR VE KAZANMA',
+                        text: 'Herkes 3 canla başlar. Turun en düşük puanı 1 can kaybeder; bu kişi zile bastıysa 2 can kaybeder. Canı biten elenir, son kalan oyuncu kazanır.',
                       ),
                       _RuleCard(
                         icon: '🤝',
                         title: 'TAKIM MODU',
-                        text: 'Yalnızca çift oyuncu sayısıyla açılır ve takımlar her oyunda rastgele kurulur. Her takım 5 ortak canla başlar. Tur sonunda takım üyelerinin el puanları toplanır; düşük takım 1 can kaybeder. Zile basan oyuncunun takımı düşükse 2 can kaybeder. Eşitlikte can kaybı olmaz.',
+                        text: 'Çift oyuncu sayısıyla oynanır ve takımlar rastgele kurulur. Takım puanları toplanır; düşük takım 1 can, zile basan oyuncunun takımı düşükse 2 can kaybeder. Eşitlikte can kaybı olmaz.',
                       ),
                     ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('ANLADIM'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFC53D),
+                    foregroundColor: const Color(0xFF293655),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .7,
+                    ),
                   ),
                 ),
               ),
@@ -235,7 +240,7 @@ class _ScoringGuide extends StatelessWidget {
               ],
               colorCalculation: 'Mavi: 4 + 8 = 12',
               numberCalculation: 'Dörtler: 4 + 4 = 8',
-              result: 'EL PUANI: 12',
+              result: 'PUAN: 12',
             );
             const numberExample = _ScoreExample(
               title: 'ÖRNEK 2 · AYNI SAYI',
@@ -247,7 +252,7 @@ class _ScoringGuide extends StatelessWidget {
               ],
               colorCalculation: 'Mavi: 3 + 7 = 10',
               numberCalculation: 'Yediler: 7 + 7 = 14',
-              result: 'EL PUANI: 14',
+              result: 'PUAN: 14',
             );
             if (constraints.maxWidth < 520) {
               return const Column(

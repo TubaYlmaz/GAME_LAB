@@ -142,30 +142,29 @@ class _VotingScreenState extends State<VotingScreen> {
     if (isTie) {
       title = "BERABERLİK! ⚖️";
       subtitle =
-          "Oylamada eşitlik çıktı, kimse elenmedi! Gerçek İmpostor '$impostorName' aranızda sızmaya devam ediyor.";
+          "Oylar eşit çıktı; kimse elenmedi. Impostor '$impostorName' oyunda kaldı.";
       isVictory = widget.amIImpostor;
     } else if (eliminatedPlayer == impostorName) {
       if (widget.amIImpostor) {
         title = "YAKALANDIN! 💀";
         subtitle =
-            "Diğer oyuncular senin İmpostor olduğunu doğru bildi. Maçı kaybettin!";
+            "Diğer oyuncular senin Impostor olduğunu buldu. Oyunu kaybettin.";
         isVictory = false;
       } else {
         title = "ZAFER! 🎉";
-        subtitle =
-            "Tebrikler! İmpostor olan '$impostorName' oyuncusunu başarıyla elediniz ve kazandınız!";
+        subtitle = "Impostor '$impostorName' bulundu. Oyunu kazandınız!";
         isVictory = true;
       }
     } else {
       if (widget.amIImpostor) {
         title = "ZAFER! 😈";
         subtitle =
-            "Köylüler yanlış kişiyi ($eliminatedPlayer) eledi! Sen yakalanmadın ve maçı kazandın.";
+            "Oyuncular yanlış kişiyi ($eliminatedPlayer) eledi. Yakalanmadın ve oyunu kazandın!";
         isVictory = true;
       } else {
         title = "BOZGUN! 🛑";
         subtitle =
-            "Yanlış kişiyi ($eliminatedPlayer) elediniz! Gerçek İmpostor '$impostorName' aranızda sinsi sinsi dolaşıyor.";
+            "Yanlış kişi ($eliminatedPlayer) elendi. Impostor '$impostorName' oyunda kaldı.";
         isVictory = false;
       }
     }
@@ -175,7 +174,7 @@ class _VotingScreenState extends State<VotingScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF151528),
+          backgroundColor: const Color(0xFF2A2023),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -261,17 +260,17 @@ class _VotingScreenState extends State<VotingScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00D2FF),
+                      color: const Color(0xFFE08A6D),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: const Center(
                       child: Text(
-                        "ODAYA DÖN 🏠",
+                        "ODAYA DÖN",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0B0B1A),
+                          color: Color(0xFF171315),
                         ),
                       ),
                     ),
@@ -296,7 +295,7 @@ class _VotingScreenState extends State<VotingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B1A),
+      backgroundColor: const Color(0xFF171315),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(
@@ -306,7 +305,7 @@ class _VotingScreenState extends State<VotingScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          "KİM İMPOSTER?",
+          "IMPOSTOR KİM?",
           style: TextStyle(
             fontWeight: FontWeight.w900,
             letterSpacing: 2.0,
@@ -324,7 +323,7 @@ class _VotingScreenState extends State<VotingScreen> {
             height: 4,
             margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF2E2E5C),
+              color: const Color(0xFF584047),
               borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.centerLeft,
@@ -341,7 +340,7 @@ class _VotingScreenState extends State<VotingScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 15.0),
             child: Text(
-              "Onaylanan Kilitli Oylar: $votedCount / ${widget.players.length}",
+              "Kullanılan oylar: $votedCount / ${widget.players.length}",
               style: const TextStyle(
                 color: Colors.greenAccent,
                 fontSize: 13,
@@ -384,7 +383,7 @@ class _VotingScreenState extends State<VotingScreen> {
                                 colors: [Color(0xFFE53935), Color(0xFFB71C1C)],
                               )
                             : const LinearGradient(
-                                colors: [Color(0xFF1E1E38), Color(0xFF151528)],
+                                colors: [Color(0xFF33272A), Color(0xFF2A2023)],
                               ),
                         borderRadius: BorderRadius.circular(16),
                         border: hasLockedVote && isSelected
@@ -441,18 +440,16 @@ class _VotingScreenState extends State<VotingScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
                   color: hasLockedVote
-                      ? const Color(0xFF2E2E5C).withValues(alpha: 0.5)
+                      ? const Color(0xFF584047).withValues(alpha: 0.5)
                       : (selectedPlayer == null
-                            ? const Color(0xFF2E2E5C)
+                            ? const Color(0xFF584047)
                             : const Color(0xFF4CAF50)),
                 ),
                 child: Center(
                   child: Text(
                     hasLockedVote
-                        ? "OYUN KİLİTLENDİ 🔒"
-                        : (selectedPlayer == null
-                              ? "PAS GEÇ VE KİLİTLE 🔒"
-                              : "OYU KİLİTLE 🔒"),
+                        ? "OYUN KAYDEDİLDİ"
+                        : (selectedPlayer == null ? "PAS GEÇ" : "OYUNU ONAYLA"),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,

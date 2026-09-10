@@ -520,6 +520,14 @@ module.exports = function ({ app, io, redisClient, db }) {
         const finalVampireTarget = uniqueVampireTargets[0] || null;
         const finalDoctorTarget = Object.values(relevantVotes.doctors)[0] || null;
         const finalKillerTarget = uniqueKillerTargets[0] || null;
+        const doctorProtectionKey = `room:${roomCode}:vk_doctor_self_protection`;
+        for (const [doctorName, protectedPlayer] of Object.entries(relevantVotes.doctors)) {
+            await redisClient.hset(
+                doctorProtectionKey,
+                normalisePlayerName(doctorName),
+                normalisePlayerName(doctorName) === normalisePlayerName(protectedPlayer) ? '1' : '0'
+            );
+        }
         const deadTargetNames = new Set();
         if (finalKillerTarget) deadTargetNames.add(normalisePlayerName(finalKillerTarget));
         if (finalVampireTarget && normalisePlayerName(finalVampireTarget) !== normalisePlayerName(finalDoctorTarget)) {
@@ -548,8 +556,8 @@ module.exports = function ({ app, io, redisClient, db }) {
         io.to(roomCode).emit('night_results', {
             deadPlayers: actualDeadNames,
             message: actualDeadNames.length > 0
-                ? `Sabah oldu! Gece kurbanı / kurbanları: ${actualDeadNames.join(', ')} 💀`
-                : 'Mucize! Doktor köyü korumayı başardı, gece kimse ölmedi. 🩺'
+                ? `Sabah oldu! Gece hayatını kaybedenler: ${actualDeadNames.join(', ')} 💀`
+                : 'Bu gece kimse ölmedi. ☀️'
         });
         io.to(roomCode).emit('vk_players_updated', updatedPlayers);
 
@@ -1203,6 +1211,7 @@ module.exports = function ({ app, io, redisClient, db }) {
             await redisClient.del(`${roomKey}:vk_bot_locked_votes`);
             await redisClient.del(`${roomKey}:returned_players`);
             await redisClient.del(`${roomKey}:roles_seen_players`);
+            await redisClient.del(`${roomKey}:vk_doctor_self_protection`);
             delete nightVotes[roomCode];
 
             const result = await distributeAndSaveRoles(roomCode);
@@ -1359,6 +1368,17 @@ module.exports = function ({ app, io, redisClient, db }) {
             } else if (rStr.includes('seri') || rStr.includes('katil')) {
                 nightVotes[roomCode].killers[actingPlayer.name] = target;
             } else if (rStr.includes('doktor')) {
+                const doctorProtectionKey = `room:${roomCode}:vk_doctor_self_protection`;
+                const protectedSelfLastNight = await redisClient.hget(
+                    doctorProtectionKey,
+                    playerKey
+                );
+                if (targetKey === playerKey && protectedSelfLastNight === '1') {
+                    socket.emit('night_action_error', {
+                        message: 'Kendini iki gece üst üste koruyamazsın. Bu gece başka bir oyuncu seçmelisin.'
+                    });
+                    return;
+                }
                 nightVotes[roomCode].doctors[actingPlayer.name] = target;
             } else {
                 if (!nightVotes[roomCode].mathSolvedPlayers.includes(actingPlayer.name)) {

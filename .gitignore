@@ -6,6 +6,11 @@ backend/node_modules/
 **/node_modules/
 node_modules/
 
+# Yerel sunucu sırları
+.env
+**/.env
+!.env.example
+
 # Flutter/Dart gereksiz derleme dosyalarını engelle
 .dart_tool/
 .flutter-plugins

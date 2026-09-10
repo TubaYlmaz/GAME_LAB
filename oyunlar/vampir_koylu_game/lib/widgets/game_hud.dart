@@ -73,10 +73,10 @@ class GameHud extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0A0D2A).withValues(alpha: 0.92),
+                    color: const Color(0xFF251015).withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(35),
                     border: Border.all(
-                      color: const Color(0xFF00D2FF).withValues(alpha: 0.4),
+                      color: const Color(0xFFE7B5A2).withValues(alpha: 0.4),
                       width: 1.5,
                     ),
                     boxShadow: [
@@ -106,7 +106,7 @@ class GameHud extends StatelessWidget {
                           _buildInfoChip(
                             Icons.person_outline,
                             myPlayer.role,
-                            const Color(0xFF00D2FF),
+                            const Color(0xFFE7B5A2),
                           ),
                           Container(
                             width: 1,
@@ -116,7 +116,7 @@ class GameHud extends StatelessWidget {
                           _buildInfoChip(
                             Icons.timelapse,
                             _phaseText,
-                            Colors.purpleAccent,
+                            const Color(0xFFE7A7B5),
                           ),
                         ],
                       ),
@@ -126,7 +126,7 @@ class GameHud extends StatelessWidget {
                         height: 46,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00D2FF),
+                            backgroundColor: const Color(0xFFE7B5A2),
                             foregroundColor: Colors.black,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(25),

@@ -13,11 +13,10 @@ class ChanceGameSocketService {
   io.Socket? _socket;
 
   String get _serverUrl {
+    const configuredServerUrl = String.fromEnvironment('SERVER_URL');
+    if (configuredServerUrl.isNotEmpty) return configuredServerUrl;
     if (kIsWeb) return Uri.base.origin;
-    return const String.fromEnvironment(
-      'SERVER_URL',
-      defaultValue: 'http://10.7.9.47:3000',
-    );
+    return 'http://10.0.2.2:3000';
   }
 
   void connect() {

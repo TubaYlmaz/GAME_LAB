@@ -1,16 +1,19 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/game_state_model.dart';
 import '../models/player_model.dart';
 import '../services/socket_service.dart';
+import '../services/sound_service.dart';
 import '../utils/site_navigation.dart';
 import '../widgets/education_center_button.dart';
 import '../widgets/bell_button.dart';
 import '../widgets/countdown_timer.dart';
 import '../widgets/game_logo.dart';
 import '../widgets/playing_card.dart';
+import '../widgets/top_bar_controls.dart';
 
 class KzGameScreen extends StatelessWidget {
   const KzGameScreen({super.key});
@@ -23,58 +26,47 @@ class KzGameScreen extends StatelessWidget {
     final isMobile = MediaQuery.sizeOf(context).width < 650;
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 66,
+        toolbarHeight: isMobile ? 58 : 66,
         centerTitle: true,
         leadingWidth: 58,
         flexibleSpace: Stack(
           fit: StackFit.expand,
           children: [
             const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF34456F),
-                    Color(0xFF534B7D),
-                    Color(0xFF355F78),
-                  ],
-                ),
-              ),
+              decoration: BoxDecoration(gradient: kzTopBarGradient),
             ),
             Positioned(
-              left: 64,
-              top: 17,
+              left: isMobile ? 56 : 64,
+              top: isMobile ? 8 : 12,
               child: _GameInfoBadges(state: state, compact: isMobile),
             ),
           ],
         ),
         leading: Padding(
-          padding: const EdgeInsets.fromLTRB(7, 9, 3, 9),
+          padding: EdgeInsets.fromLTRB(
+            7,
+            isMobile ? 8 : 12,
+            3,
+            isMobile ? 8 : 12,
+          ),
           child: KzEducationCenterButton(onPressed: () => _goToGames(service)),
         ),
         title: KzGameLogo(
-          width: isMobile ? 90 : 112,
-          height: isMobile ? 44 : 52,
+          width: isMobile ? 78 : 112,
+          height: isMobile ? 42 : 52,
         ),
         actions: [
           if (me?.isHost == true)
-            IconButton.filledTonal(
+            KzTopIconButton(
               tooltip: 'Oyunu durdur',
-              style: IconButton.styleFrom(
-                foregroundColor: Colors.white,
-                backgroundColor: const Color(0xFF9B73D1),
-              ),
               onPressed: () => _confirmStop(context, service),
-              icon: const Icon(Icons.stop_circle_outlined),
+              icon: Icons.stop_circle_outlined,
             ),
           const SizedBox(width: 6),
-          IconButton.filled(
+          KzTopIconButton(
             tooltip: 'Oyundan çık',
-            style: IconButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: const Color(0xFF9B73D1),
-            ),
             onPressed: service.leave,
-            icon: const Icon(Icons.logout),
+            icon: Icons.logout,
           ),
           SizedBox(width: isMobile ? 6 : 12),
         ],
@@ -122,62 +114,26 @@ class _GameInfoBadges extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (compact) {
-      return _InfoBadge(
-        icon: Icons.auto_awesome,
-        text: 'T${state.roundNumber} • ${state.roomCode}',
-        color: const Color(0xFF65C6C4),
+      return KzTopPanel(
+        text: 'T${state.roundNumber} · ${state.roomCode}',
+        tooltip: 'Oda kodunu kopyala',
+        onPressed: () => _copyKzRoomCode(context, state.roomCode),
       );
     }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _InfoBadge(
-          icon: Icons.auto_awesome,
-          text: 'TUR ${state.roundNumber}',
-          color: const Color(0xFF65C6C4),
-        ),
+        KzTopPanel(text: 'TUR ${state.roundNumber}'),
         const SizedBox(width: 6),
-        _InfoBadge(
-          icon: Icons.meeting_room_outlined,
-          text: state.roomCode,
-          color: const Color(0xFFE58BC1),
+        KzTopPanel(
+          text: 'ODA ${state.roomCode}',
+          trailingIcon: Icons.copy_rounded,
+          tooltip: 'Oda kodunu kopyala',
+          onPressed: () => _copyKzRoomCode(context, state.roomCode),
         ),
       ],
     );
   }
-}
-
-class _InfoBadge extends StatelessWidget {
-  const _InfoBadge({
-    required this.icon,
-    required this.text,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: .18),
-      borderRadius: BorderRadius.circular(13),
-      border: Border.all(color: color.withValues(alpha: .8)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 15),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-        ),
-      ],
-    ),
-  );
 }
 
 class _RoundTable extends StatelessWidget {
@@ -227,7 +183,7 @@ class _RoundTable extends StatelessWidget {
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.1,
-          colors: [Color(0xFF667EA2), Color(0xFF293451)],
+          colors: [Color(0xFF5274EA), Color(0xFF292845)],
         ),
       ),
       child: LayoutBuilder(
@@ -235,8 +191,8 @@ class _RoundTable extends StatelessWidget {
           final width = bounds.maxWidth;
           final height = bounds.maxHeight;
           final isMobile = width < 600;
-          final tableWidth = math.min(width * (isMobile ? .78 : .74), 760.0);
-          final tableHeight = math.min(height * (isMobile ? .48 : .57), 500.0);
+          final tableWidth = math.min(width * (isMobile ? .86 : .74), 760.0);
+          final tableHeight = math.min(height * (isMobile ? .52 : .57), 500.0);
           final left = (width - tableWidth) / 2;
           final top = math.max(
             state.gameMode == 'team' ? 70.0 : 38.0,
@@ -259,7 +215,7 @@ class _RoundTable extends StatelessWidget {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF8EB7C9), Color(0xFF667CAD)],
+                      colors: [Color(0xFF5EC6E0), Color(0xFF6570DE)],
                     ),
                     border: Border.all(
                       color: const Color(0xFFD9D5F4),
@@ -275,15 +231,6 @@ class _RoundTable extends StatelessWidget {
                   ),
                 ),
               ),
-              if (state.bellPressed)
-                Positioned(
-                  top: 8,
-                  left: isMobile ? 8 : 16,
-                  right: isMobile ? 8 : math.max(16, width - 486),
-                  child: _BellAlert(
-                    text: '🔔 ZİL ÇALDI • ${bellName ?? '-'} • SON HAMLE',
-                  ),
-                ),
               Positioned(
                 bottom: isMobile ? 8 : 18,
                 right: isMobile ? 8 : 18,
@@ -294,18 +241,22 @@ class _RoundTable extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF28163F), Color(0xFFE5484D)],
+                      colors: [Color(0xFF202743), Color(0xFF3B4F72)],
                     ),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: Colors.white70, width: 2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFFFCA4B)),
                     boxShadow: const [
-                      BoxShadow(color: Color(0x88E5484D), blurRadius: 20),
+                      BoxShadow(color: Color(0x66FFCA4B), blurRadius: 18),
                     ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.timer_outlined, size: 24),
+                      Icon(
+                        Icons.timer_outlined,
+                        color: const Color(0xFFFFCA4B),
+                        size: isMobile ? 19 : 22,
+                      ),
                       const SizedBox(width: 7),
                       KzCountdown(
                         deadline: state.turnDeadline,
@@ -317,7 +268,7 @@ class _RoundTable extends StatelessWidget {
               ),
               if (!state.bellPressed)
                 Positioned(
-                  top: 10,
+                  top: isMobile ? 18 : 10,
                   left: 16,
                   right: 16,
                   child: AnimatedSwitcher(
@@ -352,22 +303,62 @@ class _RoundTable extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     InkWell(
-                      onTap: canDraw ? service.drawDeck : null,
+                      onTap: canDraw
+                          ? () {
+                              KzSoundService.instance.playCardDraw();
+                              service.drawDeck();
+                            }
+                          : null,
                       borderRadius: BorderRadius.circular(14),
                       child: Container(
-                        width: isMobile ? 64 : 80,
-                        height: isMobile ? 94 : 116,
+                        width: isMobile ? 68 : 80,
+                        height: isMobile ? 98 : 116,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF20294C),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF263653), Color(0xFF151C35)],
+                          ),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white54, width: 2),
-                          boxShadow: const [BoxShadow(blurRadius: 12)],
+                          border: Border.all(
+                            color: const Color(0xFFFFCA4B),
+                            width: 2,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x55FFCA4B),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          'KAPALI\n${state.deckCount}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            KzGameLogo(
+                              width: isMobile ? 42 : 50,
+                              height: isMobile ? 28 : 34,
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              '${state.deckCount}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: isMobile ? 20 : 25,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              'KART',
+                              style: TextStyle(
+                                color: const Color(0xFFFFCA4B),
+                                fontSize: isMobile ? 9 : 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -376,7 +367,12 @@ class _RoundTable extends StatelessWidget {
                       KzPlayingCard(
                         card: state.openCard!,
                         large: !isMobile,
-                        onTap: canDraw ? service.takeOpenCard : null,
+                        onTap: canDraw
+                            ? () {
+                                KzSoundService.instance.playCardDraw();
+                                service.takeOpenCard();
+                              }
+                            : null,
                       )
                     else
                       const SizedBox(width: 68, height: 98),
@@ -396,6 +392,17 @@ class _RoundTable extends StatelessWidget {
                   isMobile: isMobile,
                   spectatorView: me?.eliminated == true,
                 ),
+              if (state.bellPressed)
+                Positioned(
+                  top: isMobile ? 8 : 18,
+                  left: isMobile ? 12 : 18,
+                  right: isMobile ? 12 : null,
+                  width: isMobile ? null : 340,
+                  child: _BellAlert(
+                    playerName: bellName ?? '-',
+                    compact: isMobile,
+                  ),
+                ),
               Positioned(
                 left: 12,
                 right: 12,
@@ -410,12 +417,18 @@ class _RoundTable extends StatelessWidget {
                               duration: const Duration(milliseconds: 300),
                               child: Chip(
                                 key: ValueKey(state.myScore),
-                                avatar: const Icon(Icons.auto_graph, size: 18),
                                 label: Text(
-                                  'EL PUANIN: ${state.myScore}',
+                                  'PUAN: ${state.myScore}',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                   ),
+                                ),
+                                backgroundColor: const Color(0xFF202538),
+                                side: const BorderSide(
+                                  color: Color(0xFF6FD3D0),
+                                ),
+                                labelStyle: const TextStyle(
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
@@ -433,7 +446,11 @@ class _RoundTable extends StatelessWidget {
                                         card: card,
                                         compact: isMobile,
                                         onTap: mustDiscard
-                                            ? () => service.discard(card.id)
+                                            ? () {
+                                                KzSoundService.instance
+                                                    .playCardDrop();
+                                                service.discard(card.id);
+                                              }
                                             : null,
                                       ),
                                     ),
@@ -473,8 +490,8 @@ class _RoundTable extends StatelessWidget {
     required bool isMobile,
     required bool spectatorView,
   }) {
-    final seatWidth = isMobile ? 88.0 : 150.0;
-    final seatHeight = isMobile ? 46.0 : 66.0;
+    final seatWidth = isMobile ? 104.0 : 150.0;
+    final seatHeight = isMobile ? 56.0 : 66.0;
     final angle = (math.pi / 2) + ((2 * math.pi * index) / total);
     final centerX = tableLeft + tableWidth / 2;
     final centerY = tableTop + tableHeight / 2;
@@ -529,7 +546,7 @@ class _RoundTable extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  radius: isMobile ? 13 : 20,
+                  radius: isMobile ? 15 : 20,
                   backgroundColor: active
                       ? Colors.black87
                       : const Color(0xFF2B3357),
@@ -556,7 +573,7 @@ class _RoundTable extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: active ? Colors.black : Colors.white,
-                                fontSize: isMobile ? 10 : 14,
+                                fontSize: isMobile ? 13 : 14,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -617,7 +634,7 @@ class _RoundTable extends StatelessWidget {
                             color: active
                                 ? const Color(0xFFD62839)
                                 : const Color(0xFFFF5B68),
-                            fontSize: isMobile ? 9 : 13,
+                            fontSize: isMobile ? 12 : 13,
                             height: 1,
                             fontWeight: FontWeight.w900,
                           ),
@@ -656,6 +673,17 @@ class _RoundTable extends StatelessWidget {
       me?.teamId == player.teamId &&
       player.score != null &&
       !player.eliminated;
+}
+
+Future<void> _copyKzRoomCode(BuildContext context, String roomCode) async {
+  await Clipboard.setData(ClipboardData(text: roomCode));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Oda kodu kopyalandı.'),
+      duration: Duration(seconds: 2),
+    ),
+  );
 }
 
 class _TeamLivesStrip extends StatelessWidget {
@@ -753,9 +781,10 @@ class _SeatHand extends StatelessWidget {
 }
 
 class _BellAlert extends StatefulWidget {
-  const _BellAlert({required this.text});
+  const _BellAlert({required this.playerName, required this.compact});
 
-  final String text;
+  final String playerName;
+  final bool compact;
 
   @override
   State<_BellAlert> createState() => _BellAlertState();
@@ -840,35 +869,70 @@ class _BellAlertState extends State<_BellAlert>
       child: Transform.scale(scale: .985 + (pulse.value * .025), child: child),
     ),
     child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.compact ? 12 : 18,
+        vertical: widget.compact ? 9 : 12,
+      ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [Color(0xFF43C6C8), Color(0xFF7C83DB), Color(0xFFE86AA6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF202743), Color(0xFF7A2937), Color(0xFFB84A46)],
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 2),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFFCA4B), width: 2),
         boxShadow: const [
-          BoxShadow(color: Color(0xAA64D8CB), blurRadius: 24, spreadRadius: 2),
-          BoxShadow(color: Color(0x88E86AA6), blurRadius: 34, spreadRadius: 1),
+          BoxShadow(color: Color(0x99FFCA4B), blurRadius: 22, spreadRadius: 1),
+          BoxShadow(color: Color(0x88E5484D), blurRadius: 34, spreadRadius: 2),
         ],
       ),
-      child: Text(
-        widget.text,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        softWrap: true,
-        overflow: TextOverflow.visible,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: MediaQuery.sizeOf(context).width < 420 ? 14 : 16,
-          fontWeight: FontWeight.w900,
-          shadows: const [
-            Shadow(color: Colors.black54, blurRadius: 5, offset: Offset(0, 1)),
-          ],
-        ),
-      ),
+      child: widget.compact
+          ? Text(
+              '🔔 ZİL • ${widget.playerName} bastı',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFFFFE39A),
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  '🔔  ZİL ÇALDI!',
+                  style: TextStyle(
+                    color: Color(0xFFFFE39A),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${widget.playerName} zile bastı',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'Diğer oyuncular son hamlelerini yapıyor',
+                  style: TextStyle(
+                    color: Color(0xFFFFB7AF),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .4,
+                  ),
+                ),
+              ],
+            ),
     ),
   );
 }

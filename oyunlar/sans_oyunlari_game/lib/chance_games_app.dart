@@ -9,7 +9,7 @@ class ChanceGamesApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '\u015eans Oyunlar\u0131',
+      title: 'Zar & Yazı-Tura',
       debugShowCheckedModeBanner: false,
       builder: (context, child) => Stack(
         children: [
@@ -25,12 +25,12 @@ class ChanceGamesApp extends StatelessWidget {
       ),
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
+        brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF7C4DFF),
-          brightness: Brightness.dark,
+          seedColor: const Color(0xFFD97560),
+          brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFF10101D),
+        scaffoldBackgroundColor: const Color(0xFFF4EEE5),
       ),
       home: const ChanceGameScreen(),
     );

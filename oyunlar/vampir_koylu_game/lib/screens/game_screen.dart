@@ -427,6 +427,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         }
         _positionsCalculated = false;
       });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showNightResultDialog(message: msg, nobodyDied: deadPlayers.isEmpty);
+        }
+      });
     });
 
     _socketService.socket?.on('night_action_error', (data) {
@@ -556,6 +562,62 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
   }
 
+  void _showNightResultDialog({
+    required String message,
+    required bool nobodyDied,
+  }) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: .55),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF3A171F),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(
+            color: nobodyDied
+                ? const Color(0xFFE7B5A2)
+                : const Color(0xFFC94B5F),
+            width: 2,
+          ),
+        ),
+        title: Text(
+          nobodyDied ? '☀️ KİMSE ÖLMEDİ' : '🌅 GECE SONUCU',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFFFBE9E2),
+            fontWeight: FontWeight.w900,
+            fontSize: 21,
+          ),
+        ),
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFFE8D7D3),
+            fontSize: 15,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              icon: const Icon(Icons.wb_sunny_rounded),
+              label: const Text('GÜNDÜZE DEVAM ET'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE7B5A2),
+                foregroundColor: const Color(0xFF3A171F),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showNightActionModal(PlayerModel myPlayer) {
     if (_isNightDialogShowing) return;
     _isNightDialogShowing = true;
@@ -605,7 +667,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   List<PlayerModel> _parseServerPlayers(List serverPlayers) {
     final colors = [
-      const Color(0xFF00D2FF),
+      const Color(0xFFE7B5A2),
       const Color(0xFFE74C3C),
       const Color(0xFF9B59B6),
       const Color(0xFF3498DB),
@@ -882,7 +944,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       builder: (ctx) {
         return AlertDialog(
           // 🌟 Arka plan rengini hafif şeffaf yaparak haritanın bütünlüğünü bozmuyoruz
-          backgroundColor: const Color(0xFF0D0D2A).withValues(alpha: 0.92),
+          backgroundColor: const Color(0xFF251015).withValues(alpha: 0.92),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
             side: BorderSide(
@@ -925,7 +987,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             Center(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00D2FF),
+                  backgroundColor: const Color(0xFFE7B5A2),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
                     vertical: 12,
@@ -981,7 +1043,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final PlayerModel myPlayer = _getMyPlayer();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF13132B),
+      backgroundColor: const Color(0xFF1A0E12),
       body: Stack(
         children: [
           if (_players.isNotEmpty)
@@ -1021,7 +1083,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: Color(0xFF00D2FF)),
+                  CircularProgressIndicator(color: Color(0xFFE7B5A2)),
                   SizedBox(height: 16),
                   Text(
                     'Köy yükleniyor...',

@@ -6,6 +6,6 @@ class AppConfig {
   static String get serverUrl {
     if (_configuredServerUrl.isNotEmpty) return _configuredServerUrl;
     if (kIsWeb) return Uri.base.origin;
-    return 'http://localhost:3000';
+    return 'http://10.0.2.2:3000';
   }
 }

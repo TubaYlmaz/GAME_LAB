@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/socket_service.dart';
 import 'entry_screen.dart';
 import 'game_screen.dart';
@@ -398,6 +399,36 @@ class _LobbyScreenState extends State<LobbyScreen> {
     }
   }
 
+  Future<void> _confirmLeaveRoom() async {
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF3A171F),
+        title: const Text('Köyden çıkılsın mı?'),
+        content: const Text(
+          'Odadan ayrılıp Vampir Köylü giriş ekranına döneceksin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('VAZGEÇ'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('ODADAN ÇIK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || shouldLeave != true) return;
+    _socketService.disconnect();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const EntryScreen()),
+      (_) => false,
+    );
+  }
+
   void _saveRoleConfig() {
     _socketService.socket?.emit('vk_update_room_config', {
       'roomCode': _currentRoomCode,
@@ -452,7 +483,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     final total =
         _vampireCount + _doctorCount + _serialKillerCount + _villagerCount;
     return Drawer(
-      backgroundColor: const Color(0xFF121229),
+      backgroundColor: const Color(0xFF30151C),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -461,7 +492,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.tune_rounded, color: Color(0xFF00D2FF)),
+                  Icon(Icons.tune_rounded, color: Color(0xFFE7B5A2)),
                   SizedBox(width: 10),
                   Text(
                     'YENİ OYUN AYARLARI',
@@ -500,7 +531,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               _buildRoleCounter(
                 label: '🔪 Seri Katil',
                 value: _serialKillerCount,
-                color: Colors.purpleAccent,
+                color: const Color(0xFFE7A7B5),
                 onDecrease: _serialKillerCount > 0
                     ? () => setState(() => _serialKillerCount--)
                     : null,
@@ -519,7 +550,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
               _NeonButton(
                 label: 'AYARLARI KAYDET',
                 icon: Icons.save_rounded,
-                color: const Color(0xFF00D2FF),
+                color: const Color(0xFFE7B5A2),
                 large: true,
                 onPressed: () {
                   _saveRoleConfig();
@@ -545,10 +576,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
             width: double.infinity,
             height: double.infinity,
             errorBuilder: (_, _, _) =>
-                Container(color: const Color(0xFF13132B)),
+                Container(color: const Color(0xFF1A0E12)),
           ),
           const _StarField(),
-          Container(color: const Color(0xFF0D0D2A).withValues(alpha: 0.75)),
+          Container(color: const Color(0xFF251015).withValues(alpha: 0.75)),
 
           if (!_isGameStarting)
             SafeArea(
@@ -566,15 +597,32 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             Icons.arrow_back_ios_new,
                             color: Colors.white,
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: _confirmLeaveRoom,
                         ),
                         const Spacer(),
+                        Tooltip(
+                          message: 'Odadan çık',
+                          child: Material(
+                            color: const Color(0x553A171F),
+                            shape: RoundedRectangleBorder(
+                              side: const BorderSide(color: Color(0x99E7B5A2)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: IconButton(
+                              onPressed: _confirmLeaveRoom,
+                              icon: const Icon(Icons.logout_rounded, size: 20),
+                              color: const Color(0xFFE7B5A2),
+                              tooltip: 'Odadan çık',
+                            ),
+                          ),
+                        ),
+                        if (_isHost) const SizedBox(width: 6),
                         if (_isHost)
                           Builder(
                             builder: (drawerContext) => IconButton(
                               icon: const Icon(
                                 Icons.tune_rounded,
-                                color: Color(0xFF00D2FF),
+                                color: Color(0xFFE7B5A2),
                               ),
                               tooltip: 'Yeni oyun ayarları',
                               onPressed: () =>
@@ -600,12 +648,12 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: const Color(
-                                0xFF1A1A3E,
+                                0xFF3A171F,
                               ).withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: const Color(
-                                  0xFF00D2FF,
+                                  0xFFE7B5A2,
                                 ).withValues(alpha: 0.4),
                                 width: 1.5,
                               ),
@@ -613,7 +661,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
                             child: Column(
                               children: [
                                 Text(
-                                  'KÖYLÜLER İÇİN ODA KODU',
+                                  'KÖY KODU',
                                   style: TextStyle(
                                     color: Colors.white.withValues(alpha: 0.6),
                                     fontSize: 12,
@@ -621,14 +669,41 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 10),
-                                Text(
-                                  _currentRoomCode,
-                                  style: const TextStyle(
-                                    color: Color(0xFF00D2FF),
-                                    fontSize: 34,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 4,
-                                  ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SelectableText(
+                                      _currentRoomCode,
+                                      style: const TextStyle(
+                                        color: Color(0xFFE7B5A2),
+                                        fontSize: 34,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 4,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Köy kodunu kopyala',
+                                      onPressed: () async {
+                                        await Clipboard.setData(
+                                          ClipboardData(text: _currentRoomCode),
+                                        );
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Köy kodu kopyalandı.',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(
+                                        Icons.copy_rounded,
+                                        color: Color(0xFFE7B5A2),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -652,19 +727,19 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: const Color(
-                                    0xFF00D2FF,
+                                    0xFFE7B5A2,
                                   ).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: const Color(
-                                      0xFF00D2FF,
+                                      0xFFE7B5A2,
                                     ).withValues(alpha: 0.5),
                                   ),
                                 ),
                                 child: Text(
                                   '${_players.length} Oyuncu',
                                   style: const TextStyle(
-                                    color: Color(0xFF00D2FF),
+                                    color: Color(0xFFE7B5A2),
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -703,16 +778,16 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: const Color(
-                                    0xFF1A1A3E,
+                                    0xFF3A171F,
                                   ).withValues(alpha: 0.85),
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: isReturned
                                         ? const Color(
-                                            0xFF00FF88,
+                                            0xFFA8B89A,
                                           ).withValues(alpha: 0.4)
                                         : const Color(
-                                            0xFFFFB300,
+                                            0xFFD7A85B,
                                           ).withValues(alpha: 0.3),
                                   ),
                                 ),
@@ -725,8 +800,8 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                         shape: BoxShape.circle,
                                         border: Border.all(
                                           color: isReturned
-                                              ? const Color(0xFF00FF88)
-                                              : const Color(0xFFFFB300),
+                                              ? const Color(0xFFA8B89A)
+                                              : const Color(0xFFD7A85B),
                                           width: 1.5,
                                         ),
                                         image: DecorationImage(
@@ -753,20 +828,20 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(
-                                            0xFF00D2FF,
+                                            0xFFE7B5A2,
                                           ).withValues(alpha: 0.2),
                                           borderRadius: BorderRadius.circular(
                                             6,
                                           ),
                                           border: Border.all(
-                                            color: const Color(0xFF00D2FF),
+                                            color: const Color(0xFFE7B5A2),
                                             width: 0.8,
                                           ),
                                         ),
                                         child: const Text(
                                           'MUHTAR',
                                           style: TextStyle(
-                                            color: Color(0xFF00D2FF),
+                                            color: Color(0xFFE7B5A2),
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -781,14 +856,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           Text(
                                             "LOBİDE ",
                                             style: TextStyle(
-                                              color: Color(0xFF00FF88),
+                                              color: Color(0xFFA8B89A),
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                           Icon(
                                             Icons.check_circle_rounded,
-                                            color: Color(0xFF00FF88),
+                                            color: Color(0xFFA8B89A),
                                             size: 20,
                                           ),
                                         ],
@@ -799,14 +874,14 @@ class _LobbyScreenState extends State<LobbyScreen> {
                                           Text(
                                             "BEKLENİYOR ",
                                             style: TextStyle(
-                                              color: Color(0xFFFFB300),
+                                              color: Color(0xFFD7A85B),
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
                                           Icon(
                                             Icons.hourglass_top_rounded,
-                                            color: Color(0xFFFFB300),
+                                            color: Color(0xFFD7A85B),
                                             size: 18,
                                           ),
                                         ],
@@ -826,11 +901,11 @@ class _LobbyScreenState extends State<LobbyScreen> {
                     child: _NeonButton(
                       label: _isHost
                           ? ((_isEveryoneBackToLobby && _players.isNotEmpty)
-                                ? 'YENİ OYUNU BAŞLAT 🚀'
+                                ? 'OYUNU BAŞLAT 🚀'
                                 : 'OYUNCULARIN LOBİYE DÖNMESİ BEKLENİYOR...')
                           : 'MUHTAR BEKLENİYOR...',
                       icon: Icons.play_arrow_rounded,
-                      color: const Color(0xFF00D2FF),
+                      color: const Color(0xFFE7B5A2),
                       enabled:
                           _isHost &&
                           _isEveryoneBackToLobby &&

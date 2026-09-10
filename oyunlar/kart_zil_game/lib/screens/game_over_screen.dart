@@ -39,13 +39,26 @@ class _KzGameOverScreenState extends State<KzGameOverScreen>
     final winnerTeam = state.teams
         .where((team) => team.id == state.winnerTeamId)
         .firstOrNull;
+    final ranking = [...state.players]
+      ..sort((a, b) {
+        final lifeOrder = b.lives.compareTo(a.lives);
+        return lifeOrder != 0
+            ? lifeOrder
+            : (b.score ?? 0).compareTo(a.score ?? 0);
+      });
+    final winnerMembers = winnerTeam == null
+        ? const <String>[]
+        : state.players
+              .where((player) => player.teamId == winnerTeam.id)
+              .map((player) => player.name)
+              .toList();
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
             center: Alignment.topCenter,
             radius: 1.1,
-            colors: [Color(0xFF7587B3), Color(0xFF5B557B), Color(0xFF28314D)],
+            colors: [Color(0xFF5274EA), Color(0xFF594FC0), Color(0xFF292845)],
           ),
         ),
         child: Stack(
@@ -68,32 +81,158 @@ class _KzGameOverScreenState extends State<KzGameOverScreen>
                   curve: Curves.elasticOut,
                   builder: (context, value, child) =>
                       Transform.scale(scale: value, child: child),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('🏆', style: TextStyle(fontSize: 90)),
-                      const Text('KAZANAN', style: TextStyle(fontSize: 24)),
-                      Text(
-                        winnerTeam?.name ?? winner?.name ?? 'Kazanan yok',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w900,
+                  child: SingleChildScrollView(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      padding: const EdgeInsets.all(26),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xEE354B91), Color(0xEE7650A8)],
                         ),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: Colors.white38, width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black38, blurRadius: 28),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      FilledButton.icon(
-                        onPressed: service.restart,
-                        icon: const Icon(Icons.meeting_room),
-                        label: const Text('LOBİYE DÖN'),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            '🏆',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 72, height: 1),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'OYUN TAMAMLANDI',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'KAZANAN',
+                            style: TextStyle(
+                              color: Color(0xFFFFCA4B),
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            winnerTeam?.name ?? winner?.name ?? 'Kazanan yok',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xFFFFE39A),
+                              fontSize: 50,
+                              letterSpacing: .5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            winnerTeam != null
+                                ? '${winnerTeam.name}, ${winnerTeam.lives} canla oyunu kazandı.'
+                                : winner != null
+                                ? '${winner.lives} canla oyunda kalan son oyuncu oldu.'
+                                : 'Oyun kazanan olmadan tamamlandı.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                          if (winnerMembers.isNotEmpty) ...[
+                            const SizedBox(height: 5),
+                            Text(
+                              winnerMembers.join(' • '),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0x33202743),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'SON DURUM',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    Text('${state.roundNumber} tur'),
+                                  ],
+                                ),
+                                const Divider(),
+                                for (
+                                  var index = 0;
+                                  index < ranking.length;
+                                  index++
+                                )
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 4,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 30,
+                                          child: Text('${index + 1}.'),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            ranking[index].name,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${ranking[index].score ?? 0} puan  •  ${ranking[index].lives} can',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: service.restart,
+                              icon: const Icon(Icons.meeting_room),
+                              label: const Text('LOBİYE DÖN'),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: service.leave,
+                              icon: const Icon(Icons.logout),
+                              label: const Text('OYUNDAN ÇIK'),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: service.leave,
-                        icon: const Icon(Icons.logout),
-                        label: const Text('OYUNDAN ÇIK'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),

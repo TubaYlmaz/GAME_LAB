@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kupa_valesi_game/screens/jh_guess_dialog.dart';
 
 void main() {
-  testWidgets('displays all four card suit choices', (
+  testWidgets('displays four symbol doors and opens the selected one', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
@@ -19,9 +19,13 @@ void main() {
       ),
     );
 
-    for (final symbol in ['\u2665', '\u2660', '\u2666', '\u2663']) {
-      expect(find.text(symbol), findsOneWidget);
+    for (final door in ['Güneş', 'Ay', 'Yıldız', 'Bulut']) {
+      expect(find.text(door), findsOneWidget);
     }
+
+    await tester.tap(find.text('Güneş'));
+    await tester.pumpAndSettle();
+    expect(find.text('Güneş SEÇİLDİ'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

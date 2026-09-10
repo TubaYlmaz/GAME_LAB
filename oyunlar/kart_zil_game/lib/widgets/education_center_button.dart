@@ -7,24 +7,23 @@ class KzEducationCenterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
-    dimension: 48,
+    dimension: 42,
     child: Semantics(
       button: true,
       label: 'Oyunlara dön',
       child: Material(
-        color: const Color(0xFF30385D),
-        elevation: 7,
-        shadowColor: const Color(0xAA8DEBFF),
+        color: const Color(0xFF263653),
+        elevation: 0,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xFF8DEBFF), width: 1.4),
+          borderRadius: BorderRadius.circular(13),
+          side: const BorderSide(color: Color(0xFF6FD3D0)),
         ),
         child: InkWell(
           onTap: onPressed,
           mouseCursor: SystemMouseCursors.click,
-          hoverColor: const Color(0x338DEBFF),
-          splashColor: const Color(0x558DEBFF),
+          hoverColor: const Color(0x336FD3D0),
+          splashColor: const Color(0x556FD3D0),
           child: const Center(
             child: Icon(Icons.grid_view_rounded, color: Colors.white, size: 22),
           ),

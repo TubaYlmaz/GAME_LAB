@@ -6,7 +6,7 @@ void main() {
   testWidgets('opens the game screen directly', (tester) async {
     await tester.pumpWidget(const ChanceGamesApp());
 
-    expect(find.text('\u015eans Oyunlar\u0131'), findsOneWidget);
+    expect(find.text('Zar & Yazı-Tura'), findsOneWidget);
     expect(find.text('YAZI - TURA'), findsOneWidget);
     expect(find.text('PARAYI AT'), findsOneWidget);
   });

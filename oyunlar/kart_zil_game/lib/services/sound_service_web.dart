@@ -58,6 +58,34 @@ class KzSoundService {
     );
   }
 
+  Future<void> playCardDraw() async {
+    final context = await _readyContext();
+    if (context == null) return;
+    final now = context.currentTime;
+    _tone(context, frequency: 310, start: now, duration: .07, volume: .045);
+    _tone(
+      context,
+      frequency: 430,
+      start: now + .045,
+      duration: .09,
+      volume: .035,
+    );
+  }
+
+  Future<void> playCardDrop() async {
+    final context = await _readyContext();
+    if (context == null) return;
+    final now = context.currentTime;
+    _tone(context, frequency: 190, start: now, duration: .055, volume: .06);
+    _tone(
+      context,
+      frequency: 125,
+      start: now + .035,
+      duration: .08,
+      volume: .045,
+    );
+  }
+
   void _tone(
     web.AudioContext context, {
     required num frequency,

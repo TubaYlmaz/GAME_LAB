@@ -308,7 +308,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return Dialog(
-          backgroundColor: const Color(0xFF151528),
+          backgroundColor: const Color(0xFF3A171F),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -366,7 +366,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return Dialog(
-          backgroundColor: const Color(0xFF0D0D2A),
+          backgroundColor: const Color(0xFF251015),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
             side: BorderSide(
@@ -415,7 +415,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                 const SizedBox(height: 25),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00D2FF),
+                    backgroundColor: const Color(0xFFE7B5A2),
                     minimumSize: const Size(double.infinity, 48),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -493,7 +493,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
     final bool amIAlive = _isMyPlayerAlive();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B1A),
+      backgroundColor: const Color(0xFF1D0D12),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(
@@ -521,7 +521,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
             height: 4,
             margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF2E2E5C),
+              color: const Color(0xFF60313B),
               borderRadius: BorderRadius.circular(10),
             ),
             alignment: Alignment.centerLeft,
@@ -603,7 +603,7 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                                 colors: [Color(0xFFE53935), Color(0xFFB71C1C)],
                               )
                             : const LinearGradient(
-                                colors: [Color(0xFF1E1E38), Color(0xFF151528)],
+                                colors: [Color(0xFF4A2028), Color(0xFF3A171F)],
                               ),
                         borderRadius: BorderRadius.circular(16),
                         border: hasLockedVote && isSelected
@@ -676,11 +676,11 @@ class _VKVotingScreenState extends State<VKVotingScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: BoxDecoration(
                   color: !amIAlive
-                      ? const Color(0xFF2E2E5C).withValues(alpha: 0.3)
+                      ? const Color(0xFF60313B).withValues(alpha: 0.3)
                       : (hasLockedVote
-                            ? const Color(0xFF2E2E5C).withValues(alpha: 0.5)
+                            ? const Color(0xFF60313B).withValues(alpha: 0.5)
                             : (selectedPlayer == null
-                                  ? const Color(0xFF2E2E5C)
+                                  ? const Color(0xFF60313B)
                                   : const Color(0xFF4CAF50))),
                   borderRadius: BorderRadius.circular(16),
                 ),

@@ -9,7 +9,7 @@ void main() {
     await tester.pumpWidget(const VampireVillagerApp());
     await tester.pump();
 
-    expect(find.textContaining('VAMPIRE VILLAGER'), findsOneWidget);
+    expect(find.textContaining('VAMPİR KÖYLÜ'), findsOneWidget);
     expect(find.byIcon(Icons.grid_view_rounded), findsOneWidget);
   });
 }

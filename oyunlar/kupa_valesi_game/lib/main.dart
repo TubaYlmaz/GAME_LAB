@@ -9,6 +9,32 @@ void main() {
   runApp(const MyApp());
 }
 
+final ValueNotifier<bool> _isEntryScreen = ValueNotifier<bool>(true);
+
+class _GameRouteObserver extends NavigatorObserver {
+  void _update(Route<dynamic>? route) {
+    _isEntryScreen.value = route?.isFirst ?? true;
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    _update(route);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    _update(previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    _update(newRoute);
+  }
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -40,42 +66,33 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Kupa Valesi',
+      title: 'Sembol Avı',
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => Stack(
-        children: [
-          child!,
-          const Positioned(
-            top: 10,
-            left: 10,
-            width: 52,
-            height: 52,
-            child: SafeArea(child: EducationCenterButton()),
-          ),
-        ],
+      navigatorObservers: [_GameRouteObserver()],
+      builder: (context, child) => ValueListenableBuilder<bool>(
+        valueListenable: _isEntryScreen,
+        builder: (context, isEntryScreen, _) => Stack(
+          children: [
+            child!,
+            Positioned(
+              top: 10,
+              left: 10,
+              width: 52,
+              height: 52,
+              child: const SafeArea(child: EducationCenterButton()),
+            ),
+          ],
+        ),
       ),
       theme: ThemeData(
         // This is the theme of your application.
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF090A15),
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
+        scaffoldBackgroundColor: const Color(0xFF211B18),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFFF426E),
-          secondary: Color(0xFF77E6FF),
-          surface: Color(0xFF181A2C),
+          primary: Color(0xFFD9826B),
+          secondary: Color(0xFF9CAF96),
+          surface: Color(0xFF352B26),
+          onPrimary: Color(0xFF211B18),
         ),
       ),
       home: const JhEntryScreen(),

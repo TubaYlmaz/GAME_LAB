@@ -10,7 +10,7 @@ class JhBackground extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF080914), Color(0xFF241023), Color(0xFF0C1728)],
+          colors: [Color(0xFF211B18), Color(0xFF3A2924), Color(0xFF263029)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -20,12 +20,12 @@ class JhBackground extends StatelessWidget {
           const Positioned(
             right: -80,
             top: -90,
-            child: _Glow(color: Color(0x44FF426E), size: 280),
+            child: _Glow(color: Color(0x44D9826B), size: 280),
           ),
           const Positioned(
             left: -110,
             bottom: -100,
-            child: _Glow(color: Color(0x3377E6FF), size: 300),
+            child: _Glow(color: Color(0x448FA58B), size: 300),
           ),
           child,
         ],
@@ -52,6 +52,48 @@ class _Glow extends StatelessWidget {
   }
 }
 
+class JhSymbolMark extends StatelessWidget {
+  const JhSymbolMark({super.key, this.size = 58});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      padding: EdgeInsets.all(size * .14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF49372F),
+        borderRadius: BorderRadius.circular(size * .25),
+        border: Border.all(color: const Color(0x99E7C98A)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x443A5541), blurRadius: 12, spreadRadius: 2),
+        ],
+      ),
+      child: GridView.count(
+        crossAxisCount: 2,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        children: const [
+          FittedBox(
+            child: Text('☀', style: TextStyle(color: Color(0xFFE7C98A))),
+          ),
+          FittedBox(
+            child: Text('☾', style: TextStyle(color: Color(0xFF9CAF96))),
+          ),
+          FittedBox(
+            child: Text('★', style: TextStyle(color: Color(0xFFD9826B))),
+          ),
+          FittedBox(
+            child: Text('☁', style: TextStyle(color: Color(0xFFF4EBDD))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class JhPanel extends StatelessWidget {
   const JhPanel({
     super.key,
@@ -67,9 +109,9 @@ class JhPanel extends StatelessWidget {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: const Color(0xDD181A2C),
+        color: const Color(0xEE352B26),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x55FFFFFF)),
+        border: Border.all(color: const Color(0x66F4EBDD)),
         boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 24)],
       ),
       child: child,
@@ -84,7 +126,7 @@ class JhButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.enabled = true,
-    this.color = const Color(0xFFFF426E),
+    this.color = const Color(0xFFD9826B),
   });
 
   final String label;
@@ -95,7 +137,7 @@ class JhButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = enabled ? color : const Color(0xFF596070);
+    final active = enabled ? color : const Color(0xFF6D6760);
     return FilledButton.icon(
       onPressed: enabled ? onPressed : null,
       icon: icon == null ? const SizedBox.shrink() : Icon(icon),
@@ -103,9 +145,9 @@ class JhButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(52),
         backgroundColor: active,
-        foregroundColor: Colors.white,
+        foregroundColor: const Color(0xFF211B18),
         disabledBackgroundColor: active.withValues(alpha: .45),
-        disabledForegroundColor: Colors.white70,
+        disabledForegroundColor: const Color(0xAAF4EBDD),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: const TextStyle(
           fontWeight: FontWeight.w800,

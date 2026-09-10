@@ -82,10 +82,10 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF211D36), Color(0xFF151322)],
+              colors: [Color(0xFFF3E8DC), Color(0xFFEAD8C7)],
             ),
             border: Border(
-              bottom: BorderSide(color: Color(0xFF423A68), width: 1),
+              bottom: BorderSide(color: Color(0xFFD2BBA9), width: 1),
             ),
           ),
         ),
@@ -93,7 +93,7 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Şans Oyunları',
+              'Zar & Yazı-Tura',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -104,11 +104,11 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
             ),
             SizedBox(height: 2),
             Text(
-              'Yazı-tura veya zar • Seçim senin',
+              'Hızlı ve rastgele bir sonuç oluştur',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Color(0xFFAAA4C0),
+                color: Color(0xFF6F625A),
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -123,9 +123,9 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
               height: 52,
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: const Color(0xFF0D0C18).withValues(alpha: .72),
+                color: const Color(0xFFFFF9F2).withValues(alpha: .72),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF3D365D)),
+                border: Border.all(color: const Color(0xFFCBB29F)),
               ),
               child: TabBar(
                 controller: _tabController,
@@ -133,19 +133,19 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
                 indicatorSize: TabBarIndicatorSize.tab,
                 indicator: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF7458E8), Color(0xFF4C8EF7)],
+                    colors: [Color(0xFFD97560), Color(0xFFC58B78)],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: const [
                     BoxShadow(
-                      color: Color(0x557C4DFF),
+                      color: Color(0x44C96F5B),
                       blurRadius: 12,
                       spreadRadius: 1,
                     ),
                   ],
                 ),
-                labelColor: Colors.white,
-                unselectedLabelColor: const Color(0xFFAAA4C0),
+                labelColor: const Color(0xFFFFFAF5),
+                unselectedLabelColor: const Color(0xFF6F625A),
                 labelStyle: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -173,7 +173,7 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Color(0xFF141225), Color(0xFF0D0D18)],
+              colors: [Color(0xFFF4EEE5), Color(0xFFEDE3D8)],
             ),
           ),
           child: Center(
@@ -184,26 +184,47 @@ class _ChanceGameScreenState extends State<ChanceGameScreen>
                 child: Column(
                   children: [
                     Expanded(
-                      flex: 3,
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          Center(
-                            child: CoinFlipComponent(
-                              onFlipCompleted: _addCoinHistory,
-                            ),
+                      child: Center(
+                        child: Container(
+                          width: double.infinity,
+                          constraints: const BoxConstraints(maxHeight: 400),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 10,
                           ),
-                          Center(
-                            child: DiceRollComponent(
-                              onRollCompleted: _addDiceHistory,
-                            ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF9F2),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: const Color(0xFFD8C5B5)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x1F6F5548),
+                                blurRadius: 18,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
                           ),
-                        ],
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              Center(
+                                child: CoinFlipComponent(
+                                  onFlipCompleted: _addCoinHistory,
+                                ),
+                              ),
+                              Center(
+                                child: DiceRollComponent(
+                                  onRollCompleted: _addDiceHistory,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    Expanded(
-                      flex: 2,
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 140,
                       child: ThrowHistoryList(entries: _history, mode: mode),
                     ),
                   ],

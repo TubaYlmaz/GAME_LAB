@@ -305,15 +305,23 @@ module.exports = function ({ app, io, redisClient, db, path, fs }) {
         try {
             const { roomCode, players, gameMode, category, impostorCount } = req.body;
 
-            if (!players || players.length === 0) {
-                return res.status(400).json({ error: "Odadaki oyuncu listesi boş olamaz!" });
+            if (!Array.isArray(players) || players.length < 2) {
+                return res.status(400).json({ error: "Oyunu başlatmak için en az 2 oyuncu gerekir." });
             }
 
             const savedRoom = await redisClient.hgetall(`room:${roomCode}`);
+            if (!savedRoom || Object.keys(savedRoom).length === 0) {
+                return res.status(404).json({ error: "Oda bulunamadı." });
+            }
 
             let aktifOyunModu = (savedRoom.gameMode && savedRoom.gameMode !== 'Rastgele') ? savedRoom.gameMode : (gameMode || 'Klasik');
             let aktifKategori = (savedRoom.category && savedRoom.category !== 'Rastgele') ? savedRoom.category : (category || 'Rastgele');
             let aktifImpostorSayisi = parseInt(savedRoom.impostorCount || impostorCount || '1', 10);
+            if (!Number.isInteger(aktifImpostorSayisi) || aktifImpostorSayisi < 1 || aktifImpostorSayisi >= players.length) {
+                return res.status(400).json({
+                    error: `Impostor sayısı 1 ile ${players.length - 1} arasında olmalıdır.`
+                });
+            }
 
             if (aktifKategori === 'Rastgele') {
                 const kategoriler = Object.keys(dictionary);
@@ -335,7 +343,7 @@ module.exports = function ({ app, io, redisClient, db, path, fs }) {
                 impostorWord = kalanKelimeler[randomIndex2];
             }
 
-            const hedonImpostorSayisi = Math.min(aktifImpostorSayisi, players.length - 1);
+            const hedonImpostorSayisi = aktifImpostorSayisi;
 
             let karistirilmisOyuncular = [...players];
             for (let i = karistirilmisOyuncular.length - 1; i > 0; i--) {

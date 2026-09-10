@@ -32,11 +32,18 @@ class _EntryScreenState extends State<EntryScreen>
   final TextEditingController _joinNameController = TextEditingController();
   final TextEditingController _roomCodeController = TextEditingController();
   Gender _joinGender = Gender.female;
+  bool _settingsExpanded = false;
+  int _activeTab = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging && mounted) {
+        setState(() => _activeTab = _tabController.index);
+      }
+    });
     _initSocket();
   }
 
@@ -160,6 +167,120 @@ class _EntryScreenState extends State<EntryScreen>
     );
   }
 
+  void _showHowToPlay() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: const Color(0xFF3A171F),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: Color(0x99E7B5A2)),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 570,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * .88,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.menu_book_rounded,
+                      color: Color(0xFFE7B5A2),
+                      size: 30,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'NASIL OYNANIR?',
+                      style: TextStyle(
+                        color: Color(0xFFFBE9E2),
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const _VkRuleCard(
+                  icon: '🎯',
+                  title: 'OYUNUN AMACI',
+                  text:
+                      'Köylüler konuşmaları ve oylamayı kullanarak köydeki bütün tehditleri bulmaya çalışır. Vampirler ve Seri Katil ise kimliklerini gizleyerek rakiplerini saf dışı bırakmayı amaçlar.',
+                ),
+                const _VkRuleCard(
+                  icon: '🌙',
+                  title: 'GECE AŞAMASI',
+                  text:
+                      'Vampirler birlikte bir hedef seçer. Doktor, Vampir saldırısından korumak istediği oyuncuyu belirler; kendisini koruyabilir ancak bunu iki gece üst üste yapamaz. Seri Katil ise tek başına ayrı bir hedef seçer. Gece seçimleri gizlidir.',
+                ),
+                const _VkRuleCard(
+                  icon: '☀️',
+                  title: 'GÜNDÜZ VE OYLAMA',
+                  text:
+                      'Gece sonucu açıklandıktan sonra hayatta kalan oyuncular konuşur ve şüphelendikleri kişiyi seçer. En çok oy alan oyuncu elenir ve yeni tur başlar.',
+                ),
+                const _VkRuleCard(
+                  icon: '🧛',
+                  title: 'VAMPİR',
+                  text:
+                      'Geceleri diğer Vampirlerle birlikte bir oyuncuyu hedef alır. Birden fazla Vampir varsa hepsinin aynı hedefte anlaşması gerekir. Gündüz kendini Köylü gibi göstererek kimliğini saklar. Vampirler, hayatta kalan diğer oyunculara sayıca eşit veya üstün olduğunda kazanır.',
+                ),
+                const _VkRuleCard(
+                  icon: '🩺',
+                  title: 'DOKTOR',
+                  text:
+                      'Her gece hayatta olan bir oyuncuyu Vampir saldırısından korur. Vampir ile Doktor aynı kişiyi seçerse saldırı engellenir ve o oyuncu hayatta kalır. Doktor kendisini de koruyabilir; ancak kendisini iki gece üst üste seçemez. Doktorun koruması Seri Katilin saldırısını engellemez.',
+                ),
+                const _VkRuleCard(
+                  icon: '🔪',
+                  title: 'SERİ KATİL',
+                  text:
+                      'Herhangi bir takıma bağlı değildir ve tek başına oynar. Her gece kendi hedefini seçer; saldırısı Doktorun korumasından etkilenmez. Gündüz şüphe çekmeden oylamada kalmaya çalışır. Oyunda kalan son tehdit olduğunda kazanır.',
+                ),
+                const _VkRuleCard(
+                  icon: '🧑‍🌾',
+                  title: 'KÖYLÜ',
+                  text:
+                      'Gece kimseye saldırmaz; kendisine verilen matematik görevini tamamlar. Gündüz konuşmaları, gece sonuçlarını ve oyuncuların davranışlarını değerlendirir. Vampirleri ve Seri Katili oylamayla eleyerek köyü kurtarmaya çalışır.',
+                ),
+                const _VkRuleCard(
+                  icon: '🏆',
+                  title: 'NASIL KAZANILIR?',
+                  text:
+                      'Köylüler bütün Vampirleri ve Seri Katili elerse kazanır. Vampirler diğer oyunculara sayıca üstün gelirse kazanır. Seri Katil son hayatta kalan tehdit olursa oyunu kazanır.',
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('ANLADIM'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFE7B5A2),
+                      foregroundColor: const Color(0xFF3A171F),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: .7,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -175,8 +296,7 @@ class _EntryScreenState extends State<EntryScreen>
             errorBuilder: (_, _, _) =>
                 Container(color: const Color(0xFF13132B)),
           ),
-          const _StarField(),
-          Container(color: const Color(0xFF0D0D2A).withValues(alpha: 0.75)),
+          Container(color: const Color(0xFF1A0E12).withValues(alpha: 0.78)),
 
           Center(
             child: SingleChildScrollView(
@@ -185,21 +305,21 @@ class _EntryScreenState extends State<EntryScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
-                    '🩸 VAMPIRE VILLAGER 🐺',
+                    'VAMPİR KÖYLÜ',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFF00D2FF),
+                      color: Color(0xFFF5DED2),
                       fontSize: 32,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 4,
                       shadows: [
-                        Shadow(color: Color(0xFF00D2FF), blurRadius: 20),
+                        Shadow(color: Color(0xFF8C3F3F), blurRadius: 18),
                       ],
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Karanlık çöküyor... Köyünü kur veya savaşa katıl!',
+                    'Köyünü savun, ipuçlarını takip et ve geceyi atlat.',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 13,
@@ -211,10 +331,10 @@ class _EntryScreenState extends State<EntryScreen>
                   Container(
                     width: min(size.width, 520),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A3E).withValues(alpha: 0.9),
+                      color: const Color(0xFF3A171F).withValues(alpha: 0.94),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFF00D2FF).withValues(alpha: 0.4),
+                        color: const Color(0xFFD6B58C).withValues(alpha: 0.55),
                         width: 1.5,
                       ),
                     ),
@@ -226,8 +346,8 @@ class _EntryScreenState extends State<EntryScreen>
                           height: 48,
                           decoration: BoxDecoration(
                             color: const Color(
-                              0xFF00D2FF,
-                            ).withValues(alpha: 0.05),
+                              0xFFF5DED2,
+                            ).withValues(alpha: 0.06),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: TabBar(
@@ -236,28 +356,31 @@ class _EntryScreenState extends State<EntryScreen>
                             indicator: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
                               color: const Color(
-                                0xFF00D2FF,
-                              ).withValues(alpha: 0.25),
+                                0xFF7A2E3C,
+                              ).withValues(alpha: 0.45),
                               border: Border.all(
-                                color: const Color(0xFF00D2FF),
+                                color: const Color(0xFFE7B5A2),
                                 width: 1.5,
                               ),
                             ),
-                            labelColor: const Color(0xFF00D2FF),
+                            labelColor: const Color(0xFFFBE9E2),
                             unselectedLabelColor: Colors.white54,
                             labelStyle: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
                             tabs: const [
-                              Tab(text: '🏰 KÖY KUR'),
-                              Tab(text: '⚔️ KÖYE KATIL'),
+                              Tab(text: 'KÖY KUR'),
+                              Tab(text: 'KÖYE KATIL'),
                             ],
                           ),
                         ),
 
-                        SizedBox(
-                          height: 500,
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          height: _activeTab == 0
+                              ? (_settingsExpanded ? 500 : 330)
+                              : 360,
                           child: TabBarView(
                             controller: _tabController,
                             children: [
@@ -272,6 +395,11 @@ class _EntryScreenState extends State<EntryScreen>
                 ],
               ),
             ),
+          ),
+          Positioned(
+            left: 18,
+            bottom: 18,
+            child: _InfoButton(onPressed: _showHowToPlay),
           ),
         ],
       ),
@@ -297,74 +425,89 @@ class _EntryScreenState extends State<EntryScreen>
           onChanged: (g) => setState(() => _hostGender = g),
         ),
         const SizedBox(height: 20),
-        const Divider(color: Color(0xFF00D2FF), height: 1, thickness: 0.3),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'ROLLER VE KÖY AYARLARI',
-              style: TextStyle(
-                color: Color(0xFF00D2FF),
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
-              ),
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _settingsExpanded = !_settingsExpanded),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            decoration: BoxDecoration(
+              color: const Color(0xFF52232D),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF8E5A60)),
             ),
-            Text(
-              'Toplam: $totalPlayersInVillage Kişi',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              children: [
+                const Icon(Icons.tune, color: Color(0xFFE7B5A2), size: 19),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'OYUN AYARLARI',
+                    style: TextStyle(
+                      color: Color(0xFFFBE9E2),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$totalPlayersInVillage oyuncu',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  _settingsExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.white70,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 12),
-
-        _buildRoleCounter(
-          title: '🧛 Vampir Sayısı:',
-          count: _vampireCount,
-          color: const Color(0xFFE74C3C),
-          onDecrement: _vampireCount > 1
-              ? () => setState(() => _vampireCount--)
-              : null,
-          onIncrement: () => setState(() => _vampireCount++),
-        ),
-        _buildRoleCounter(
-          title: '🩺 Doktor Sayısı:',
-          count: _doctorCount,
-          color: const Color(0xFF2ECC71),
-          onDecrement: _doctorCount > 0
-              ? () => setState(() => _doctorCount--)
-              : null,
-          onIncrement: () => setState(() => _doctorCount++),
-        ),
-        _buildRoleCounter(
-          title: '🔪 Seri Katil Sayısı:',
-          count: _serialKillerCount,
-          color: const Color(0xFF9B59B6),
-          onDecrement: _serialKillerCount > 0
-              ? () => setState(() => _serialKillerCount--)
-              : null,
-          onIncrement: () => setState(() => _serialKillerCount++),
-        ),
-        _buildRoleCounter(
-          title: '🧑‍🌾 Köylü Sayısı:',
-          count: _villagerCount,
-          color: const Color(0xFFF1C40F),
-          onDecrement: _villagerCount > 0
-              ? () => setState(() => _villagerCount--)
-              : null,
-          onIncrement: () => setState(() => _villagerCount++),
-        ),
+        if (_settingsExpanded) ...[
+          const SizedBox(height: 10),
+          _buildRoleCounter(
+            title: '🧛 Vampir Sayısı:',
+            count: _vampireCount,
+            color: const Color(0xFFE74C3C),
+            onDecrement: _vampireCount > 1
+                ? () => setState(() => _vampireCount--)
+                : null,
+            onIncrement: () => setState(() => _vampireCount++),
+          ),
+          _buildRoleCounter(
+            title: '🩺 Doktor Sayısı:',
+            count: _doctorCount,
+            color: const Color(0xFF2ECC71),
+            onDecrement: _doctorCount > 0
+                ? () => setState(() => _doctorCount--)
+                : null,
+            onIncrement: () => setState(() => _doctorCount++),
+          ),
+          _buildRoleCounter(
+            title: '🔪 Seri Katil Sayısı:',
+            count: _serialKillerCount,
+            color: const Color(0xFF9B59B6),
+            onDecrement: _serialKillerCount > 0
+                ? () => setState(() => _serialKillerCount--)
+                : null,
+            onIncrement: () => setState(() => _serialKillerCount++),
+          ),
+          _buildRoleCounter(
+            title: '🧑‍🌾 Köylü Sayısı:',
+            count: _villagerCount,
+            color: const Color(0xFFF1C40F),
+            onDecrement: _villagerCount > 0
+                ? () => setState(() => _villagerCount--)
+                : null,
+            onIncrement: () => setState(() => _villagerCount++),
+          ),
+        ],
 
         const SizedBox(height: 24),
         _NeonButton(
-          label: 'KÖYÜ KUR VE ODAYI AÇ',
+          label: 'KÖYÜ KUR',
           icon: Icons.castle,
-          color: const Color(0xFF00D2FF),
+          color: const Color(0xFFE7B5A2),
           large: true,
           onPressed: _onCreateVillage,
         ),
@@ -422,9 +565,9 @@ class _EntryScreenState extends State<EntryScreen>
         const SizedBox(height: 10),
         _buildTextField(
           controller: _roomCodeController,
-          label: 'Köy Numarası (Oda Kodu)',
+          label: 'Köy Kodu',
           icon: Icons.vpn_key,
-          hint: 'Örn: 9A2X8M',
+          hint: 'Örn: VK-123456',
         ),
         const SizedBox(height: 20),
         _buildTextField(
@@ -442,7 +585,7 @@ class _EntryScreenState extends State<EntryScreen>
         _NeonButton(
           label: 'KÖYE KATIL',
           icon: Icons.login,
-          color: const Color(0xFF9B59B6),
+          color: const Color(0xFFC66A73),
           large: true,
           onPressed: _onJoinVillage,
         ),
@@ -461,21 +604,19 @@ class _EntryScreenState extends State<EntryScreen>
       style: const TextStyle(color: Colors.white, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF8888BB), fontSize: 13),
+        labelStyle: const TextStyle(color: Color(0xFFD7BFC1), fontSize: 13),
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.white24, fontSize: 12),
-        prefixIcon: Icon(icon, color: const Color(0xFF00D2FF), size: 20),
+        prefixIcon: Icon(icon, color: const Color(0xFFE7B5A2), size: 20),
         filled: true,
-        fillColor: const Color(0xFF0D0D2A),
+        fillColor: const Color(0xFF251015),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: const Color(0xFF00D2FF).withValues(alpha: 0.3),
-          ),
+          borderSide: BorderSide(color: const Color(0xFF8E5A60)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF00D2FF), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFFE7B5A2), width: 1.5),
         ),
       ),
     );
@@ -490,7 +631,7 @@ class _EntryScreenState extends State<EntryScreen>
       children: [
         const Text(
           'Cinsiyet Seçimi',
-          style: TextStyle(color: Color(0xFF8888BB), fontSize: 12),
+          style: TextStyle(color: Color(0xFFD7BFC1), fontSize: 12),
         ),
         const SizedBox(height: 8),
         Row(
@@ -503,12 +644,12 @@ class _EntryScreenState extends State<EntryScreen>
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     color: selected == Gender.male
-                        ? const Color(0xFF00D2FF).withValues(alpha: 0.2)
-                        : const Color(0xFF0D0D2A),
+                        ? const Color(0xFF6F3A3F)
+                        : const Color(0xFF251015),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: selected == Gender.male
-                          ? const Color(0xFF00D2FF)
+                          ? const Color(0xFFE7B5A2)
                           : Colors.transparent,
                     ),
                   ),
@@ -536,12 +677,12 @@ class _EntryScreenState extends State<EntryScreen>
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     color: selected == Gender.female
-                        ? const Color(0xFFEC407A).withValues(alpha: 0.2)
-                        : const Color(0xFF0D0D2A),
+                        ? const Color(0xFF7C4148)
+                        : const Color(0xFF251015),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: selected == Gender.female
-                          ? const Color(0xFFEC407A)
+                          ? const Color(0xFFC66A73)
                           : Colors.transparent,
                     ),
                   ),
@@ -567,35 +708,6 @@ class _EntryScreenState extends State<EntryScreen>
   }
 }
 
-class _StarField extends StatelessWidget {
-  const _StarField();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(painter: _StarPainter(), child: const SizedBox.expand());
-  }
-}
-
-class _StarPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rng = Random(42);
-    final paint = Paint()..color = Colors.white;
-    for (int i = 0; i < 100; i++) {
-      final x = rng.nextDouble() * size.width;
-      final y = rng.nextDouble() * size.height;
-      final r = rng.nextDouble() * 1.0 + 0.3;
-      paint.color = Colors.white.withValues(
-        alpha: rng.nextDouble() * 0.4 + 0.1,
-      );
-      canvas.drawCircle(Offset(x, y), r, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
 class _NeonButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -615,46 +727,145 @@ class _NeonButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveColor = enabled ? color : color.withValues(alpha: 0.25);
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: large ? 36 : 24,
-          vertical: large ? 14 : 10,
-        ),
+    final foregroundColor = enabled
+        ? const Color(0xFFFFF4EF)
+        : const Color(0xFFB99CA1);
+    final radius = BorderRadius.circular(large ? 14 : 10);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      elevation: enabled ? 7 : 0,
+      shadowColor: Colors.black.withValues(alpha: 0.65),
+      child: Ink(
         decoration: BoxDecoration(
-          color: effectiveColor.withValues(alpha: enabled ? 0.12 : 0.05),
-          borderRadius: BorderRadius.circular(large ? 14 : 10),
-          border: Border.all(color: effectiveColor, width: large ? 1.5 : 1),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: effectiveColor.withValues(alpha: 0.35),
-                    blurRadius: 18,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : [],
+          gradient: enabled
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF8A4050), Color(0xFF632735)],
+                )
+              : null,
+          color: enabled ? null : const Color(0xFF352126),
+          borderRadius: radius,
+          border: Border.all(color: effectiveColor, width: large ? 2 : 1.5),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: effectiveColor, size: large ? 18 : 15),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: effectiveColor,
-                fontSize: large ? 14 : 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
+        child: InkWell(
+          onTap: enabled ? onPressed : null,
+          borderRadius: radius,
+          splashColor: const Color(0xFFFBE9E2).withValues(alpha: 0.18),
+          highlightColor: Colors.black.withValues(alpha: 0.12),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: large ? 36 : 24,
+              vertical: large ? 15 : 11,
             ),
-          ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: foregroundColor, size: large ? 19 : 15),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: foregroundColor,
+                    fontSize: large ? 14 : 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+class _InfoButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _InfoButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Nasıl oynanır?',
+      child: Material(
+        color: const Color(0xFF3A171F),
+        shape: const CircleBorder(
+          side: BorderSide(color: Color(0xFFE7B5A2), width: 1.5),
+        ),
+        elevation: 8,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: const SizedBox(
+            width: 52,
+            height: 52,
+            child: Icon(
+              Icons.info_outline_rounded,
+              color: Color(0xFFFBE9E2),
+              size: 27,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VkRuleCard extends StatelessWidget {
+  const _VkRuleCard({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  final String icon;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFF4A2028),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0x33E7B5A2)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(icon, style: const TextStyle(fontSize: 24)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFFE7B5A2),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  height: 1.4,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }

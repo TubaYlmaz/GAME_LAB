@@ -104,6 +104,146 @@ class _HostLoginScreenState extends State<HostLoginScreen>
     super.dispose();
   }
 
+  void _showHowToPlay() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: const Color(0xFF21191B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: const BorderSide(color: Color(0x99E08A6D)),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.person_search_rounded,
+                      color: Color(0xFFE08A6D),
+                      size: 30,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'NASIL OYNANIR?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _buildInfoSection(
+                  Icons.flag_rounded,
+                  'Oyunun amacı',
+                  'Oyuncular aynı gizli kelime hakkında sırayla ipucu verir. '
+                      'Impostor ise kelimeyi bilmeden kendini belli etmemeye çalışır.',
+                ),
+                _buildInfoSection(
+                  Icons.forum_rounded,
+                  'Oyun nasıl ilerler?',
+                  'Herkes kelimeyi doğrudan söylemeden kısa bir ipucu verir. '
+                      'İpuçları tamamlandığında şüpheli oyuncular değerlendirilir ve oylama yapılır.',
+                ),
+                _buildInfoSection(
+                  Icons.groups_rounded,
+                  'Oyuncular nasıl kazanır?',
+                  'Oyuncular doğru Impostor’u oylamada bulup oyundan çıkarırsa kazanır.',
+                ),
+                _buildInfoSection(
+                  Icons.visibility_off_rounded,
+                  'Impostor nasıl kazanır?',
+                  'Impostor, ipuçlarından gizli kelimeyi anlamaya ve yakalanmamaya çalışır. '
+                      'Sonuna kadar fark edilmezse kazanır.',
+                  isLast: true,
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('ANLADIM'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFE08A6D),
+                      foregroundColor: const Color(0xFF21191B),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: .7,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(
+    IconData icon,
+    String title,
+    String description, {
+    bool isLast = false,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF302427),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: const Color(0xFFE08A6D), size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -114,7 +254,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+            colors: [Color(0xFF33272A), Color(0xFF241C1E), Color(0xFF171315)],
           ),
         ),
         child: Stack(
@@ -124,15 +264,15 @@ class _HostLoginScreenState extends State<HostLoginScreen>
               child: SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.only(
-                    top: 80.0,
-                    bottom: 16.0,
+                    top: 28.0,
+                    bottom: 24.0,
                     left: 16.0,
                     right: 16.0,
                   ), // Butona basılmasını kolaylaştırmak için üstten boşluk verdik
                   child: Container(
-                    constraints: const BoxConstraints(maxWidth: 450),
+                    constraints: const BoxConstraints(maxWidth: 520),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F0F1E).withValues(alpha: 0.85),
+                      color: const Color(0xFF21191B).withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: Colors.white10, width: 1),
                       boxShadow: [
@@ -146,23 +286,23 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const SizedBox(height: 30),
-                        // Bağlantı durumunu gösteren oyun simgesi[cite: 4]
+                        const SizedBox(height: 20),
+                        // Oyunun kimlik simgesi; bağlantı sorunu varsa rengi değişir.
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.videogame_asset_rounded,
-                              size: 60,
+                              Icons.person_search_rounded,
+                              size: 46,
                               color: _isSocketConnected
-                                  ? Colors.greenAccent
+                                  ? const Color(0xFFE08A6D)
                                   : Colors.redAccent,
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
                         const Text(
-                          'IMPOSTOR GAME',
+                          'IMPOSTOR',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -170,7 +310,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 12),
 
                         TabBar(
                           controller: _tabController,
@@ -179,7 +319,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                           unselectedLabelColor: Colors.grey,
                           indicatorWeight: 3,
                           tabs: const [
-                            Tab(text: 'ODA KUR (HOST)'),
+                            Tab(text: 'ODA KUR'),
                             Tab(text: 'ODAYA KATIL'),
                           ],
                         ),
@@ -191,25 +331,52 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                                   color: Colors.redAccent,
                                 ),
                               )
-                            : IntrinsicHeight(
-                                child: SizedBox(
-                                  width: double.infinity,
-                                  child: AnimatedBuilder(
-                                    animation: _tabController,
-                                    builder: (context, child) {
-                                      return IndexedStack(
-                                        index: _tabController.index,
-                                        children: [
-                                          _buildHostForm(),
-                                          _buildJoinForm(),
-                                        ],
-                                      );
-                                    },
-                                  ),
+                            : SizedBox(
+                                width: double.infinity,
+                                child: AnimatedBuilder(
+                                  animation: _tabController,
+                                  builder: (context, child) {
+                                    return AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 180,
+                                      ),
+                                      child: _tabController.index == 0
+                                          ? KeyedSubtree(
+                                              key: const ValueKey('host-form'),
+                                              child: _buildHostForm(),
+                                            )
+                                          : KeyedSubtree(
+                                              key: const ValueKey('join-form'),
+                                              child: _buildJoinForm(),
+                                            ),
+                                    );
+                                  },
                                 ),
                               ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 12),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 18,
+              bottom: 18,
+              child: SafeArea(
+                child: Tooltip(
+                  message: 'Nasıl oynanır?',
+                  child: Material(
+                    color: const Color(0xFF21191B),
+                    shape: const CircleBorder(
+                      side: BorderSide(color: Color(0xFFE08A6D), width: 1.5),
+                    ),
+                    elevation: 6,
+                    child: IconButton(
+                      onPressed: _showHowToPlay,
+                      icon: const Icon(Icons.info_outline_rounded),
+                      color: const Color(0xFFE08A6D),
+                      iconSize: 25,
                     ),
                   ),
                 ),
@@ -223,9 +390,9 @@ class _HostLoginScreenState extends State<HostLoginScreen>
 
   Widget _buildHostForm() {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(20.0),
       child: Theme(
-        data: Theme.of(context).copyWith(canvasColor: const Color(0xFF1A1A2E)),
+        data: Theme.of(context).copyWith(canvasColor: const Color(0xFF302427)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -234,10 +401,10 @@ class _HostLoginScreenState extends State<HostLoginScreen>
               controller: _hostNameController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                labelText: 'İsminiz (Öğretmen/Host)',
+                labelText: 'Kurucu adı',
                 labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                 filled: true,
-                fillColor: const Color(0xFF1A1A2E),
+                fillColor: const Color(0xFF302427),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(
@@ -251,10 +418,10 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             const Text(
-              'Oyun Modu Seçiniz',
+              'Oyun modu',
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 14,
@@ -276,14 +443,15 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         curve: Curves.easeInOut,
+                        height: 92,
                         padding: const EdgeInsets.symmetric(
-                          vertical: 28,
+                          vertical: 8,
                           horizontal: 8,
                         ),
                         decoration: BoxDecoration(
                           color: _selectedMod == 'Klasik'
-                              ? const Color(0xFF1A1A2E)
-                              : const Color(0xFF101026),
+                              ? const Color(0xFF302427)
+                              : const Color(0xFF281E21),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _selectedMod == 'Klasik'
@@ -311,9 +479,9 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                               color: _selectedMod == 'Klasik'
                                   ? Colors.redAccent
                                   : Colors.grey,
-                              size: 28,
+                              size: 18,
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 3),
                             Text(
                               'Klasik',
                               style: TextStyle(
@@ -321,18 +489,18 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                                     ? Colors.white
                                     : Colors.grey,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 13,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 3),
                             Text(
-                              'İmpostor kelimeyi görmez',
+                              'Kelimeyi görmez',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: _selectedMod == 'Klasik'
                                     ? Colors.white70
                                     : Colors.grey,
-                                fontSize: 12,
+                                fontSize: 10,
                               ),
                             ),
                           ],
@@ -352,14 +520,15 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         curve: Curves.easeInOut,
+                        height: 92,
                         padding: const EdgeInsets.symmetric(
-                          vertical: 28,
+                          vertical: 8,
                           horizontal: 8,
                         ),
                         decoration: BoxDecoration(
                           color: _selectedMod == 'Yakin Kelime'
-                              ? const Color(0xFF1A1A2E)
-                              : const Color(0xFF101026),
+                              ? const Color(0xFF302427)
+                              : const Color(0xFF281E21),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _selectedMod == 'Yakin Kelime'
@@ -387,9 +556,9 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                               color: _selectedMod == 'Yakin Kelime'
                                   ? Colors.redAccent
                                   : Colors.grey,
-                              size: 28,
+                              size: 18,
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 3),
                             Text(
                               'Yakın Kelime',
                               style: TextStyle(
@@ -397,18 +566,18 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                                     ? Colors.white
                                     : Colors.grey,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 13,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 3),
                             Text(
-                              'İmpostor benzer kelime alır',
+                              'Yakın bir kelime görür',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: _selectedMod == 'Yakin Kelime'
                                     ? Colors.white70
                                     : Colors.grey,
-                                fontSize: 12,
+                                fontSize: 10,
                               ),
                             ),
                           ],
@@ -419,17 +588,25 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            const Text(
+              'Kategori',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
 
             DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
-              dropdownColor: const Color(0xFF1A1A2E),
+              dropdownColor: const Color(0xFF302427),
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: InputDecoration(
-                labelText: 'Kelime Kategorisi Seçin',
-                labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                 filled: true,
-                fillColor: const Color(0xFF1A1A2E),
+                fillColor: const Color(0xFF302427),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(
@@ -456,7 +633,17 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                 }
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            const Text(
+              'Impostor sayısı',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
 
             TextField(
               controller: _impostorCountController,
@@ -464,10 +651,8 @@ class _HostLoginScreenState extends State<HostLoginScreen>
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                labelText: 'İmpostor Sayısı (Örn: 2, 5...)',
-                labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                 filled: true,
-                fillColor: const Color(0xFF1A1A2E),
+                fillColor: const Color(0xFF302427),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(
@@ -481,7 +666,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             ElevatedButton(
               onPressed: () {
@@ -520,7 +705,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
                 elevation: 5,
               ),
               child: const Text(
-                'ODA OLUŞTUR',
+                'ODAYI KUR',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -536,7 +721,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
 
   Widget _buildJoinForm() {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(20.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -548,11 +733,11 @@ class _HostLoginScreenState extends State<HostLoginScreen>
               labelText: 'Oyuncu Adı',
               labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
               filled: true,
-              fillColor: const Color(0xFF1A1A2E),
+              fillColor: const Color(0xFF302427),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(
-                  color: Colors.blueAccent,
+                  color: Color(0xFFE08A6D),
                   width: 2,
                 ),
               ),
@@ -565,16 +750,21 @@ class _HostLoginScreenState extends State<HostLoginScreen>
           const SizedBox(height: 12),
           TextField(
             controller: _roomCodeController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(6),
+            ],
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'Oda Kodu',
+              labelText: '6 haneli oda kodu',
               labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
               filled: true,
-              fillColor: const Color(0xFF1A1A2E),
+              fillColor: const Color(0xFF302427),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: const BorderSide(
-                  color: Colors.blueAccent,
+                  color: Color(0xFFE08A6D),
                   width: 2,
                 ),
               ),
@@ -584,7 +774,7 @@ class _HostLoginScreenState extends State<HostLoginScreen>
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {
               String pName = _playerNameController.text.trim();
@@ -614,12 +804,12 @@ class _HostLoginScreenState extends State<HostLoginScreen>
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E2E5C),
+              backgroundColor: const Color(0xFF584047),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              side: const BorderSide(color: Color(0xFF00D2FF), width: 1),
+              side: const BorderSide(color: Color(0xFFE08A6D), width: 1),
             ),
             child: const Text(
               'ODAYA KATIL',

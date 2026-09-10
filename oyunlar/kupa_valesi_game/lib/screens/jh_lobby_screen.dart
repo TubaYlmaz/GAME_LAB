@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'jh_entry_screen.dart';
 import '../services/jh_socket_service.dart';
@@ -161,7 +162,7 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1B1C2F),
+        backgroundColor: const Color(0xFF352B26),
         title: const Text('Odadan cikilsin mi?'),
         content: const Text(
           'Odadan cikarsan oyuncu listesinden silinirsin. Tekrar girmek icin oda kodunu kullanman gerekir.',
@@ -183,6 +184,14 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
     _socket.socket?.emit('jh_leave_room', {'roomCode': _roomCode});
   }
 
+  Future<void> _copyRoomCode() async {
+    await Clipboard.setData(ClipboardData(text: _roomCode));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Oda kodu kopyalandı.')));
+  }
+
   Future<void> _onLeftRoom(dynamic _) async {
     await _socket.clearSession();
     if (!mounted) return;
@@ -199,216 +208,378 @@ class _JhLobbyScreenState extends State<JhLobbyScreen> {
         _roomStatus == 'waiting' &&
         _players.length >= 2 &&
         !_starting;
+    final lobbyHeight = (MediaQuery.sizeOf(context).height - 145)
+        .clamp(560.0, 720.0)
+        .toDouble();
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          Tooltip(
+            message: 'Odadan çık',
+            child: IconButton.filled(
+              onPressed: _leaving ? null : _leaveRoom,
+              icon: _leaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.logout_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF49372F),
+                foregroundColor: const Color(0xFFE7A08D),
+                side: const BorderSide(color: Color(0x99E7A08D)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
       body: JhBackground(
         child: SafeArea(
-          child: Center(
+          child: Align(
+            alignment: Alignment.topCenter,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
+              constraints: const BoxConstraints(maxWidth: 860),
               child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: JhPanel(
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.favorite_rounded,
-                            color: Color(0xFFFF426E),
-                            size: 32,
-                          ),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'KUPA VALES\u0130 LOB\u0130S\u0130',
-                              style: TextStyle(
-                                fontSize: 21,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0x22FFFFFF),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0x44FFFFFF),
-                              ),
-                            ),
-                            child: Text(
-                              _roomCode,
-                              style: const TextStyle(
-                                letterSpacing: 2,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Oda kodunu arkada\u015flar\u0131nla payla\u015f. Oyun ba\u015flad\u0131ktan sonra yeni oyuncu giremez.',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      ExpansionTile(
-                        tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-                        collapsedIconColor: const Color(0xFF77E6FF),
-                        iconColor: const Color(0xFF77E6FF),
-                        title: const Text(
-                          'OYUN AYARLARI',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .8,
-                          ),
-                        ),
-                        subtitle: Text(
-                          _modeLabel(_inspectionMode),
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _isHost && _roomStatus == 'waiting'
-                                ? Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: ['free', 'single', 'random']
-                                        .map(
-                                          (mode) => ChoiceChip(
-                                            label: Text(_modeLabel(mode)),
-                                            selected: _inspectionMode == mode,
-                                            onSelected: (_) =>
-                                                _setInspectionMode(mode),
-                                          ),
-                                        )
-                                        .toList(),
-                                  )
-                                : const Text(
-                                    'Bu ayarı yalnızca kurucu, oyun başlamadan önce değiştirebilir.',
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        height: 300,
-                        child: ListView.separated(
-                          itemCount: _players.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, index) {
-                            final player = _players[index];
-                            final female = player['gender'] == 'female';
-                            final host = player['isHost'] == true;
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0x55101524),
-                                borderRadius: BorderRadius.circular(15),
-                                border: Border.all(
-                                  color: host
-                                      ? const Color(0x66FF426E)
-                                      : const Color(0x33FFFFFF),
+                // Üst sağdaki "Oyunlara dön" düğmesi için ayrı alan bırak.
+                // Böylece düğme, lobi amblemi ve başlığıyla üst üste gelmez.
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: SizedBox(
+                  height: lobbyHeight,
+                  child: JhPanel(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            const JhSymbolMark(size: 38),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'SEMBOL AVI LOB\u0130S\u0130',
+                                style: TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: female
-                                        ? const Color(0xFF7654D9)
-                                        : const Color(0xFF1679B9),
-                                    child: Icon(
-                                      female ? Icons.person_2 : Icons.person,
-                                      color: Colors.white,
+                            ),
+                            Tooltip(
+                              message: 'Oda kodunu kopyala',
+                              child: InkWell(
+                                onTap: _copyRoomCode,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0x22FFFFFF),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0x44FFFFFF),
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      player['name']?.toString() ?? 'Oyuncu',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _roomCode,
+                                        style: const TextStyle(
+                                          letterSpacing: 2,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 7),
+                                      const Icon(
+                                        Icons.copy_rounded,
+                                        size: 17,
+                                        color: Color(0xFFE7C98A),
+                                      ),
+                                    ],
                                   ),
-                                  if (host)
-                                    const Chip(
-                                      label: Text('KURUCU'),
-                                      avatar: Icon(
-                                        Icons.star_rounded,
-                                        size: 16,
-                                      ),
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-                                ],
+                                ),
                               ),
-                            );
-                          },
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      if (_isHost && _players.length < 2)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            'Ba\u015flamak i\u00E7in en az 2 oyuncu gerekir.',
-                            style: TextStyle(color: Color(0xFFFFD166)),
+                        const SizedBox(height: 6),
+                        ExpansionTile(
+                          tilePadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
                           ),
-                        ),
-                      if (_roomStatus != 'waiting')
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            'Yeni oyun için tüm oyuncuların lobiye dönmesi bekleniyor ($_returnedCount / $_totalPlayers).',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xFFFFD166),
-                              fontWeight: FontWeight.w700,
+                          collapsedIconColor: const Color(0xFF9CAF96),
+                          iconColor: const Color(0xFF9CAF96),
+                          title: const Text(
+                            'OYUN AYARLARI',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .8,
                             ),
                           ),
-                        ),
-                      if (_roomStatus == 'finished' && !_hasReturnedToLobby)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: JhButton(
-                            label: 'LOBİYE DÖN',
-                            icon: Icons.home_rounded,
-                            onPressed: _returnToLobby,
-                            color: const Color(0xFF13B98B),
+                          subtitle: Text(
+                            _modeLabel(_inspectionMode),
+                            style: const TextStyle(color: Colors.white70),
                           ),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _isHost && _roomStatus == 'waiting'
+                                  ? Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: ['free', 'single', 'random']
+                                          .map(
+                                            (mode) => ChoiceChip(
+                                              label: Text(_modeLabel(mode)),
+                                              selected: _inspectionMode == mode,
+                                              onSelected: (_) =>
+                                                  _setInspectionMode(mode),
+                                            ),
+                                          )
+                                          .toList(),
+                                    )
+                                  : const Text(
+                                      'Bu ayarı yalnızca kurucu, oyun başlamadan önce değiştirebilir.',
+                                      style: TextStyle(color: Colors.white70),
+                                    ),
+                            ),
+                          ],
                         ),
-                      JhButton(
-                        label: _isHost
-                            ? 'OYUNU BA\u015ELAT'
-                            : 'KURUCU OYUNU BA\u015ELATACAK',
-                        icon: Icons.play_arrow_rounded,
-                        enabled: canStart,
-                        onPressed: _startGame,
-                        color: const Color(0xFF13B98B),
-                      ),
-                      if (_roomStatus != 'started') ...[
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.groups_rounded,
+                              color: Color(0xFF9CAF96),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'ODADAKİ OYUNCULAR',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: .7,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0x22789276),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0x66789276),
+                                ),
+                              ),
+                              child: Text(
+                                '${_players.length} oyuncu',
+                                style: const TextStyle(
+                                  color: Color(0xFFB9CCB5),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 10),
-                        TextButton.icon(
-                          onPressed: _leaving ? null : _leaveRoom,
-                          icon: const Icon(Icons.logout_rounded),
-                          label: Text(_leaving ? 'ÇIKILIYOR...' : 'ODADAN ÇIK'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFFFF8A9D),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 300),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: _players.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, index) {
+                              final player = _players[index];
+                              final host = player['isHost'] == true;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x5549372F),
+                                  borderRadius: BorderRadius.circular(15),
+                                  border: Border.all(
+                                    color: host
+                                        ? const Color(0x66FF426E)
+                                        : const Color(0x33FFFFFF),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              player['name']?.toString() ??
+                                                  'Oyuncu',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          if (host) ...[
+                                            const SizedBox(width: 9),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0x22E7A08D),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0x66E7A08D,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.star_rounded,
+                                                    size: 14,
+                                                    color: Color(0xFFE7A08D),
+                                                  ),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'KURUCU',
+                                                    style: TextStyle(
+                                                      color: Color(0xFFE7A08D),
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 9,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0x22789276),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: const Color(0x66789276),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 15,
+                                            color: Color(0xFFB9CCB5),
+                                          ),
+                                          SizedBox(width: 5),
+                                          Text(
+                                            'LOBİDE',
+                                            style: TextStyle(
+                                              color: Color(0xFFB9CCB5),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
+                        ),
+                        const Spacer(),
+                        if (_players.length < 2)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(13),
+                            decoration: BoxDecoration(
+                              color: const Color(0x18789276),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0x44789276),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.hourglass_top_rounded,
+                                  size: 19,
+                                  color: Color(0xFFE7C98A),
+                                ),
+                                SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'Oda hazır. Bir oyuncunun katılması bekleniyor.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Color(0xFFE7C98A)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (_roomStatus != 'waiting')
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Text(
+                              'Yeni oyun için tüm oyuncuların lobiye dönmesi bekleniyor ($_returnedCount / $_totalPlayers).',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFFE7C98A),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        if (_roomStatus == 'finished' && !_hasReturnedToLobby)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: JhButton(
+                              label: 'LOBİYE DÖN',
+                              icon: Icons.home_rounded,
+                              onPressed: _returnToLobby,
+                              color: const Color(0xFF789276),
+                            ),
+                          ),
+                        JhButton(
+                          label: _isHost
+                              ? 'OYUNU BA\u015ELAT'
+                              : 'KURUCU OYUNU BA\u015ELATACAK',
+                          icon: Icons.play_arrow_rounded,
+                          enabled: canStart,
+                          onPressed: _startGame,
+                          color: const Color(0xFF789276),
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

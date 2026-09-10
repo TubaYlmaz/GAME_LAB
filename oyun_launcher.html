@@ -1,306 +1,129 @@
 <!DOCTYPE html>
 <html lang="tr">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eğitim Merkezi - Oyun Dünyası</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <style>
-        /* =========================================================================
-           🎨 GÖZ YORMAYAN PREMIUM NEON KOYU TEMA (CSS)
-           ========================================================================= */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background: linear-gradient(135deg, #0F0F1E 0%, #13132B 50%, #0B0B1A 100%);
-            color: #FFFFFF;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
-        }
-
-        /* Başlık Alanı */
-        header {
-            text-align: center;
-            margin-bottom: 50px;
-        }
-
-        header h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            letter-spacing: 2px;
-            color: #00D2FF;
-            /* Neon turkuaz rengi */
-            text-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
-            margin-bottom: 10px;
-            text-transform: uppercase;
-        }
-
-        header p {
-            color: #8E8EAF;
-            font-size: 1.1rem;
-        }
-
-        /* 📊 Oyun Kartları Grid Düzeni */
-        .games-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 30px;
-            width: 100%;
-            max-width: 1200px;
-            padding: 10px;
-        }
-
-        /* 🎮 Oyun Kartı Tasarımı */
-        .game-card {
-            background: #16162E;
-            border: 1px solid #2E2E5C;
-            border-radius: 20px;
-            min-height: 348px;
-            padding: 30px 20px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: all 0.3s ease-in-out;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Keep the custom chance-game artwork at the same size as other cards. */
-        .chance-game-card {
-            aspect-ratio: auto;
-            padding: 0;
-            display: block;
-            border-color: #4B4679;
-            background: linear-gradient(145deg, #19182F 0%, #11111F 100%);
-        }
-
-        .chance-game-split {
-            position: absolute;
-            inset: 0 0 96px;
-            overflow: hidden;
-        }
-
-        .chance-game-split::after {
-            content: "";
-            position: absolute;
-            z-index: 1;
-            inset: 0;
-            background: linear-gradient(
-                to bottom right,
-                transparent 49.55%,
-                #8F6BFF 49.75%,
-                #44B7FF 50%,
-                #FF754B 50.25%,
-                transparent 50.45%
-            );
-            box-shadow: 0 0 14px rgba(143, 107, 255, .7);
-            pointer-events: none;
-        }
-
-        .chance-side {
-            position: absolute;
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            font-size: 1.15rem;
-            line-height: 1.05;
-            font-weight: 800;
-            letter-spacing: 1px;
-        }
-
-        .chance-side i { font-size: 2.8rem; }
-        .chance-coin {
-            top: 30px;
-            left: 30px;
-            align-items: flex-start;
-            background: linear-gradient(135deg, #A575FF, #35BAFF);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .chance-dice {
-            right: 30px;
-            bottom: 30px;
-            align-items: flex-end;
-            text-align: right;
-            background: linear-gradient(135deg, #FF4D7D, #FF9E34);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .chance-game-card .chance-play-btn {
-            position: absolute;
-            z-index: 3;
-            right: 24px;
-            bottom: 24px;
-            left: 24px;
-            width: auto;
-            margin: 0;
-        }
-
-        /* Hover durumunda kartın etrafında turkuaz neon parlasın */
-        .game-card:hover {
-            transform: translateY(-8px);
-            border-color: #00D2FF;
-            box-shadow: 0 10px 25px rgba(0, 210, 255, 0.15);
-        }
-
-        /* İkon Alanı */
-        .game-icon-container {
-            width: 90px;
-            height: 90px;
-            background: #1E1E38;
-            border: 2px dashed #2E2E5C;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            transition: all 0.3s ease;
-        }
-
-        .game-card:hover .game-icon-container {
-            border-color: #00D2FF;
-            background: rgba(0, 210, 255, 0.05);
-        }
-
-        .game-icon-container i {
-            font-size: 2.2rem;
-            color: #8E8EAF;
-            transition: color 0.3s ease;
-        }
-
-        .game-card:hover .game-icon-container i {
-            color: #00D2FF;
-        }
-
-        /* Oyun Adı */
-        .game-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-            color: #FFFFFF;
-            margin-bottom: 12px;
-        }
-
-        /* Oyun Açıklaması */
-        .game-desc {
-            font-size: 0.9rem;
-            color: #8E8EAF;
-            line-height: 1.5;
-            margin-bottom: 25px;
-            flex-grow: 1;
-            /* Butonları aynı çizgide hizalar kanka */
-        }
-
-        /* Oyna Butonu */
-        .play-btn {
-            background: #00D2FF;
-            color: #0B0B1A;
-            border: none;
-            padding: 12px 35px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            border-radius: 12px;
-            cursor: pointer;
-            text-decoration: none;
-            width: 100%;
-            letter-spacing: 1px;
-            transition: all 0.2s ease-in-out;
-            display: inline-block;
-            text-transform: uppercase;
-        }
-
-        .play-btn:hover {
-            background: #33E0FF;
-            box-shadow: 0 0 15px rgba(0, 210, 255, 0.4);
-        }
-
-        .play-btn:active {
-            transform: scale(0.98);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dijital Oyun Atölyesi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root{--bg:#f5efe7;--card:#fffaf4;--text:#403631;--muted:#7b6f68;--line:#ded2c5;--terra:#c9785c;--terra2:#a95f49;--sage:#91a58a}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;color:var(--text);font-family:Poppins,sans-serif;background:radial-gradient(circle at 8% 4%,#c9785c29,transparent 25%),radial-gradient(circle at 92% 18%,#91a58a2e,transparent 28%),var(--bg)}
+    .shell{width:min(1180px,calc(100% - 40px));margin:auto;padding:52px 0 64px} header{max-width:760px;margin-bottom:46px}
+    h1{margin:0 0 12px;font-size:clamp(2rem,5vw,3.65rem);line-height:1.08;letter-spacing:-.04em}header p{margin:0;color:var(--muted);font-size:clamp(1rem,2vw,1.15rem)}
+    section+section{margin-top:50px}.section-head{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}.section-head h2{margin:0;font-size:1.45rem}.section-head p{margin:0;color:var(--muted);font-size:.9rem}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:20px}.card{min-height:330px;padding:26px;display:flex;flex-direction:column;border-radius:22px;background:#fffaf4e8;border:1px solid var(--line);box-shadow:0 14px 35px #57423514;transition:.22s}.card:hover{transform:translateY(-5px);box-shadow:0 20px 42px #57423524;border-color:#c8b5a6}
+    .icon{width:64px;height:64px;display:grid;place-items:center;margin-bottom:24px;border-radius:18px;color:var(--terra2);background:#f5dfd5;font-size:1.65rem}.card:nth-child(2n) .icon{color:#61755e;background:#dfe8dc}.card:nth-child(3n) .icon{color:#8a692c;background:#f4e7c7}
+    .title{margin:0 0 10px;font-size:1.2rem}.desc{margin:0 0 24px;color:var(--muted);font-size:.9rem;line-height:1.65;flex:1}.btn{width:100%;padding:12px 18px;color:#fffaf4;background:var(--terra);border-radius:12px;font-size:.88rem;font-weight:700;text-align:center;text-decoration:none;transition:.2s}.btn:hover{background:var(--terra2)}
+    .tools{max-width:600px}.tool{min-height:auto;display:grid;grid-template-columns:68px 1fr auto;align-items:center;gap:20px;padding:22px}.tool .icon{margin:0;color:#61755e;background:#dfe8dc}.tool .desc{margin:5px 0 0}.tool .btn{width:auto;white-space:nowrap;background:var(--sage);color:#263024}.status{grid-column:1/-1;padding:22px;color:var(--muted);text-align:center}
+    /* Daha enerjik, sıcak ve oyuna davet eden ana ekran */
+    body{background:linear-gradient(145deg,#fff8ef 0%,#f6ecff 48%,#fff1e4 100%);overflow-x:hidden}
+    .shell{position:relative;width:min(1220px,calc(100% - 40px));padding-top:30px}
+    .shell::before,.shell::after{content:"";position:fixed;z-index:-1;border-radius:50%;filter:blur(2px);opacity:.65}
+    .shell::before{width:340px;height:340px;top:-160px;right:-100px;background:#ffd4c4}
+    .shell::after{width:300px;height:300px;bottom:-150px;left:-100px;background:#d8d2ff}
+    header{position:relative;max-width:none;margin-bottom:52px;padding:52px 56px;overflow:hidden;border:1px solid #ead7cf;border-radius:34px;background:linear-gradient(120deg,#fff0e6 0%,#f4e9ff 52%,#e9f3df 100%);box-shadow:0 22px 60px #6c4d4320}
+    header::before{content:"";position:absolute;right:58px;top:38px;width:118px;height:118px;border-radius:34px;background:linear-gradient(145deg,#f5bfae,#d9c8f1);transform:rotate(12deg);box-shadow:52px 70px 0 -28px #b8ceb0,-54px 92px 0 -38px #e8ba65}
+    header::after{content:"";position:absolute;right:92px;top:72px;width:46px;height:46px;border:10px solid #fff8f1;border-radius:50%;opacity:.9}
+    .eyebrow{display:inline-flex;margin-bottom:14px;padding:7px 13px;border-radius:999px;color:#854f42;background:#ffffffad;border:1px solid #e7cfc5;font-size:.76rem;font-weight:700;letter-spacing:.1em}
+    h1{max-width:720px;font-size:clamp(2.35rem,5vw,4.2rem);color:#392f42}
+    header p{max-width:610px;color:#6c5d68;font-weight:500}
+    .section-head{align-items:center;border:0}.section-head h2{font-size:1.65rem}.section-head p{padding:8px 13px;border-radius:999px;background:#ffffff8c}
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+    .card{--accent:#d57960;position:relative;isolation:isolate;min-height:320px;padding:30px;overflow:hidden;border:0;border-radius:28px;background:linear-gradient(145deg,#ffe8df,#ffd8cc);box-shadow:0 18px 38px #76574c20}
+    .card:hover{transform:translateY(-7px) rotate(-.25deg);border:0;box-shadow:0 25px 48px #76574c2c}
+    .card.impostor_game{--accent:#b65f4c;background:linear-gradient(145deg,#ffe2d7,#f7c6b7)}
+    .card.kart_zil_game{--accent:#9b721c;background:linear-gradient(145deg,#fff3bd,#f8dc7d)}
+    .card.kupa_valesi_game{--accent:#a85472;background:linear-gradient(145deg,#ffe5ef,#f5bfd2)}
+    .card.vampir_koylu_game{--accent:#526f57;background:linear-gradient(145deg,#e8f2df,#bfd7bd)}
+    .icon{width:92px;height:92px;margin-bottom:28px;border-radius:27px;color:var(--accent)!important;background:#fffaf4b8!important;border:1px solid #ffffffc4;font-size:2.4rem;box-shadow:0 12px 26px #694f4018}
+    .title{font-size:1.45rem;color:#352d33}.desc{max-width:78%;color:#62575c;font-size:.94rem;font-weight:500}
+    .btn{position:relative;background:var(--accent);box-shadow:0 10px 22px #61423824}.btn:hover{background:var(--accent);filter:brightness(.92);transform:translateY(-2px)}
+    .tools{max-width:none;grid-template-columns:1fr}.tool{--accent:#687e5f;min-height:150px;grid-template-columns:86px 1fr auto;background:linear-gradient(120deg,#e4f0dc,#f6e8c9 55%,#f8d8c9)}
+    .tool .icon{width:72px;height:72px}.tool .btn{background:#657b5d;color:white;padding-inline:26px}
+    @media(max-width:760px){.shell{width:calc(100% - 28px);padding-top:18px}header{padding:38px 28px 125px}header::before{right:42px;top:auto;bottom:32px;width:72px;height:72px;border-radius:22px;box-shadow:38px 45px 0 -18px #b8ceb0,-42px 48px 0 -22px #e8ba65}header::after{right:61px;top:auto;bottom:50px;width:28px;height:28px;border-width:7px}.section-head{align-items:start;flex-direction:column;gap:7px}.section-head p{padding:0;background:transparent}.grid{grid-template-columns:1fr}.card{min-height:300px}.desc{max-width:88%}.tool{grid-template-columns:64px 1fr}.tool .icon{width:60px;height:60px}.tool .btn{grid-column:1/-1;width:100%}}
+    /* Sade, editoryal ve şablon hissinden uzak son görünüm */
+    body{background:#f2eee5;color:#292d2a}
+    .shell{width:min(1160px,calc(100% - 40px));padding:36px 0 70px}
+    .shell::before,.shell::after{display:none}
+    header{max-width:none;margin-bottom:58px;padding:48px 52px;border:0;border-left:9px solid #de765b;border-radius:10px;background:#294a42;box-shadow:0 12px 28px #263d3626}
+    header::before,header::after{display:none}
+    .eyebrow{display:none}
+    h1{margin:0 0 10px;color:#fffaf0;font-size:clamp(2.25rem,5vw,4rem);letter-spacing:-.045em}
+    header p{color:#dce7de;font-weight:400}
+    .section-head{align-items:end;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #353b37}
+    .section-head h2{font-size:1.55rem;letter-spacing:-.02em}
+    .section-head p{padding:0;border-radius:0;background:transparent;color:#6c706c}
+    section+section{margin-top:56px}
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+    .card,.card.impostor_game,.card.kart_zil_game,.card.kupa_valesi_game,.card.vampir_koylu_game{--accent:#c96852;min-height:275px;padding:28px;border:1px solid #d7d1c6;border-top:6px solid var(--accent);border-radius:12px;background:#fffdf8;box-shadow:0 7px 18px #453d3214}
+    .card.impostor_game{--accent:#c96852}.card.kart_zil_game{--accent:#d09a25}.card.kupa_valesi_game{--accent:#b05b78}.card.vampir_koylu_game{--accent:#567a61}
+    .card:hover{transform:translateY(-3px);border-color:#c9c1b5;border-top-color:var(--accent);box-shadow:0 12px 24px #453d3220}
+    .icon,.card:nth-child(2n) .icon,.card:nth-child(3n) .icon{width:58px;height:58px;margin-bottom:22px;border:0;border-radius:8px;color:#fff!important;background:var(--accent)!important;box-shadow:none;font-size:1.45rem}
+    .title{margin-bottom:8px;color:#292d2a;font-size:1.3rem}
+    .desc{max-width:90%;color:#626762;font-size:.91rem;font-weight:400;line-height:1.58}
+    .btn{align-self:flex-start;width:auto;min-width:150px;padding:11px 22px;border:2px solid var(--accent);border-radius:7px;background:transparent;color:var(--accent);box-shadow:none;text-align:center}
+    .btn:hover{background:var(--accent);color:#fff;filter:none;transform:none}
+    .tools{max-width:none;grid-template-columns:1fr}
+    .tool{--accent:#567a61;min-height:135px;grid-template-columns:62px 1fr auto;padding:24px 28px;border-top-width:1px;border-left:6px solid var(--accent);background:#fffdf8}
+    .tool .icon{width:52px;height:52px;margin:0}.tool .desc{margin:4px 0 0}.tool .btn{background:transparent;color:var(--accent);padding-inline:22px}.tool .btn:hover{background:var(--accent);color:#fff}
+    @media(max-width:760px){.shell{width:calc(100% - 28px);padding-top:20px}header{padding:34px 28px;border-left-width:7px}.section-head{align-items:start;flex-direction:column;gap:6px}.grid{grid-template-columns:1fr}.card{min-height:260px}.desc{max-width:100%}.tool{grid-template-columns:54px 1fr}.tool .btn{grid-column:1/-1;width:100%}}
+    /* Oyun afişleriyle hazırlanan vitrin görünümü */
+    body{background:#f5f0e8;color:#242522}
+    .shell{padding-top:28px}
+    header{display:flex;align-items:end;justify-content:space-between;gap:28px;margin-bottom:48px;padding:18px 0 24px;border:0;border-bottom:4px solid #242522;border-radius:0;background:transparent;box-shadow:none}
+    h1{margin:0;color:#242522;font-size:clamp(2.35rem,5vw,4.6rem);line-height:1}
+    header p{max-width:360px;margin:0 0 5px;color:#64645e;text-align:right}
+    .section-head{border-bottom:1px solid #bbb5aa}.section-head h2{font-size:1.7rem}.section-head p{font-size:.88rem}
+    .grid{gap:26px}
+    .card,.card.impostor_game,.card.kart_zil_game,.card.kupa_valesi_game,.card.vampir_koylu_game{display:block;min-height:0;padding:0;overflow:hidden;border:1px solid #d0c9bd;border-radius:14px;background:#fffdf8;box-shadow:0 10px 0 #ded7cb}
+    .card:hover{transform:translateY(-4px);border-color:#a9a195;box-shadow:0 14px 0 #d7cfc2}
+    .poster{position:relative;height:190px;display:flex;align-items:center;justify-content:center;overflow:hidden;color:white}
+    .poster i{font-size:4.8rem;filter:drop-shadow(0 7px 0 #00000020)}
+    .poster-label{position:absolute;left:18px;top:16px;padding:5px 9px;border:1px solid #ffffff8f;border-radius:4px;color:white;background:#00000024;font-size:.7rem;font-weight:700;letter-spacing:.12em}
+    .impostor_game .poster{justify-content:space-between;gap:16px;padding:0 28px;background:linear-gradient(135deg,#24191c,#4a2d32)}.impostor_game .poster-word{font-size:2.35rem;font-weight:800;letter-spacing:.025em;color:#f7e6d5}.impostor_game .poster i{flex:0 0 auto;color:#e78d70;font-size:4rem}.impostor_game .poster-label{border-color:#e78d7080;color:#f7e6d5;background:#1b121580}
+    .kart_zil_game .poster{justify-content:space-between;gap:12px;padding:0 28px;background:#e7ad27}.kart_zil_game .poster-word{color:#fff8dc;font-size:2rem;font-weight:800;line-height:1.05;text-shadow:0 3px 8px #795b1838}.kart-zil-visual{display:flex;align-items:center;justify-content:flex-end}.kart-zil-cards{display:flex;align-items:center}.kart-zil-cards b{width:58px;height:82px;display:grid;place-items:center;margin-left:-10px;border:3px solid #fff;border-radius:7px;color:#fff;font-size:1.55rem;box-shadow:0 6px 0 #87641140}.kart-zil-cards b:nth-child(1){background:#d2574e;transform:rotate(-10deg)}.kart-zil-cards b:nth-child(2){background:#426ead}.kart-zil-cards b:nth-child(3){background:#4f8a61;transform:rotate(10deg)}.kart_zil_game .poster i{margin-left:18px;color:#fff7d7}
+    .kupa_valesi_game .poster{justify-content:space-between;padding:0 30px;background:linear-gradient(135deg,#6f5142,#84967e)}.kupa_valesi_game .symbol-title{color:#f4ebdd;font-size:2.25rem;font-weight:800;letter-spacing:.03em}.kupa_valesi_game .symbol-set{display:grid;grid-template-columns:repeat(2,52px);gap:8px}.kupa_valesi_game .symbol-set b{height:52px;display:grid;place-items:center;border:1px solid #f4ebdd80;border-radius:9px;background:#2b242055;color:#f4ebdd;font-size:1.8rem}.kupa_valesi_game .symbol-set b:nth-child(1){color:#e7c98a}.kupa_valesi_game .symbol-set b:nth-child(2){color:#c7d2c2}.kupa_valesi_game .symbol-set b:nth-child(3){color:#e8a08d}
+    .vampir_koylu_game .poster{justify-content:flex-start;padding-left:34px;background-image:linear-gradient(90deg,#101b1be8,#101b1b60),url('/oyunlar/vampir_koylu_game/web/assets/assets/images/arkaplan.png');background-size:cover;background-position:center 43%}.vampir_koylu_game .poster-word{font-size:2.3rem;font-weight:800;line-height:1.05;color:#f2eee1;text-shadow:0 3px 10px #000}
+    .card-body{padding:24px 26px 26px}.title{font-size:1.35rem}.desc{max-width:none;min-height:58px;margin-bottom:20px}.btn{width:100%;border:0;border-radius:7px;background:#292c29!important;color:#fff!important}.btn:hover{background:#111!important}
+    .tool{display:grid;grid-template-columns:56px 1fr auto;padding:22px 24px;border:1px solid #d0c9bd;border-left:6px solid #667b5f;border-radius:10px;box-shadow:0 7px 0 #ded7cb}.tool .btn{width:auto;min-width:130px;background:#667b5f!important}.tool .icon{width:52px;height:52px;margin:0;border-radius:7px}.tool .card-body{padding:0}
+    @media(max-width:760px){header{display:block;padding-bottom:22px}header p{margin-top:14px;text-align:left}.poster{height:175px}.card-body{padding:21px}.tool{grid-template-columns:52px 1fr}.tool .btn{grid-column:1/-1;width:100%}}
+    /* Kartların daha dengeli ve kolay taranabilir son düzeni */
+    .grid{gap:22px;align-items:stretch}
+    .card,.card.impostor_game,.card.kart_zil_game,.card.kupa_valesi_game,.card.vampir_koylu_game{display:flex;min-height:0;height:350px;flex-direction:column;border-radius:16px;box-shadow:0 8px 0 #ded7cb}
+    .poster{flex:0 0 158px;height:158px}
+    .poster i{font-size:3.8rem}
+    .impostor_game .poster-word,.kupa_valesi_game .symbol-title,.vampir_koylu_game .poster-word{font-size:2rem}
+    .kart-zil-cards b{width:50px;height:70px;font-size:1.3rem}
+    .kupa_valesi_game .symbol-set{grid-template-columns:repeat(2,44px);gap:7px}
+    .kupa_valesi_game .symbol-set b{height:44px;font-size:1.5rem}
+    .card-body{display:flex;min-height:0;padding:20px 24px 22px;flex:1;flex-direction:column}
+    .title{margin-bottom:6px;font-size:1.25rem}
+    .desc{min-height:0;margin-bottom:15px;font-size:.88rem;line-height:1.5;flex:1}
+    .card .btn{align-self:flex-start;width:auto;min-width:132px;padding:10px 18px}
+    .tools{width:min(100%,620px);max-width:620px}
+    .tool{min-height:126px;padding:20px 22px;grid-template-columns:56px 1fr auto;border-radius:14px}
+    .tool .card-body{display:block;padding:0}.tool .title{margin:0}.tool .desc{margin:5px 0 0;line-height:1.45}
+    .tool .btn{align-self:center;min-width:120px;padding:10px 16px}
+    @media(max-width:760px){.card{height:auto;min-height:320px}.poster{flex-basis:155px}.card .btn{width:100%}.tools{max-width:none}.tool{grid-template-columns:52px 1fr}.tool .btn{grid-column:1/-1;width:100%}}
+  </style>
 </head>
-
-<body>
-
-    <header>
-        <h1>Eğitim Merkezi Oyunları</h1>
-        <p>Eğlenirken öğrenmeye hazır mısın? İstediğin oyunu seç ve hemen başla!</p>
-    </header>
-
-    <main class="games-grid" id="gamesContainer">
-    </main>
-
+<body><div class="shell">
+  <header><span class="eyebrow">OYUNUNU SEÇ</span><h1>Dijital Oyun Atölyesi</h1><p>Eğlenceli dijital deneyimleri keşfet ve hemen başla.</p></header>
+  <main>
+    <section><div class="section-head"><h2>Oyunlar</h2><p>İstediğin oyunu seç ve oynamaya başla.</p></div><div class="grid" id="games"></div></section>
+    <section><div class="section-head"><h2>Mini Araçlar</h2><p>Hızlı ve rastgele sonuçlar için yardımcı araçlar.</p></div><div class="grid tools" id="tools"></div></section>
+  </main>
+</div>
 <script>
-    // Sunucudan aktif oyunları dinamik olarak çeken fonksiyon
-    function dinamikOyunlariYukle() {
-        const container = document.getElementById("gamesContainer");
-        container.innerHTML = "<p style='color: #8E8EAF; grid-column: 1/-1; text-align: center;'>Oyunlar yükleniyor kanka...</p>";
-
-        fetch('/api/aktif-oyunlar')
-            .then(response => response.json())
-            .then(oyunlar => {
-                container.innerHTML = "";
-                
-                if (oyunlar.length === 0) {
-                    container.innerHTML = "<p style='color: #8E8EAF; grid-column: 1/-1; text-align: center;'>Henüz aktif bir oyun bulunamadı kanka.</p>";
-                    return;
-                }
-
-                oyunlar.forEach(oyun => {
-                    const card = document.createElement("div");
-                    card.className = "game-card";
-                    const oyunGidisLinki = window.location.origin + oyun.alt_yol;
-
-                    if (oyun.id === "sans_oyunlari_game") {
-                        card.classList.add("chance-game-card");
-                        card.innerHTML = `
-                            <div class="chance-game-split">
-                                <div class="chance-side chance-coin">
-                                    <i class="fa-solid fa-coins"></i>
-                                    <span>YAZI<br>TURA</span>
-                                </div>
-                                <div class="chance-side chance-dice">
-                                    <i class="fa-solid fa-dice"></i>
-                                    <span>ZAR<br>AT</span>
-                                </div>
-                            </div>
-                            <a href="${oyunGidisLinki}" class="play-btn chance-play-btn">OYNA</a>
-                        `;
-                    } else {
-                        card.innerHTML = `
-                            <div class="game-icon-container">
-                                <i class="${oyun.ikon_class}"></i>
-                            </div>
-                            <h2 class="game-title">${oyun.isim}</h2>
-                            <p class="game-desc">${oyun.aciklama}</p>
-                            <a href="${oyunGidisLinki}" class="play-btn">Oyna</a>
-                        `;
-                    }
-                    container.appendChild(card);
-                });
-            })
-            .catch(err => {
-                console.error("Oyunlar yüklenirken patladı:", err);
-                container.innerHTML = "<p style='color: #ff4a4a; grid-column: 1/-1; text-align: center;'>Oyun listesi sunucudan alınamadı!</p>";
-            });
-    }
-
-    document.addEventListener("DOMContentLoaded", dinamikOyunlariYukle);
-</script>
-</body>
-
-</html>
+const games=document.querySelector('#games'),tools=document.querySelector('#tools');games.innerHTML='<p class="status">Oyunlar yükleniyor...</p>';
+const poster=o=>({
+  impostor_game:`<div class="poster"><span class="poster-label">GİZLİ KELİME</span><strong class="poster-word">IMPOSTOR</strong><i class="fa-solid fa-user-secret"></i></div>`,
+  kart_zil_game:`<div class="poster"><span class="poster-label">KART OYUNU</span><strong class="poster-word">KART<br>&amp; ZİL</strong><span class="kart-zil-visual"><span class="kart-zil-cards"><b>3</b><b>7</b><b>5</b></span><i class="fa-solid fa-bell"></i></span></div>`,
+  kupa_valesi_game:`<div class="poster"><span class="poster-label">GİZLİ ODA</span><strong class="symbol-title">SEMBOL<br>AVI</strong><span class="symbol-set"><b>☀</b><b>☾</b><b>★</b><b>☁</b></span></div>`,
+  vampir_koylu_game:`<div class="poster"><span class="poster-label">GİZLİ ROL</span><strong class="poster-word">VAMPİR<br>KÖYLÜ</strong></div>`
+}[o.id]||`<div class="poster"><i class="${o.ikon_class}"></i></div>`);
+const card=o=>{const metin=o.id==='impostor_game'?{isim:'Impostor',aciklama:'Gizli kelimeyi çöz, ipuçlarını takip et ve aranızdaki Impostor’u bul.'}:o.id==='kupa_valesi_game'?{isim:'Sembol Avı',aciklama:'İpuçlarını değerlendir, gizli sembolünü bul ve doğru tahmini yap.'}:{isim:o.isim,aciklama:o.aciklama};return `<article class="card ${o.id}">${poster(o)}<div class="card-body"><h3 class="title">${metin.isim}</h3><p class="desc">${metin.aciklama}</p><a class="btn" href="${location.origin+o.alt_yol}">OYUNU AÇ</a></div></article>`};
+const tool=o=>`<article class="tool"><div class="icon"><i class="fa-solid fa-dice"></i></div><div class="card-body"><h3 class="title">Zar &amp; Yazı-Tura</h3><p class="desc">Karar vermek veya rastgele sonuç oluşturmak için zar at ya da yazı-tura çevir.</p></div><a class="btn" href="${location.origin+o.alt_yol}">ARACI AÇ</a></article>`;
+fetch('/api/aktif-oyunlar').then(r=>{if(!r.ok)throw Error();return r.json()}).then(list=>{games.innerHTML='';tools.innerHTML='';list.forEach(o=>o.id==='sans_oyunlari_game'?tools.insertAdjacentHTML('beforeend',tool(o)):games.insertAdjacentHTML('beforeend',card(o)));if(!tools.children.length)tools.innerHTML='<p class="status">Henüz aktif bir araç bulunamadı.</p>'}).catch(()=>games.innerHTML='<p class="status">Oyun listesi şu anda alınamıyor.</p>');
+</script></body></html>

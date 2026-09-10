@@ -6,4 +6,6 @@ class KzSoundService {
   Future<void> unlock() async {}
   Future<void> playBell() async {}
   Future<void> playYourTurn() async {}
+  Future<void> playCardDraw() async {}
+  Future<void> playCardDrop() async {}
 }
